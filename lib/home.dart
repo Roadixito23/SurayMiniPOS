@@ -1,724 +1,429 @@
 import 'package:flutter/material.dart';
-import 'dart:io';
-import 'dart:convert';
-import 'package:path_provider/path_provider.dart';
+import 'package:flutter/services.dart'; // Para HapticFeedback
+import 'dart:math' as math;
 
-class HomeScreen extends StatefulWidget {
-  @override
-  _HomeScreenState createState() => _HomeScreenState();
-}
-
-class _HomeScreenState extends State<HomeScreen> {
-  int _currentIndex = 0;
-
-  final List<Widget> _pages = [
-    HomePage(),
-    SearchPage(),
-    ProfilePage(),
-  ];
-
+class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_currentIndex == 0 ? 'Inicio' : _currentIndex == 1 ? 'Horarios' : 'Datos Carga'),
+        title: Text(
+          'Suray MiniPOS',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            letterSpacing: 0.5,
+          ),
+        ),
         centerTitle: true,
-      ),
-      body: _pages[_currentIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        items: [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Inicio',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.schedule),
-            label: 'Horarios',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.mail),
-            label: 'Datos Carga',
+        elevation: 0,
+        backgroundColor: Theme.of(context).primaryColor,
+        actions: [
+          IconButton(
+            icon: Icon(Icons.person),
+            onPressed: () {},
+            tooltip: 'Perfil',
           ),
         ],
       ),
+      body: HomePage(),
     );
   }
 }
 
-// Páginas para cada sección del BottomNavigationBar
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.home, size: 80.0, color: Colors.blue),
-          SizedBox(height: 20.0),
-          Text(
-            'Página de Inicio',
-            style: TextStyle(fontSize: 24.0),
-          ),
-          SizedBox(height: 30.0),
-          ElevatedButton(
-            onPressed: () {
-              // Navegar a la pantalla de venta de bus
-              Navigator.pushNamed(context, '/venta_bus');
-            },
-            style: ElevatedButton.styleFrom(
-              padding: EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-              minimumSize: Size(250, 50),
-            ),
-            child: Text('Generar Venta Bus', style: TextStyle(fontSize: 16)),
-          ),
-          SizedBox(height: 20.0),
-          ElevatedButton(
-            onPressed: () {
-              // Navegar a la pantalla de venta de cargo
-              Navigator.pushNamed(context, '/venta_cargo');
-            },
-            style: ElevatedButton.styleFrom(
-              padding: EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-              minimumSize: Size(250, 50),
-              backgroundColor: Colors.orange,
-            ),
-            child: Text('Generar Venta Cargo', style: TextStyle(fontSize: 16)),
-          ),
-        ],
-      ),
-    );
-  }
+  _HomePageState createState() => _HomePageState();
 }
 
-class SearchPage extends StatefulWidget {
-  @override
-  _SearchPageState createState() => _SearchPageState();
-}
-
-class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateMixin {
-  // Controlador para las pestañas
-  late TabController _tabController;
-
-  // Lista de horarios de salida de buses
-  List<Map<String, String>> horarios = [];
-
-  // Controladores para los campos de texto
-  final TextEditingController horaController = TextEditingController();
-
-  // Indicador de carga
-  bool isLoading = true;
-  bool mostrarFormulario = false;
+class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  final List<GlobalKey> _buttonKeys = List.generate(5, (_) => GlobalKey());
+  bool _showButtons = false;
 
   @override
   void initState() {
     super.initState();
-    // Inicializar el controlador de pestañas con 2 pestañas (Aysen y Coyhaique)
-    _tabController = TabController(length: 2, vsync: this);
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1200),
+      vsync: this,
+    );
 
-    // Cargar horarios guardados cuando se inicializa el estado
-    cargarHorarios();
+    Future.delayed(Duration(milliseconds: 200), () {
+      setState(() {
+        _showButtons = true;
+      });
+      _controller.repeat(); // Animación infinita
+    });
   }
 
   @override
   void dispose() {
-    _tabController.dispose();
-    horaController.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
-  // Método para obtener la ruta del archivo local
-  Future<String> get _localPath async {
-    final directory = await getApplicationDocumentsDirectory();
-    return directory.path;
-  }
+  void _animateButtonTap(int index) {
+    final renderBox = _buttonKeys[index].currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox != null) {
+      final position = renderBox.localToGlobal(Offset.zero);
+      final size = renderBox.size;
 
-  // Método para obtener el archivo local
-  Future<File> get _localFile async {
-    final path = await _localPath;
-    return File('$path/horarios.json');
-  }
+      final overlay = Overlay.of(context);
+      late OverlayEntry entry;
 
-  // Método para guardar horarios en el archivo local
-  Future<void> guardarHorarios() async {
-    try {
-      final file = await _localFile;
-      String data = jsonEncode(horarios);
-      await file.writeAsString(data);
-
-      // Mostrar mensaje de éxito
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Horarios guardados correctamente'),
-          duration: Duration(seconds: 1),
+      entry = OverlayEntry(
+        builder: (context) => Positioned(
+          left: position.dx,
+          top: position.dy,
+          width: size.width,
+          height: size.height,
+          child: TweenAnimationBuilder(
+            tween: Tween<double>(begin: 1.0, end: 1.2),
+            duration: Duration(milliseconds: 200),
+            builder: (context, double value, child) {
+              return Transform.scale(
+                scale: value,
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.blue.withOpacity(0.3),
+                        blurRadius: 20,
+                        spreadRadius: 5,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+            onEnd: () {
+              entry.remove();
+            },
+          ),
         ),
       );
-    } catch (e) {
-      // Mostrar mensaje de error
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al guardar horarios: $e')),
-      );
+
+      overlay.insert(entry);
     }
-  }
-
-  // Método para cargar horarios desde el archivo local
-  Future<void> cargarHorarios() async {
-    setState(() {
-      isLoading = true;
-    });
-
-    try {
-      final file = await _localFile;
-
-      // Verificar si el archivo existe
-      if (await file.exists()) {
-        String contents = await file.readAsString();
-        List<dynamic> data = jsonDecode(contents);
-
-        // Convertir los datos JSON a la lista de horarios
-        List<Map<String, String>> horariosTemp = [];
-        for (var item in data) {
-          horariosTemp.add({
-            'hora': item['hora'] ?? '',
-            'destino': item['destino'] ?? '',
-          });
-        }
-
-        setState(() {
-          horarios = horariosTemp;
-          isLoading = false;
-        });
-      } else {
-        // Si el archivo no existe, inicializar con algunos valores predeterminados
-        setState(() {
-          horarios = [
-            {'hora': '08:00', 'destino': 'Aysen'},
-            {'hora': '10:30', 'destino': 'Coyhaique'},
-            {'hora': '13:45', 'destino': 'Aysen'},
-            {'hora': '15:30', 'destino': 'Coyhaique'},
-            {'hora': '18:00', 'destino': 'Aysen'},
-          ];
-          isLoading = false;
-        });
-
-        // Guardar estos valores predeterminados
-        await guardarHorarios();
-      }
-    } catch (e) {
-      // En caso de error, inicializar con valores predeterminados
-      setState(() {
-        horarios = [
-          {'hora': '08:00', 'destino': 'Aysen'},
-          {'hora': '10:30', 'destino': 'Coyhaique'},
-          {'hora': '13:45', 'destino': 'Aysen'},
-          {'hora': '15:30', 'destino': 'Coyhaique'},
-          {'hora': '18:00', 'destino': 'Aysen'},
-        ];
-        isLoading = false;
-      });
-
-      // Mostrar mensaje de error
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al cargar horarios: $e')),
-      );
-    }
-  }
-
-  // Filtrar horarios por destino
-  List<Map<String, String>> obtenerHorariosPorDestino(String destino) {
-    return horarios.where((horario) => horario['destino'] == destino).toList();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // TabBar para seleccionar entre Aysen y Coyhaique
-        Material(
-          elevation: 4.0,
-          color: Colors.blue,
-          child: TabBar(
-            controller: _tabController,
-            indicatorColor: Colors.white,
-            labelColor: Colors.white,
-            unselectedLabelColor: Colors.white70,
-            tabs: [
-              Tab(
-                text: 'Desde Aysen',
-                icon: Icon(Icons.directions_bus),
-              ),
-              Tab(
-                text: 'Desde Coyhaique',
-                icon: Icon(Icons.directions_bus),
-              ),
-            ],
-          ),
-        ),
-
-        // Contenido principal
-        Expanded(
-          child: isLoading
-              ? Center(child: CircularProgressIndicator())
-              : TabBarView(
-            controller: _tabController,
-            children: [
-              // Pestaña de Aysen
-              _construirTabContenido('Aysen'),
-
-              // Pestaña de Coyhaique
-              _construirTabContenido('Coyhaique'),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  // Construir el contenido de cada pestaña
-  Widget _construirTabContenido(String destino) {
-    List<Map<String, String>> horariosFiltrados = obtenerHorariosPorDestino(destino);
-
-    return Padding(
-      padding: const EdgeInsets.all(12.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Barra de herramientas
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  IconButton(
-                    icon: Icon(Icons.refresh, color: Colors.blue),
-                    tooltip: 'Recargar horarios',
-                    onPressed: () {
-                      cargarHorarios();
-                    },
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.save, color: Colors.blue),
-                    tooltip: 'Guardar horarios',
-                    onPressed: () {
-                      guardarHorarios();
-                    },
-                  ),
-                ],
-              ),
-              ElevatedButton.icon(
-                icon: Icon(mostrarFormulario ? Icons.close : Icons.add),
-                label: Text(mostrarFormulario ? 'Cerrar' : 'Nuevo horario'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: mostrarFormulario ? Colors.red : Colors.green,
-                  minimumSize: Size(50, 36),
-                ),
-                onPressed: () {
-                  setState(() {
-                    mostrarFormulario = !mostrarFormulario;
-                    if (!mostrarFormulario) {
-                      horaController.clear();
-                    }
-                  });
-                },
-              ),
-            ],
-          ),
-
-          // Formulario compacto para agregar un nuevo horario (visible/oculto)
-          if (mostrarFormulario)
-            Card(
-              elevation: 3.0,
-              margin: EdgeInsets.symmetric(vertical: 8.0),
-              child: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: horaController,
-                        decoration: InputDecoration(
-                          labelText: 'Hora (HH:MM)',
-                          border: OutlineInputBorder(),
-                          contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                          prefixIcon: Icon(Icons.access_time),
-                        ),
-                        keyboardType: TextInputType.datetime,
-                      ),
-                    ),
-                    SizedBox(width: 10.0),
-                    ElevatedButton(
-                      onPressed: () {
-                        // Agregar nuevo horario
-                        if (horaController.text.isNotEmpty) {
-                          setState(() {
-                            horarios.add({
-                              'hora': horaController.text,
-                              'destino': destino,
-                            });
-                            // Limpiar campo
-                            horaController.clear();
-                            // Ocultar formulario después de agregar
-                            mostrarFormulario = false;
-                          });
-
-                          // Guardar los cambios en el archivo local
-                          guardarHorarios();
-                        } else {
-                          // Mostrar mensaje de error si faltan datos
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Por favor ingrese la hora')),
-                          );
-                        }
-                      },
-                      child: Text('Agregar'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-          // Título y conteo de horarios
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Horarios disponibles (${horariosFiltrados.length})',
-                  style: TextStyle(
-                    fontSize: 16.0,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blue.shade800,
-                  ),
-                ),
-                if (horariosFiltrados.isNotEmpty)
-                  Text(
-                    'Última salida: ${horariosFiltrados.map((h) => h['hora']).reduce((a, b) => a!.compareTo(b!) > 0 ? a : b)}',
-                    style: TextStyle(
-                      fontStyle: FontStyle.italic,
-                      color: Colors.blue.shade700,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-
-          // Lista de horarios
-          Expanded(
-            child: horariosFiltrados.isEmpty
-                ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.schedule_outlined, size: 50, color: Colors.grey),
-                  SizedBox(height: 20),
-                  Text(
-                    'No hay horarios registrados para $destino',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontStyle: FontStyle.italic,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                  SizedBox(height: 20),
-                  ElevatedButton.icon(
-                    icon: Icon(Icons.add),
-                    label: Text('Agregar primero'),
-                    onPressed: () {
-                      setState(() {
-                        mostrarFormulario = true;
-                      });
-                    },
-                  ),
-                ],
-              ),
-            )
-                : ListView.builder(
-              itemCount: horariosFiltrados.length,
-              itemBuilder: (context, index) {
-                return Card(
-                  elevation: 2.0,
-                  margin: EdgeInsets.symmetric(vertical: 4.0),
-                  child: ListTile(
-                    contentPadding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-                    leading: CircleAvatar(
-                      backgroundColor: Colors.blue.shade100,
-                      child: Text(
-                        '${index + 1}',
-                        style: TextStyle(
-                          color: Colors.blue.shade800,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    title: Text(
-                      'Salida: ${horariosFiltrados[index]['hora']!}',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Text('Destino: $destino'),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Botón para editar horario
-                        IconButton(
-                          icon: Icon(Icons.edit, color: Colors.blue),
-                          tooltip: 'Editar horario',
-                          onPressed: () {
-                            // Encontrar el índice real en la lista general
-                            int indiceReal = horarios.indexWhere((h) =>
-                            h['hora'] == horariosFiltrados[index]['hora'] &&
-                                h['destino'] == horariosFiltrados[index]['destino']);
-
-                            if (indiceReal != -1) {
-                              _mostrarDialogoEdicion(context, indiceReal);
-                            }
-                          },
-                        ),
-                        // Botón para eliminar horario
-                        IconButton(
-                          icon: Icon(Icons.delete, color: Colors.red),
-                          tooltip: 'Eliminar horario',
-                          onPressed: () {
-                            // Mostrar diálogo de confirmación
-                            showDialog(
-                              context: context,
-                              builder: (BuildContext context) {
-                                return AlertDialog(
-                                  title: Text("Confirmar eliminación"),
-                                  content: Text("¿Está seguro que desea eliminar este horario?"),
-                                  actions: [
-                                    TextButton(
-                                      child: Text("Cancelar"),
-                                      onPressed: () {
-                                        Navigator.of(context).pop();
-                                      },
-                                    ),
-                                    TextButton(
-                                      child: Text("Eliminar"),
-                                      onPressed: () {
-                                        // Encontrar el índice real en la lista general
-                                        int indiceReal = horarios.indexWhere((h) =>
-                                        h['hora'] == horariosFiltrados[index]['hora'] &&
-                                            h['destino'] == horariosFiltrados[index]['destino']);
-
-                                        if (indiceReal != -1) {
-                                          setState(() {
-                                            horarios.removeAt(indiceReal);
-                                          });
-                                          // Guardar los cambios
-                                          guardarHorarios();
-                                        }
-                                        Navigator.of(context).pop();
-                                      },
-                                    ),
-                                  ],
-                                );
-                              },
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Método para mostrar diálogo de edición de horario
-  void _mostrarDialogoEdicion(BuildContext context, int index) {
-    // Controladores para el diálogo
-    TextEditingController editHoraController = TextEditingController(
-        text: horarios[index]['hora']
-    );
-    // Destino actual
-    String destinoActual = horarios[index]['destino']!;
-
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text("Editar Horario"),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Destino: $destinoActual',
-                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
-              ),
-              SizedBox(height: 15),
-              TextField(
-                controller: editHoraController,
-                decoration: InputDecoration(
-                  labelText: 'Hora (HH:MM)',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.access_time),
-                ),
-                keyboardType: TextInputType.datetime,
-              ),
-            ],
-          ),
-          actions: [
-            TextButton.icon(
-              icon: Icon(Icons.cancel, color: Colors.red),
-              label: Text("Cancelar"),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-            TextButton.icon(
-              icon: Icon(Icons.save, color: Colors.green),
-              label: Text("Guardar"),
-              onPressed: () {
-                if (editHoraController.text.isNotEmpty) {
-                  setState(() {
-                    horarios[index] = {
-                      'hora': editHoraController.text,
-                      'destino': destinoActual, // Mantener el destino actual
-                    };
-                  });
-                  // Guardar los cambios
-                  guardarHorarios();
-                  Navigator.of(context).pop();
-                } else {
-                  // Mostrar mensaje de error si faltan datos
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Por favor ingrese la hora')),
-                  );
-                }
-              },
-            ),
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Theme.of(context).primaryColor.withOpacity(0.05),
+            Colors.white,
           ],
-        );
-      },
-    );
-  }
-}
-
-class ProfilePage extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        ),
+      ),
+      child: ListView(
+        padding: EdgeInsets.symmetric(horizontal: 20, vertical: 24),
         children: [
           Center(
-            child: Column(
-              children: [
-                Icon(
-                  Icons.mail,
-                  size: 80.0,
-                  color: Colors.blue,
-                ),
-                SizedBox(height: 15.0),
-                Text(
-                  'Datos Carga',
-                  style: TextStyle(
-                    fontSize: 24.0,
-                    fontWeight: FontWeight.bold,
+            child: TweenAnimationBuilder(
+              tween: Tween<double>(begin: 0.8, end: 1.0),
+              duration: Duration(milliseconds: 1500),
+              curve: Curves.elasticOut,
+              builder: (context, double value, child) {
+                return Transform.scale(
+                  scale: value,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      AnimatedBuilder(
+                        animation: _controller,
+                        builder: (context, child) {
+                          return Transform.rotate(
+                            angle: _controller.value * 2 * math.pi,
+                            child: Container(
+                              height: 120,
+                              width: 120,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: SweepGradient(
+                                  colors: [
+                                    Colors.blue.shade100,
+                                    Colors.blue.shade50,
+                                    Colors.white,
+                                    Colors.blue.shade50,
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      Hero(
+                        tag: 'logo',
+                        child: Image.asset(
+                          'assets/logocolorminipos.png',
+                          height: 80,
+                          width: 80,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
-            ),
-          ),
-          SizedBox(height: 30.0),
-          Card(
-            elevation: 4.0,
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Información de Envío',
-                    style: TextStyle(
-                      fontSize: 18.0,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  SizedBox(height: 20.0),
-                  buildInfoRow('Remitente:', 'Completar información'),
-                  buildInfoRow('Destinatario:', 'Completar información'),
-                  buildInfoRow('Origen:', 'Seleccionar ciudad'),
-                  buildInfoRow('Destino:', 'Seleccionar ciudad'),
-                  buildInfoRow('Tipo de Carga:', 'Seleccionar tipo'),
-                  buildInfoRow('Peso (kg):', 'Ingresar peso'),
-                ],
-              ),
-            ),
-          ),
-          SizedBox(height: 20.0),
-          Card(
-            elevation: 4.0,
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Historial de Envíos',
-                    style: TextStyle(
-                      fontSize: 18.0,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  SizedBox(height: 10.0),
-                  Text('No hay envíos recientes'),
-                ],
-              ),
-            ),
-          ),
-          Spacer(),
-          Center(
-            child: ElevatedButton(
-              onPressed: () {
-                // Acción para registrar nuevo envío
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Registrando nuevo envío...')),
                 );
               },
-              style: ElevatedButton.styleFrom(
-                padding: EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-                minimumSize: Size(250, 50),
-              ),
-              child: Text('Registrar Nuevo Envío', style: TextStyle(fontSize: 16)),
             ),
           ),
+          SizedBox(height: 24),
+          TweenAnimationBuilder(
+            tween: Tween<double>(begin: 0, end: 1),
+            duration: Duration(milliseconds: 800),
+            curve: Curves.easeOutCubic,
+            builder: (context, double value, child) {
+              return Opacity(
+                opacity: value,
+                child: Transform.translate(
+                  offset: Offset(0, 20 * (1 - value)),
+                  child: Text(
+                    'Bienvenido a Suray MiniPOS',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).primaryColor,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+          SizedBox(height: 30),
+          _buildSectionTitle('Menú Principal', 300),
+          ..._buildAnimatedButtons(),
+          SizedBox(height: 15),
+          Divider(color: Colors.blue.shade100, thickness: 1),
+          _buildSectionTitle('Administración', 600),
+          _buildAnimatedMenuButton(
+            key: _buttonKeys[3],
+            icon: Icons.calculate,
+            label: 'Cierre de Caja',
+            color: Colors.green.shade600,
+            index: 3,
+            route: '/cierre_caja',
+            delay: 900,
+          ),
+          SizedBox(height: 15),
+          _buildAnimatedMenuButton(
+            key: _buttonKeys[4],
+            icon: Icons.storage,
+            label: 'Gestión de Datos',
+            color: Colors.indigo,
+            index: 4,
+            route: '/data_management',
+            delay: 1000,
+          ),
+          SizedBox(height: 30),
+          AnimatedOpacity(
+            opacity: _showButtons ? 1.0 : 0.0,
+            duration: Duration(milliseconds: 1000),
+            curve: Curves.easeInOut,
+            child: AnimatedContainer(
+              duration: Duration(milliseconds: 800),
+              curve: Curves.easeOutQuad,
+              transform: Matrix4.translationValues(0, _showButtons ? 0 : 50, 0),
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.blue.shade100.withOpacity(0.5),
+                    blurRadius: 10,
+                    spreadRadius: 0,
+                    offset: Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      AnimatedBuilder(
+                        animation: _controller,
+                        builder: (context, child) {
+                          return Transform.rotate(
+                            angle: math.sin(_controller.value * 3 * math.pi) * 0.2,
+                            child: Icon(
+                              Icons.info_outline,
+                              color: Colors.blue.shade700,
+                              size: 24,
+                            ),
+                          );
+                        },
+                      ),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Sistema de respaldo automático',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue.shade800,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 12),
+                ],
+              ),
+            ),
+          ),
+          SizedBox(height: 30),
         ],
       ),
     );
   }
 
-  // Función auxiliar para construir filas de información
-  Widget buildInfoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
+  List<Widget> _buildAnimatedButtons() {
+    return [
+      _buildAnimatedMenuButton(
+        key: _buttonKeys[0],
+        icon: Icons.airline_seat_recline_normal,
+        label: 'Venta de Pasajes',
+        color: Colors.blue,
+        index: 0,
+        route: '/venta_bus',
+        delay: 700,
+      ),
+      SizedBox(height: 15),
+      _buildAnimatedMenuButton(
+        key: _buttonKeys[1],
+        icon: Icons.inventory,
+        label: 'Venta de Carga',
+        color: Colors.purple,
+        index: 1,
+        route: '/venta_cargo',
+        delay: 800,
+      ),
+      SizedBox(height: 15),
+      _buildAnimatedMenuButton(
+        key: _buttonKeys[2],
+        icon: Icons.history,
+        label: 'Historial de Carga',
+        color: Colors.orange,
+        index: 2,
+        route: '/cargo_history',
+        delay: 850,
+      ),
+    ];
+  }
+
+  Widget _buildAnimatedMenuButton({
+    required GlobalKey key,
+    required IconData icon,
+    required String label,
+    required Color color,
+    required int index,
+    required String route,
+    required int delay,
+  }) {
+    return AnimatedOpacity(
+      key: key,
+      opacity: _showButtons ? 1.0 : 0.0,
+      duration: Duration(milliseconds: 500),
+      curve: Curves.easeIn,
+      child: AnimatedContainer(
+        duration: Duration(milliseconds: 800),
+        curve: Curves.easeOutQuad,
+        transform: Matrix4.translationValues(_showButtons ? 0 : -100, 0, 0),
+        margin: EdgeInsets.only(left: _showButtons ? 0 : 50),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: color.withOpacity(0.3),
+                blurRadius: 8,
+                spreadRadius: 0,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                _animateButtonTap(index);
+                HapticFeedback.mediumImpact();
+                Future.delayed(Duration(milliseconds: 300), () {
+                  Navigator.pushNamed(context, route);
+                });
+              },
+              borderRadius: BorderRadius.circular(12),
+              child: Ink(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      color,
+                      color.withOpacity(0.8),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Container(
+                  padding: EdgeInsets.symmetric(vertical: 15, horizontal: 20),
+                  child: Row(
+                    children: [
+                      Icon(icon, color: Colors.white, size: 28),
+                      SizedBox(width: 16),
+                      Expanded(
+                        child: Text(
+                          label,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ),
+                      Icon(
+                        Icons.arrow_forward_ios,
+                        color: Colors.white.withOpacity(0.8),
+                        size: 16,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
-          Text(
-            value,
-            style: TextStyle(
-              color: Colors.grey[700],
-            ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionTitle(String title, int delayMs) {
+    return AnimatedOpacity(
+      opacity: _showButtons ? 1.0 : 0.0,
+      duration: Duration(milliseconds: 800),
+      curve: Curves.easeIn,
+      child: AnimatedContainer(
+        duration: Duration(milliseconds: 800),
+        curve: Curves.easeOutQuad,
+        transform: Matrix4.translationValues(0, _showButtons ? 0 : 20, 0),
+        padding: const EdgeInsets.only(bottom: 14.0, top: 6.0),
+        child: Text(
+          title,
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: Colors.blue.shade800,
+            letterSpacing: 0.5,
           ),
-        ],
+        ),
       ),
     );
   }

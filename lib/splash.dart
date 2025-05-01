@@ -10,42 +10,32 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    // Después de 3 segundos, navegar a la pantalla principal
-    Timer(
-      Duration(seconds: 3),
-          () => Navigator.pushReplacementNamed(context, '/home'),
-    );
+    Timer(Duration(seconds: 2), () {
+      Navigator.pushReplacementNamed(context, '/home');
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.blue,
+      backgroundColor: Colors.blue.shade700,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Logo o imagen
-            Icon(
-              Icons.flutter_dash,
-              size: 100.0,
-              color: Colors.white,
+            // Reemplazar el ícono con la imagen del logo
+            Image.asset(
+              'assets/logocolor.png',
+              width: 150,
+              height: 150,
             ),
-            SizedBox(height: 30.0),
-            // Texto de bienvenida
+            SizedBox(height: 20),
             Text(
-              'Mi Aplicación Flutter',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 24.0,
-                fontWeight: FontWeight.bold,
-              ),
+              'Cargando Suray MiniPOS...',
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
             ),
-            SizedBox(height: 20.0),
-            // Indicador de carga
-            CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-            ),
+            SizedBox(height: 20),
+            CircularProgressIndicator(color: Colors.white),
           ],
         ),
       ),

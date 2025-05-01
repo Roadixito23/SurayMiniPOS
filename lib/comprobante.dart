@@ -1,15 +1,9 @@
-import 'dart:io';
 import 'dart:convert';
-import 'package:path_provider/path_provider.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+/// Clase para gestionar los números de comprobantes en la aplicación
 class ComprobanteManager {
-  // Valores por defecto y constantes
-  static const String _fileName = 'comprobantes.json';
-  int _comprobanteNumber = 1;
-  int _ticketId = 1;
-  bool _isInitialized = false;
-
   // Singleton pattern
   static final ComprobanteManager _instance = ComprobanteManager._internal();
 
@@ -19,125 +13,118 @@ class ComprobanteManager {
 
   ComprobanteManager._internal();
 
-  // Getters
-  int get comprobanteNumber => _comprobanteNumber;
-  int get ticketId => _ticketId;
-  bool get isInitialized => _isInitialized;
+  // Constante para la clave de SharedPreferences
+  static const String _keyCounter = 'comprobante_counter';
 
-  // Formatear el comprobante en formato XX-YYYYYY
-  String get formattedComprobante {
-    String formattedId = _ticketId.toString().padLeft(2, '0');
-    return '$formattedId-${_comprobanteNumber.toString().padLeft(6, '0')}';
-  }
+  // Indica si ya se inicializó el contador
+  bool _initialized = false;
 
-  // Inicializar el administrador de comprobantes
+  // Contador único para todos los comprobantes
+  int _counter = 0;
+
+  // Número máximo de comprobante (6 dígitos)
+  static const int _maxCounter = 999999;
+
+  /// Inicializa el contador desde el almacenamiento local
   Future<void> initialize() async {
-    if (!_isInitialized) {
-      await _loadComprobanteData();
-      _isInitialized = true;
-    }
-  }
+    if (_initialized) return;
 
-  // Obtener la ruta del archivo de comprobantes
-  Future<File> get _localFile async {
-    final directory = await getApplicationDocumentsDirectory();
-    return File('${directory.path}/$_fileName');
-  }
-
-  // Cargar los datos de comprobantes desde el archivo local
-  Future<void> _loadComprobanteData() async {
     try {
-      final file = await _localFile;
+      final prefs = await SharedPreferences.getInstance();
 
-      // Verificar si el archivo existe
-      if (await file.exists()) {
-        final String contents = await file.readAsString();
-        final Map<String, dynamic> data = json.decode(contents);
+      _counter = prefs.getInt(_keyCounter) ?? 1;
 
-        _comprobanteNumber = data['comprobanteNumber'] ?? 1;
-        _ticketId = data['ticketId'] ?? 1;
-
-        debugPrint('Comprobante data loaded: ID=$_ticketId, Number=$_comprobanteNumber');
-      } else {
-        // Si el archivo no existe, guardar los valores por defecto
-        await _saveComprobanteData();
-        debugPrint('No comprobante file found, created with default values');
+      // Asegurar que el contador esté dentro del rango válido
+      if (_counter < 1 || _counter > _maxCounter) {
+        _counter = 1;
       }
+
+      _initialized = true;
     } catch (e) {
-      debugPrint('Error loading comprobante data: $e');
-      // Si hay un error, simplemente continuar con los valores por defecto
+      debugPrint('Error inicializando ComprobanteManager: $e');
+      // En caso de error, usar valor predeterminado
+      _counter = 1;
+      _initialized = true;
     }
   }
 
-  // Guardar los datos de comprobantes en el archivo local
-  Future<void> _saveComprobanteData() async {
+  /// Obtiene y genera el siguiente número de comprobante para boletos de bus
+  Future<String> getNextBusComprobante() async {
+    await _ensureInitialized();
+
+    // Formatear el número de comprobante a 6 dígitos con ceros a la izquierda
+    final formattedNumber = _getFormattedCounter();
+
+    // Incrementar y guardar el contador para el próximo uso
+    _incrementCounter();
+
+    return formattedNumber;
+  }
+
+  /// Obtiene y genera el siguiente número de comprobante para carga
+  Future<String> getNextCargoComprobante() async {
+    await _ensureInitialized();
+
+    // Usar el mismo formato que los tickets de bus, sin prefijo
+    final formattedNumber = _getFormattedCounter();
+
+    // Incrementar y guardar el contador para el próximo uso
+    _incrementCounter();
+
+    return formattedNumber;
+  }
+
+  /// Incrementa el contador y lo guarda en SharedPreferences
+  Future<void> _incrementCounter() async {
+    _counter++;
+
+    // Si llegó al máximo, reiniciar a 1
+    if (_counter > _maxCounter) {
+      _counter = 1;
+    }
+
     try {
-      final file = await _localFile;
-      final Map<String, dynamic> data = {
-        'comprobanteNumber': _comprobanteNumber,
-        'ticketId': _ticketId,
-        'lastUpdated': DateTime.now().toIso8601String(),
-      };
-
-      await file.writeAsString(json.encode(data));
-      debugPrint('Comprobante data saved: ID=$_ticketId, Number=$_comprobanteNumber');
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(_keyCounter, _counter);
     } catch (e) {
-      debugPrint('Error saving comprobante data: $e');
+      debugPrint('Error al guardar contador: $e');
     }
   }
 
-  // Incrementar el número de comprobante
-  Future<String> incrementComprobante() async {
-    _comprobanteNumber++;
-
-    // Reiniciar si se excede el límite
-    if (_comprobanteNumber > 999999) {
-      _comprobanteNumber = 1;
-    }
-
-    await _saveComprobanteData();
-    return formattedComprobante;
+  /// Formatea el contador actual a 6 dígitos
+  String _getFormattedCounter() {
+    return _counter.toString().padLeft(6, '0');
   }
 
-  // Establecer el ID del dispositivo
-  Future<void> setTicketId(int id) async {
-    if (id >= 1 && id <= 99) {
-      _ticketId = id;
-      await _saveComprobanteData();
-      debugPrint('Ticket ID updated to $_ticketId');
-    } else {
-      throw ArgumentError('Ticket ID must be between 1 and 99');
+  /// Asegura que la clase esté inicializada antes de usarla
+  Future<void> _ensureInitialized() async {
+    if (!_initialized) {
+      await initialize();
     }
   }
 
-  // Reiniciar el contador de comprobantes
-  Future<void> resetComprobante() async {
-    _comprobanteNumber = 1;
-    await _saveComprobanteData();
-    debugPrint('Comprobante number reset to 1');
-  }
+  /// Reinicia manualmente el contador
+  Future<void> resetCounter() async {
+    await _ensureInitialized();
 
-  // Guardar registro de comprobante (para auditoría)
-  Future<void> logComprobante({
-    required String tipo,
-    required String descripcion,
-    required double valor,
-    bool isAnulacion = false,
-  }) async {
     try {
-      final directory = await getApplicationDocumentsDirectory();
-      final File logFile = File('${directory.path}/comprobante_log.txt');
-
-      final log = '${DateTime.now().toIso8601String()}, '
-          '${formattedComprobante}, '
-          '$tipo, '
-          '$descripcion, '
-          '${isAnulacion ? -valor : valor}\n';
-
-      // Append al archivo de log
-      await logFile.writeAsString(log, mode: FileMode.append);
+      _counter = 1;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(_keyCounter, _counter);
     } catch (e) {
-      debugPrint('Error logging comprobante: $e');
+      debugPrint('Error al resetear contador manualmente: $e');
     }
+  }
+
+  /// Obtiene el número actual del contador (sin incrementarlo)
+  Future<int> getCurrentCounter() async {
+    await _ensureInitialized();
+    return _counter;
+  }
+
+  /// Obtiene el número actual del contador formateado a 6 dígitos
+  Future<String> getCurrentFormattedCounter() async {
+    await _ensureInitialized();
+    return _counter.toString().padLeft(6, '0');
   }
 }

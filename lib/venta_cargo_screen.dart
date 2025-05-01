@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'cargo_ticket_generator.dart';
+import 'numeric_input_field.dart';
+import 'shared_widgets.dart';
 
 class VentaCargoScreen extends StatefulWidget {
   @override
@@ -6,320 +10,360 @@ class VentaCargoScreen extends StatefulWidget {
 }
 
 class _VentaCargoScreenState extends State<VentaCargoScreen> {
-  // Controladores para los campos de texto
   final TextEditingController remitenteController = TextEditingController();
-  final TextEditingController contactoRemitenteController = TextEditingController();
   final TextEditingController destinatarioController = TextEditingController();
-  final TextEditingController contactoDestinatarioController = TextEditingController();
-  final TextEditingController origenController = TextEditingController();
-  final TextEditingController destinoController = TextEditingController();
-  final TextEditingController descripcionController = TextEditingController();
-  final TextEditingController pesoController = TextEditingController();
-  final TextEditingController dimensionesController = TextEditingController();
+  final TextEditingController articuloController = TextEditingController();
+  final TextEditingController telefonoDestController = TextEditingController();
+  final TextEditingController telefonoRemitController = TextEditingController();
+  final TextEditingController valorController = TextEditingController();
 
-  String tipoCarga = 'Paquete';
-  String metodoEnvio = 'Estándar';
-  double precio = 0.0;
+  String destino = 'Aysen';
+  final List<String> destinos = ['Aysen', 'Coyhaique'];
 
-  List<String> tiposCarga = ['Paquete', 'Documento', 'Frágil', 'Perecedero', 'Pesado'];
-  List<String> metodosEnvio = ['Estándar', 'Express', 'Prioritario'];
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final ScrollController _scrollController = ScrollController();
+  bool _isLoading = false;
 
-  @override
-  void dispose() {
-    remitenteController.dispose();
-    contactoRemitenteController.dispose();
-    destinatarioController.dispose();
-    contactoDestinatarioController.dispose();
-    origenController.dispose();
-    destinoController.dispose();
-    descripcionController.dispose();
-    pesoController.dispose();
-    dimensionesController.dispose();
-    super.dispose();
+  String? _validarValor(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Ingrese un valor';
+    }
+    int? valorNum = int.tryParse(value);
+    if (valorNum == null || valorNum <= 0) {
+      return 'Valor debe ser mayor a 0';
+    }
+    return null;
   }
 
-  // Calcular precio basado en tipo de carga y método de envío
-  void calcularPrecio() {
-    double precioBase = 25.0;
-    double factorTipoCarga = 1.0;
-    double factorMetodoEnvio = 1.0;
-
-    // Factor por tipo de carga
-    switch (tipoCarga) {
-      case 'Documento': factorTipoCarga = 0.8; break;
-      case 'Frágil': factorTipoCarga = 1.5; break;
-      case 'Perecedero': factorTipoCarga = 1.8; break;
-      case 'Pesado': factorTipoCarga = 2.0; break;
-      default: factorTipoCarga = 1.0;
+  String _formatTelefono(String telefono) {
+    if (telefono.isEmpty) return '';
+    if (telefono.length == 8) {
+      return '9${telefono.substring(0, 4)} ${telefono.substring(4)}';
     }
+    return telefono;
+  }
 
-    // Factor por método de envío
-    switch (metodoEnvio) {
-      case 'Express': factorMetodoEnvio = 1.5; break;
-      case 'Prioritario': factorMetodoEnvio = 2.0; break;
-      default: factorMetodoEnvio = 1.0;
+  void confirmarVenta() async {
+    if (_formKey.currentState!.validate()) {
+      if (remitenteController.text.isEmpty ||
+          destinatarioController.text.isEmpty ||
+          articuloController.text.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Por favor complete todos los campos requeridos')),
+        );
+        return;
+      }
+
+      final confirmar = await showDialog<bool>(
+        context: context,
+        builder: (_) => ConfirmationDialog(
+          title: 'Confirmar Envío de Carga',
+          content: "Remitente: ${remitenteController.text}\n"
+              "Destinatario: ${destinatarioController.text}\n"
+              "Destino: $destino\n"
+              "Artículo: ${articuloController.text}\n"
+              "Valor: \$${valorController.text}",
+        ),
+      );
+
+      if (confirmar == true) {
+        setState(() {
+          _isLoading = true;
+        });
+
+        try {
+          await CargoTicketGenerator.generateAndPrintTicket(
+            remitente: remitenteController.text,
+            destinatario: destinatarioController.text,
+            destino: destino,
+            articulo: articuloController.text,
+            valor: double.parse(valorController.text),
+            telefonoDest: _formatTelefono(telefonoDestController.text),
+            telefonoRemit: _formatTelefono(telefonoRemitController.text),
+          );
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Ticket de carga generado exitosamente'),
+              backgroundColor: Colors.green,
+            ),
+          );
+
+          _formKey.currentState!.reset();
+          remitenteController.clear();
+          destinatarioController.clear();
+          articuloController.clear();
+          telefonoDestController.clear();
+          telefonoRemitController.clear();
+          valorController.clear();
+        } catch (e) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error al generar ticket: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        } finally {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
     }
-
-    // Calcular precio total
-    double peso = double.tryParse(pesoController.text) ?? 1.0;
-    precio = precioBase * factorTipoCarga * factorMetodoEnvio * (peso > 1 ? peso : 1);
-
-    setState(() {}); // Actualizar UI
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Generar Venta Cargo'),
-        centerTitle: true,
-        backgroundColor: Colors.orange,
-      ),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Sección de datos del remitente
-            buildSectionTitle('Datos del Remitente'),
-            SizedBox(height: 10.0),
-            buildTextField(remitenteController, 'Nombre Completo', Icons.person),
-            SizedBox(height: 10.0),
-            buildTextField(contactoRemitenteController, 'Teléfono/Email', Icons.contact_phone),
+    return Stack(
+      children: [
+        Scaffold(
+          appBar: AppBar(
+            title: Text('Venta de Carga'),
+            centerTitle: true,
+          ),
+          body: Form(
+            key: _formKey,
+            child: SingleChildScrollView(
+              controller: _scrollController,
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Destino',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue.shade700,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade400),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: destinos.map((d) {
+                        bool isSelected = destino == d;
+                        return Expanded(
+                          child: GestureDetector(
+                            onTap: () => setState(() {
+                              destino = d;
+                            }),
+                            child: Container(
+                              padding: EdgeInsets.symmetric(vertical: 12),
+                              decoration: BoxDecoration(
+                                color: isSelected ? Colors.blue.shade100 : Colors.transparent,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                d,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                  color: isSelected ? Colors.blue.shade700 : Colors.black,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                  SizedBox(height: 20),
 
-            SizedBox(height: 20.0),
-
-            // Sección de datos del destinatario
-            buildSectionTitle('Datos del Destinatario'),
-            SizedBox(height: 10.0),
-            buildTextField(destinatarioController, 'Nombre Completo', Icons.person_outline),
-            SizedBox(height: 10.0),
-            buildTextField(contactoDestinatarioController, 'Teléfono/Email', Icons.contact_phone),
-
-            SizedBox(height: 20.0),
-
-            // Sección de información de ruta
-            buildSectionTitle('Información de Ruta'),
-            SizedBox(height: 10.0),
-            Row(
-              children: [
-                Expanded(child: buildTextField(origenController, 'Origen', Icons.location_on)),
-                SizedBox(width: 10.0),
-                Expanded(child: buildTextField(destinoController, 'Destino', Icons.location_on_outlined)),
-              ],
-            ),
-
-            SizedBox(height: 20.0),
-
-            // Sección de detalles del cargo
-            buildSectionTitle('Detalles del Cargo'),
-            SizedBox(height: 10.0),
-
-            // Tipo de carga (Dropdown)
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 10.0),
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey),
-                borderRadius: BorderRadius.circular(10.0),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  isExpanded: true,
-                  value: tipoCarga,
-                  hint: Text('Tipo de Carga'),
-                  items: tiposCarga.map((String value) {
-                    return DropdownMenuItem<String>(
-                      value: value,
-                      child: Text(value),
-                    );
-                  }).toList(),
-                  onChanged: (newValue) {
-                    setState(() {
-                      tipoCarga = newValue!;
-                      calcularPrecio();
-                    });
-                  },
-                ),
-              ),
-            ),
-
-            SizedBox(height: 15.0),
-
-            // Método de envío (Dropdown)
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 10.0),
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey),
-                borderRadius: BorderRadius.circular(10.0),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  isExpanded: true,
-                  value: metodoEnvio,
-                  hint: Text('Método de Envío'),
-                  items: metodosEnvio.map((String value) {
-                    return DropdownMenuItem<String>(
-                      value: value,
-                      child: Text(value),
-                    );
-                  }).toList(),
-                  onChanged: (newValue) {
-                    setState(() {
-                      metodoEnvio = newValue!;
-                      calcularPrecio();
-                    });
-                  },
-                ),
-              ),
-            ),
-
-            SizedBox(height: 15.0),
-
-            // Descripción, peso y dimensiones
-            buildTextField(descripcionController, 'Descripción del Cargo', Icons.description),
-            SizedBox(height: 15.0),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: pesoController,
+                  Text(
+                    'Datos del Artículo',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue.shade700,
+                    ),
+                  ),
+                  SizedBox(height: 10),
+                  TextFormField(
+                    controller: articuloController,
                     decoration: InputDecoration(
-                      labelText: 'Peso (kg)',
-                      prefixIcon: Icon(Icons.line_weight),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10.0),
-                      ),
+                      labelText: 'Descripción del Artículo',
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Ingrese la descripción del artículo';
+                      }
+                      return null;
+                    },
+                    maxLines: 2,
+                  ),
+                  SizedBox(height: 10),
+                  TextFormField(
+                    controller: valorController,
+                    decoration: InputDecoration(
+                      labelText: 'Valor del Artículo',
+                      border: OutlineInputBorder(),
+                      prefixText: '\$ ',
                     ),
                     keyboardType: TextInputType.number,
-                    onChanged: (value) {
-                      calcularPrecio();
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                    ],
+                    validator: _validarValor,
+                  ),
+                  SizedBox(height: 20),
+
+                  Text(
+                    'Datos del Destinatario',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue.shade700,
+                    ),
+                  ),
+                  SizedBox(height: 10),
+                  TextFormField(
+                    controller: destinatarioController,
+                    decoration: InputDecoration(
+                      labelText: 'Nombre del Destinatario',
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Ingrese el nombre del destinatario';
+                      }
+                      return null;
                     },
                   ),
-                ),
-                SizedBox(width: 10.0),
-                Expanded(
-                  child: buildTextField(dimensionesController, 'Dimensiones', Icons.straighten),
-                ),
-              ],
-            ),
+                  SizedBox(height: 10),
+                  TextFormField(
+                    controller: telefonoDestController,
+                    decoration: InputDecoration(
+                      labelText: 'Teléfono Destinatario (Opcional)',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.phone),
+                      prefixText: '+569 ',
+                    ),
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(8),
+                    ],
+                  ),
+                  SizedBox(height: 20),
 
-            SizedBox(height: 25.0),
-
-            // Sección de resumen de venta
-            buildSectionTitle('Resumen de Venta'),
-            SizedBox(height: 10.0),
-            Container(
-              padding: EdgeInsets.all(15.0),
-              decoration: BoxDecoration(
-                color: Colors.orange.shade50,
-                borderRadius: BorderRadius.circular(10.0),
-                border: Border.all(color: Colors.orange.shade200),
-              ),
-              child: Column(
-                children: [
-                  buildSummaryRow('Ruta:', '${origenController.text} - ${destinoController.text}'),
-                  buildSummaryRow('Tipo de Carga:', tipoCarga),
-                  buildSummaryRow('Método de Envío:', metodoEnvio),
-                  buildSummaryRow('Peso:', '${pesoController.text} kg'),
-                  Divider(thickness: 1),
-                  buildSummaryRow('Precio Total:', 'S/. ${precio.toStringAsFixed(2)}', isBold: true),
+                  Text(
+                    'Datos del Remitente',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue.shade700,
+                    ),
+                  ),
+                  SizedBox(height: 10),
+                  TextFormField(
+                    controller: remitenteController,
+                    decoration: InputDecoration(
+                      labelText: 'Nombre del Remitente',
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Ingrese el nombre del remitente';
+                      }
+                      return null;
+                    },
+                  ),
+                  SizedBox(height: 10),
+                  TextFormField(
+                    controller: telefonoRemitController,
+                    decoration: InputDecoration(
+                      labelText: 'Teléfono Remitente (Opcional)',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.phone),
+                      prefixText: '+569 ',
+                    ),
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(8),
+                    ],
+                  ),
+                  SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: _isLoading ? null : confirmarVenta,
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: Size(double.infinity, 50),
+                      backgroundColor: Colors.blue.shade700,
+                    ),
+                    child: Text(
+                      'Generar Ticket de Carga',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
+          ),
+        ),
 
-            SizedBox(height: 30.0),
-
-            // Botones de acción
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                ElevatedButton(
-                  onPressed: () {
-                    calcularPrecio();
-                  },
-                  style: ElevatedButton.styleFrom(
-                    padding: EdgeInsets.symmetric(horizontal: 30, vertical: 15),
-                    backgroundColor: Colors.blue,
-                  ),
-                  child: Text('Calcular Precio'),
+        if (_isLoading)
+          Container(
+            color: Colors.black.withOpacity(0.5),
+            width: double.infinity,
+            height: double.infinity,
+            child: Center(
+              child: Card(
+                elevation: 8,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                SizedBox(width: 20.0),
-                ElevatedButton(
-                  onPressed: () {
-                    // Acción para generar venta
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Venta de cargo generada con éxito'),
-                        backgroundColor: Colors.green,
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 16),
+                      Text(
+                        'Generando tickets de carga...',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    );
-                    // Navegar de regreso después de un retraso
-                    Future.delayed(Duration(seconds: 2), () {
-                      Navigator.pop(context);
-                    });
-                  },
-                  style: ElevatedButton.styleFrom(
-                    padding: EdgeInsets.symmetric(horizontal: 30, vertical: 15),
-                    backgroundColor: Colors.green,
+                      SizedBox(height: 8),
+                      Text(
+                        'Por favor espere mientras se imprimen ambas copias',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
                   ),
-                  child: Text('Confirmar Venta'),
                 ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // Widget para títulos de sección
-  Widget buildSectionTitle(String title) {
-    return Text(
-      title,
-      style: TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.bold,
-        color: Colors.orange.shade800,
-      ),
-    );
-  }
-
-  // Widget para campos de texto
-  Widget buildTextField(
-      TextEditingController controller, String label, IconData icon) {
-    return TextField(
-      controller: controller,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10.0),
-        ),
-        contentPadding: EdgeInsets.symmetric(vertical: 12.0, horizontal: 15.0),
-      ),
-    );
-  }
-
-  // Widget para filas de resumen
-  Widget buildSummaryRow(String label, String value, {bool isBold = false}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: TextStyle(fontWeight: FontWeight.w500),
-          ),
-          Text(
-            value.isEmpty ? 'No especificado' : value,
-            style: TextStyle(
-              fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-              color: isBold ? Colors.orange.shade800 : Colors.black87,
+              ),
             ),
           ),
-        ],
-      ),
+      ],
     );
+  }
+
+  @override
+  void dispose() {
+    remitenteController.dispose();
+    destinatarioController.dispose();
+    articuloController.dispose();
+    telefonoDestController.dispose();
+    telefonoRemitController.dispose();
+    valorController.dispose();
+    _scrollController.dispose();
+    super.dispose();
   }
 }
