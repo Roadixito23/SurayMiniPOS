@@ -32,7 +32,7 @@ class CierreCajaReportGenerator {
     final doc = pw.Document();
 
     // Cargar logo
-    pw.ImageProvider? logoImage = await _loadImageAsset('assets/logobkwt.png');
+    pw.ImageProvider? logoImage = await _loadImageAsset('assets/logocolorminipos.png');
     pw.ImageProvider? endImage = await _loadImageAsset('assets/endTicket.png');
 
     // Obtener datos del cierre
@@ -44,7 +44,6 @@ class CierreCajaReportGenerator {
     final cantidadBus = cierre['cantidadBus'];
     final cantidadCargo = cierre['cantidadCargo'];
     final cantidad = cierre['cantidad'];
-    final usuario = cierre['usuario'];
     final observaciones = cierre['observaciones'];
 
     // Destinos para resumen
@@ -62,8 +61,12 @@ class CierreCajaReportGenerator {
               logoImage != null
                   ? pw.Image(logoImage, width: ticketFormat.width * 0.8)
                   : pw.SizedBox(),
-
               pw.SizedBox(height: 10),
+
+              pw.Align(
+                alignment: pw.Alignment.center,
+                child: pw.Text('Punto de Venta Express', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+              ),
 
               // Título del reporte
               pw.Container(
@@ -105,7 +108,7 @@ class CierreCajaReportGenerator {
 
               // Usuario
               pw.Text(
-                'Usuario: $usuario',
+                'Secretario: 01',
                 style: pw.TextStyle(fontSize: 10),
               ),
 

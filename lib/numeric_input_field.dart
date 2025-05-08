@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'numeric_keyboard.dart';
 
 class NumericInputField extends StatefulWidget {
-  final String label;  // Mantenemos el parámetro label por compatibilidad
+  final String label;
   final String? value;
   final Function(String) onChanged;
   final bool enableDecimal;
@@ -12,10 +12,11 @@ class NumericInputField extends StatefulWidget {
   final String hintText;
   final VoidCallback? onEnterPressed;
   final FocusNode? focusNode;
+  final Widget? suggestionsWidget; // Añadido este parámetro
 
   const NumericInputField({
     Key? key,
-    this.label = '',  // Ahora el label puede ser opcional
+    this.label = '',
     this.value,
     required this.onChanged,
     this.enableDecimal = false,
@@ -25,6 +26,7 @@ class NumericInputField extends StatefulWidget {
     this.hintText = '',
     this.onEnterPressed,
     this.focusNode,
+    this.suggestionsWidget, // Añadido a la lista de parámetros
   }) : super(key: key);
 
   @override
@@ -42,8 +44,6 @@ class _NumericInputFieldState extends State<NumericInputField> {
     _controller = TextEditingController(text: widget.value ?? '');
     _focusNode = widget.focusNode ?? FocusNode();
 
-    // Ya no necesitamos mostrar/ocultar el teclado basado en foco
-    // pero mantenemos el listener por si necesitamos realizar otras acciones al recibir foco
     _focusNode.addListener(_handleFocusChange);
 
     if (widget.validator != null && widget.value != null) {
@@ -52,9 +52,8 @@ class _NumericInputFieldState extends State<NumericInputField> {
   }
 
   void _handleFocusChange() {
-    // El teclado ya está visible, pero podríamos hacer otras cosas cuando el campo recibe foco
     if (_focusNode.hasFocus) {
-      setState(() {}); // Actualizamos el estado para reflejar el foco activo
+      setState(() {});
     }
   }
 
@@ -70,7 +69,6 @@ class _NumericInputFieldState extends State<NumericInputField> {
   void dispose() {
     _controller.dispose();
     if (widget.focusNode == null) {
-      // Solo eliminar el FocusNode si lo creamos internamente
       _focusNode.removeListener(_handleFocusChange);
       _focusNode.dispose();
     }
@@ -175,7 +173,6 @@ class _NumericInputFieldState extends State<NumericInputField> {
         // Campo de entrada
         GestureDetector(
           onTap: () {
-            // Ya no alternamos la visibilidad del teclado, solo damos foco
             _focusNode.requestFocus();
           },
           child: Container(
@@ -225,22 +222,35 @@ class _NumericInputFieldState extends State<NumericInputField> {
             ),
           ),
 
-        // Teclado numérico (siempre visible)
+        // Teclado numérico con sugerencias encima (si están disponibles)
         Padding(
           padding: const EdgeInsets.only(top: 12.0),
           child: Card(
             elevation: 4,
-            child: Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: NumericKeyboard(
-                onKeyPressed: _handleKeyPressed,
-                onDelete: _handleDelete,
-                onClear: _handleClear,
-                onClearEntry: _handleClearEntry,
-                onEnter: _handleEnter,
-                enableDecimal: widget.enableDecimal,
-                buttonColor: Colors.grey.shade200,
-              ),
+            clipBehavior: Clip.antiAlias,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Column(
+              children: [
+                // Widget de sugerencias (si se proporciona)
+                if (widget.suggestionsWidget != null)
+                  widget.suggestionsWidget!,
+
+                // Teclado numérico
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: NumericKeyboard(
+                    onKeyPressed: _handleKeyPressed,
+                    onDelete: _handleDelete,
+                    onClear: _handleClear,
+                    onClearEntry: _handleClearEntry,
+                    onEnter: _handleEnter,
+                    enableDecimal: widget.enableDecimal,
+                    buttonColor: Colors.grey.shade200,
+                  ),
+                ),
+              ],
             ),
           ),
         ),

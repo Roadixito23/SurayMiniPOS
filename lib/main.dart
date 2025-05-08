@@ -8,7 +8,9 @@ import 'venta_cargo_screen.dart';
 import 'admin_comprobantes_screen.dart';
 import 'cargo_history_screen.dart';
 import 'cierre_caja_screen.dart';
-import 'data_management_screen.dart'; // Nueva importación
+import 'data_management_screen.dart';
+import 'horario_screen.dart'; // Nueva importación para la pantalla de horarios
+import 'settings_screen.dart'; // Nueva importación para la pantalla de configuración
 import 'comprobante.dart';
 import 'caja_database.dart';
 import 'package:path_provider/path_provider.dart';
@@ -93,7 +95,9 @@ class MyApp extends StatelessWidget {
         '/admin_comprobantes': (_) => AdminComprobantesScreen(),
         '/cargo_history': (_) => CargoHistoryScreen(),
         '/cierre_caja': (_) => CierreCajaScreen(),
-        '/data_management': (_) => DataManagementScreen(), // Nueva ruta para gestión de datos
+        '/data_management': (_) => DataManagementScreen(),
+        '/horarios': (_) => HorarioScreen(), // Nueva ruta para la pantalla de horarios
+        '/settings': (_) => SettingsScreen(), // Nueva ruta para la pantalla de configuración
       },
     );
   }

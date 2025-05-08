@@ -8,20 +8,22 @@ class HomeScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'Suray MiniPOS',
+          'Inicio',
           style: TextStyle(
             fontWeight: FontWeight.bold,
             letterSpacing: 0.5,
           ),
         ),
         centerTitle: true,
-        elevation: 0,
+        elevation: 2,
         backgroundColor: Theme.of(context).primaryColor,
         actions: [
           IconButton(
-            icon: Icon(Icons.person),
-            onPressed: () {},
-            tooltip: 'Perfil',
+            icon: Icon(Icons.settings),
+            onPressed: () {
+              Navigator.pushNamed(context, '/settings');
+            },
+            tooltip: 'Configuración',
           ),
         ],
       ),
@@ -37,7 +39,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
-  final List<GlobalKey> _buttonKeys = List.generate(5, (_) => GlobalKey());
+  final List<GlobalKey> _buttonKeys = List.generate(6, (_) => GlobalKey());
   bool _showButtons = false;
 
   @override
@@ -62,52 +64,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     super.dispose();
   }
 
-  void _animateButtonTap(int index) {
-    final renderBox = _buttonKeys[index].currentContext?.findRenderObject() as RenderBox?;
-    if (renderBox != null) {
-      final position = renderBox.localToGlobal(Offset.zero);
-      final size = renderBox.size;
-
-      final overlay = Overlay.of(context);
-      late OverlayEntry entry;
-
-      entry = OverlayEntry(
-        builder: (context) => Positioned(
-          left: position.dx,
-          top: position.dy,
-          width: size.width,
-          height: size.height,
-          child: TweenAnimationBuilder(
-            tween: Tween<double>(begin: 1.0, end: 1.2),
-            duration: Duration(milliseconds: 200),
-            builder: (context, double value, child) {
-              return Transform.scale(
-                scale: value,
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.blue.withOpacity(0.3),
-                        blurRadius: 20,
-                        spreadRadius: 5,
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-            onEnd: () {
-              entry.remove();
-            },
-          ),
-        ),
-      );
-
-      overlay.insert(entry);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -122,8 +78,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         ),
       ),
       child: ListView(
-        padding: EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 24),
         children: [
+          // Logo animado
           Center(
             child: TweenAnimationBuilder(
               tween: Tween<double>(begin: 0.8, end: 1.0),
@@ -173,6 +130,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             ),
           ),
           SizedBox(height: 24),
+
+          // Título con animación
           TweenAnimationBuilder(
             tween: Tween<double>(begin: 0, end: 1),
             duration: Duration(milliseconds: 800),
@@ -183,7 +142,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                 child: Transform.translate(
                   offset: Offset(0, 20 * (1 - value)),
                   child: Text(
-                    'Bienvenido a Suray MiniPOS',
+                    'Bienvenido',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 24,
@@ -197,31 +156,97 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             },
           ),
           SizedBox(height: 30),
+
+          // Sección Principal - Grid de botones
           _buildSectionTitle('Menú Principal', 300),
-          ..._buildAnimatedButtons(),
-          SizedBox(height: 15),
+
+          // Grid de botones en lugar de lista
+          GridView.count(
+            shrinkWrap: true,
+            physics: NeverScrollableScrollPhysics(),
+            crossAxisCount: 2,
+            childAspectRatio: 1.3,
+            mainAxisSpacing: 16,
+            crossAxisSpacing: 16,
+            children: [
+              _buildGridMenuButton(
+                key: _buttonKeys[0],
+                icon: Icons.airline_seat_recline_normal,
+                label: 'Venta de Pasajes',
+                color: Colors.blue,
+                index: 0,
+                route: '/venta_bus',
+                delay: 400,
+              ),
+              _buildGridMenuButton(
+                key: _buttonKeys[1],
+                icon: Icons.inventory,
+                label: 'Venta de Carga',
+                color: Colors.purple,
+                index: 1,
+                route: '/venta_cargo',
+                delay: 500,
+              ),
+              _buildGridMenuButton(
+                key: _buttonKeys[2],
+                icon: Icons.history,
+                label: 'Historial de Carga',
+                color: Colors.orange,
+                index: 2,
+                route: '/cargo_history',
+                delay: 600,
+              ),
+              // Nuevo botón de Horario
+              _buildGridMenuButton(
+                key: _buttonKeys[3],
+                icon: Icons.schedule,
+                label: 'Horarios',
+                color: Colors.teal,
+                index: 3,
+                route: '/horarios',
+                delay: 700,
+              ),
+            ],
+          ),
+
+          SizedBox(height: 24),
           Divider(color: Colors.blue.shade100, thickness: 1),
           _buildSectionTitle('Administración', 600),
-          _buildAnimatedMenuButton(
-            key: _buttonKeys[3],
-            icon: Icons.calculate,
-            label: 'Cierre de Caja',
-            color: Colors.green.shade600,
-            index: 3,
-            route: '/cierre_caja',
-            delay: 900,
+
+          // Botones de administración en una fila
+          Row(
+            children: [
+              Expanded(
+                child: _buildGridMenuButton(
+                  key: _buttonKeys[4],
+                  icon: Icons.calculate,
+                  label: 'Cierre de Caja',
+                  color: Colors.green.shade600,
+                  index: 4,
+                  route: '/cierre_caja',
+                  delay: 800,
+                  small: true,
+                ),
+              ),
+              SizedBox(width: 16),
+              Expanded(
+                child: _buildGridMenuButton(
+                  key: _buttonKeys[5],
+                  icon: Icons.storage,
+                  label: 'Gestión de Datos',
+                  color: Colors.indigo,
+                  index: 5,
+                  route: '/data_management',
+                  delay: 900,
+                  small: true,
+                ),
+              ),
+            ],
           ),
-          SizedBox(height: 15),
-          _buildAnimatedMenuButton(
-            key: _buttonKeys[4],
-            icon: Icons.storage,
-            label: 'Gestión de Datos',
-            color: Colors.indigo,
-            index: 4,
-            route: '/data_management',
-            delay: 1000,
-          ),
+
           SizedBox(height: 30),
+
+          // Sección de información
           AnimatedOpacity(
             opacity: _showButtons ? 1.0 : 0.0,
             duration: Duration(milliseconds: 1000),
@@ -284,127 +309,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     );
   }
 
-  List<Widget> _buildAnimatedButtons() {
-    return [
-      _buildAnimatedMenuButton(
-        key: _buttonKeys[0],
-        icon: Icons.airline_seat_recline_normal,
-        label: 'Venta de Pasajes',
-        color: Colors.blue,
-        index: 0,
-        route: '/venta_bus',
-        delay: 700,
-      ),
-      SizedBox(height: 15),
-      _buildAnimatedMenuButton(
-        key: _buttonKeys[1],
-        icon: Icons.inventory,
-        label: 'Venta de Carga',
-        color: Colors.purple,
-        index: 1,
-        route: '/venta_cargo',
-        delay: 800,
-      ),
-      SizedBox(height: 15),
-      _buildAnimatedMenuButton(
-        key: _buttonKeys[2],
-        icon: Icons.history,
-        label: 'Historial de Carga',
-        color: Colors.orange,
-        index: 2,
-        route: '/cargo_history',
-        delay: 850,
-      ),
-    ];
-  }
-
-  Widget _buildAnimatedMenuButton({
-    required GlobalKey key,
-    required IconData icon,
-    required String label,
-    required Color color,
-    required int index,
-    required String route,
-    required int delay,
-  }) {
-    return AnimatedOpacity(
-      key: key,
-      opacity: _showButtons ? 1.0 : 0.0,
-      duration: Duration(milliseconds: 500),
-      curve: Curves.easeIn,
-      child: AnimatedContainer(
-        duration: Duration(milliseconds: 800),
-        curve: Curves.easeOutQuad,
-        transform: Matrix4.translationValues(_showButtons ? 0 : -100, 0, 0),
-        margin: EdgeInsets.only(left: _showButtons ? 0 : 50),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: color.withOpacity(0.3),
-                blurRadius: 8,
-                spreadRadius: 0,
-                offset: Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () {
-                _animateButtonTap(index);
-                HapticFeedback.mediumImpact();
-                Future.delayed(Duration(milliseconds: 300), () {
-                  Navigator.pushNamed(context, route);
-                });
-              },
-              borderRadius: BorderRadius.circular(12),
-              child: Ink(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      color,
-                      color.withOpacity(0.8),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Container(
-                  padding: EdgeInsets.symmetric(vertical: 15, horizontal: 20),
-                  child: Row(
-                    children: [
-                      Icon(icon, color: Colors.white, size: 28),
-                      SizedBox(width: 16),
-                      Expanded(
-                        child: Text(
-                          label,
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0.3,
-                          ),
-                        ),
-                      ),
-                      Icon(
-                        Icons.arrow_forward_ios,
-                        color: Colors.white.withOpacity(0.8),
-                        size: 16,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildSectionTitle(String title, int delayMs) {
     return AnimatedOpacity(
       opacity: _showButtons ? 1.0 : 0.0,
@@ -422,6 +326,81 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             fontWeight: FontWeight.bold,
             color: Colors.blue.shade800,
             letterSpacing: 0.5,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Nuevo estilo de botón con aspecto Material Design para Android sin animación de brillo azul
+  Widget _buildGridMenuButton({
+    required GlobalKey key,
+    required IconData icon,
+    required String label,
+    required Color color,
+    required int index,
+    required String route,
+    required int delay,
+    bool small = false,
+  }) {
+    return AnimatedOpacity(
+      key: key,
+      opacity: _showButtons ? 1.0 : 0.0,
+      duration: Duration(milliseconds: 600),
+      curve: Curves.easeIn,
+      child: AnimatedContainer(
+        duration: Duration(milliseconds: 800),
+        curve: Curves.easeOutQuad,
+        transform: Matrix4.translationValues(0, _showButtons ? 0 : 50, 0),
+        child: Card(
+          elevation: 4,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: InkWell(
+            onTap: () {
+              // Solo vibración de feedback, sin animación
+              HapticFeedback.mediumImpact();
+              Navigator.pushNamed(context, route);
+            },
+            borderRadius: BorderRadius.circular(16),
+            splashColor: color.withOpacity(0.2),
+            highlightColor: color.withOpacity(0.1),
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    color,
+                    color.withOpacity(0.8),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              padding: EdgeInsets.all(small ? 14 : 20),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    icon,
+                    color: Colors.white,
+                    size: small ? 32 : 42,
+                  ),
+                  SizedBox(height: small ? 8 : 12),
+                  Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: small ? 14 : 16,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),

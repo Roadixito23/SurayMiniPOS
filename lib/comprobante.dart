@@ -13,8 +13,9 @@ class ComprobanteManager {
 
   ComprobanteManager._internal();
 
-  // Constante para la clave de SharedPreferences
+  // Constantes para las claves de SharedPreferences
   static const String _keyCounter = 'comprobante_counter';
+  static const String _keyDeviceId = 'device_id';
 
   // Indica si ya se inicializó el contador
   bool _initialized = false;
@@ -22,10 +23,13 @@ class ComprobanteManager {
   // Contador único para todos los comprobantes
   int _counter = 0;
 
+  // ID del dispositivo
+  String _deviceId = '01';
+
   // Número máximo de comprobante (6 dígitos)
   static const int _maxCounter = 999999;
 
-  /// Inicializa el contador desde el almacenamiento local
+  /// Inicializa el contador y el ID del dispositivo desde el almacenamiento local
   Future<void> initialize() async {
     if (_initialized) return;
 
@@ -33,6 +37,7 @@ class ComprobanteManager {
       final prefs = await SharedPreferences.getInstance();
 
       _counter = prefs.getInt(_keyCounter) ?? 1;
+      _deviceId = prefs.getString(_keyDeviceId) ?? '01';
 
       // Asegurar que el contador esté dentro del rango válido
       if (_counter < 1 || _counter > _maxCounter) {
@@ -42,9 +47,29 @@ class ComprobanteManager {
       _initialized = true;
     } catch (e) {
       debugPrint('Error inicializando ComprobanteManager: $e');
-      // En caso de error, usar valor predeterminado
+      // En caso de error, usar valores predeterminados
       _counter = 1;
+      _deviceId = '01';
       _initialized = true;
+    }
+  }
+
+  /// Obtiene el ID del dispositivo actual
+  Future<String> getDeviceId() async {
+    if (!_initialized) {
+      await initialize();
+    }
+    return _deviceId;
+  }
+
+  /// Actualiza el ID del dispositivo
+  Future<void> updateDeviceId(String newDeviceId) async {
+    _deviceId = newDeviceId;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyDeviceId, newDeviceId);
+    } catch (e) {
+      debugPrint('Error al guardar device_id: $e');
     }
   }
 
@@ -55,23 +80,29 @@ class ComprobanteManager {
     // Formatear el número de comprobante a 6 dígitos con ceros a la izquierda
     final formattedNumber = _getFormattedCounter();
 
-    // Incrementar y guardar el contador para el próximo uso
-    _incrementCounter();
+    // Combinar el ID del dispositivo con el número de comprobante
+    final fullComprobante = '$_deviceId-$formattedNumber';
 
-    return formattedNumber;
+    // Incrementar y guardar el contador para el próximo uso
+    await _incrementCounter();
+
+    return fullComprobante;
   }
 
   /// Obtiene y genera el siguiente número de comprobante para carga
   Future<String> getNextCargoComprobante() async {
     await _ensureInitialized();
 
-    // Usar el mismo formato que los tickets de bus, sin prefijo
+    // Usar el mismo formato que los tickets de bus
     final formattedNumber = _getFormattedCounter();
 
-    // Incrementar y guardar el contador para el próximo uso
-    _incrementCounter();
+    // Combinar el ID del dispositivo con el número de comprobante
+    final fullComprobante = '$_deviceId-$formattedNumber';
 
-    return formattedNumber;
+    // Incrementar y guardar el contador para el próximo uso
+    await _incrementCounter();
+
+    return fullComprobante;
   }
 
   /// Incrementa el contador y lo guarda en SharedPreferences
@@ -126,5 +157,12 @@ class ComprobanteManager {
   Future<String> getCurrentFormattedCounter() async {
     await _ensureInitialized();
     return _counter.toString().padLeft(6, '0');
+  }
+
+  /// Obtiene el número de comprobante completo con el ID del dispositivo sin incrementar
+  Future<String> getCurrentFullComprobante() async {
+    await _ensureInitialized();
+    final formattedNumber = _getFormattedCounter();
+    return '$_deviceId-$formattedNumber';
   }
 }

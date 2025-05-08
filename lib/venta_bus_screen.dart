@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'bus_ticket_generator.dart';
 import 'numeric_input_field.dart';
+import 'horario_input_field.dart';
 
 class VentaBusScreen extends StatefulWidget {
   @override
@@ -11,11 +12,12 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
   String destino = 'Aysen';
   final List<String> destinos = ['Aysen', 'Intermedio', 'Coyhaique'];
   String? kilometroIntermedio;
+  String origenIntermedio = 'Aysen'; // Valor predeterminado para origen en caso intermedio
 
   String? horarioSeleccionado;
   String? asientoSeleccionado;
   String valorBoleto = '0';
-  bool _isLoading = false; // Nuevo estado para controlar la carga
+  bool _isLoading = false; // Estado para controlar la carga
 
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
@@ -26,18 +28,17 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
   final GlobalKey _horarioKey = GlobalKey();
   final GlobalKey _asientoKey = GlobalKey();
   final GlobalKey _valorKey = GlobalKey();
+  final GlobalKey _kmIntermedioKey = GlobalKey();
 
   // Focus nodes para cada campo de entrada
   final FocusNode _horarioFocusNode = FocusNode();
   final FocusNode _asientoFocusNode = FocusNode();
   final FocusNode _valorFocusNode = FocusNode();
+  final FocusNode _kmIntermedioFocusNode = FocusNode();
 
   @override
   void initState() {
     super.initState();
-
-    // Ya no necesitamos listeners para cada foco
-    // porque ahora el scroll se maneja directamente en onEnterPressed
   }
 
   // Método para desplazar y alinear el widget con la AppBar
@@ -60,6 +61,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
     _horarioFocusNode.dispose();
     _asientoFocusNode.dispose();
     _valorFocusNode.dispose();
+    _kmIntermedioFocusNode.dispose();
     super.dispose();
   }
 
@@ -86,7 +88,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
 
     int? asiento = int.tryParse(value);
     if (asiento == null || asiento < 0 || asiento > 45) {
-      return 'Asiento inválido (0-45)';
+      return 'Asiento inválido (1-45)';
     }
 
     return null;
@@ -134,10 +136,12 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (destino == 'Intermedio')
+                Text('Origen: $origenIntermedio'),
               Text(destino == 'Intermedio'
                   ? 'Destino: $destino (Km ${kilometroIntermedio ?? "no especificado"})'
                   : 'Destino: $destino'),
-              Text('Horario: $horarioSeleccionado'),
+              Text('Salida: $horarioSeleccionado'),
               Text('Asiento: $asientoSeleccionado'),
               Text('Valor: \$${valorBoleto}'),
             ],
@@ -166,7 +170,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
           // Construir el destino con formato adecuado para intermedios
           String destinoFormateado = destino;
           if (destino == 'Intermedio' && kilometroIntermedio != null) {
-            destinoFormateado = 'Intermedio Km ${kilometroIntermedio}';
+            destinoFormateado = '$origenIntermedio - Intermedio Km ${kilometroIntermedio}';
           }
 
           await BusTicketGenerator.generateAndPrintTicket(
@@ -279,7 +283,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                     ),
                   ),
 
-                  // Campo para kilómetro intermedio (solo visible cuando destino es "Intermedio")
+                  // Selector de origen para destino Intermedio
                   if (destino == 'Intermedio') ...[
                     SizedBox(height: 16),
                     Container(
@@ -293,11 +297,79 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Kilómetro Intermedio',
+                            'Origen del Viaje',
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                               color: Colors.blue.shade700,
+                            ),
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            'Seleccione desde dónde parte el bus:',
+                            style: TextStyle(fontSize: 14),
+                          ),
+                          SizedBox(height: 12),
+                          Row(
+                            children: ['Aysen', 'Coyhaique'].map((origen) {
+                              bool isSelected = origenIntermedio == origen;
+                              return Expanded(
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                                  child: GestureDetector(
+                                    onTap: () => setState(() {
+                                      origenIntermedio = origen;
+                                      // Al cambiar origen, resetear el horario seleccionado
+                                      horarioSeleccionado = null;
+                                    }),
+                                    child: Container(
+                                      padding: EdgeInsets.symmetric(vertical: 12),
+                                      decoration: BoxDecoration(
+                                        color: isSelected ? Colors.blue.shade200 : Colors.white,
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                          color: isSelected ? Colors.blue.shade400 : Colors.grey.shade300,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        origen,
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                          color: isSelected ? Colors.blue.shade700 : Colors.black,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+
+                  // Campo para kilómetro intermedio (solo visible cuando destino es "Intermedio")
+                  if (destino == 'Intermedio') ...[
+                    SizedBox(height: 16),
+                    Container(
+                      key: _kmIntermedioKey,
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.orange.shade200),
+                      ),
+                      padding: EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Kilómetro Intermedio',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.orange.shade700,
                             ),
                           ),
                           SizedBox(height: 8),
@@ -309,6 +381,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                           NumericInputField(
                             value: kilometroIntermedio,
                             hintText: 'Ej: 20',
+                            focusNode: _kmIntermedioFocusNode,
                             validator: (value) {
                               if (value.isEmpty) {
                                 return 'Ingrese el N° kilómetro';
@@ -347,41 +420,27 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
 
                   SizedBox(height: 24),
 
-                  // Campo de horario con teclado numérico
+                  // Campo de horario con sugerencias horizontales
                   Container(
                     key: _horarioKey,
-                    padding: EdgeInsets.only(top: 8.0), // Agrega un padding superior para mejor alineación
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Horario',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blue.shade700,
-                          ),
-                        ),
-                        SizedBox(height: 8.0),
-                        NumericInputField(
-                          label: '', // Quitamos el label del componente ya que lo mostramos arriba
-                          value: horarioSeleccionado,
-                          hintText: 'HH:MM',
-                          validator: _validarHorario,
-                          focusNode: _horarioFocusNode,
-                          onChanged: (value) {
-                            setState(() {
-                              horarioSeleccionado = value;
-                            });
-                          },
-                          onEnterPressed: () {
-                            // Pasar al siguiente campo
-                            _asientoFocusNode.requestFocus();
-                            // Hacer scroll para alinear con la AppBar
-                            _scrollToWidget(_asientoKey);
-                          },
-                        ),
-                      ],
+                    padding: EdgeInsets.only(top: 8.0),
+                    child: HorarioInputField(
+                      value: horarioSeleccionado,
+                      destino: destino,
+                      origenIntermedio: origenIntermedio, // Pasamos el origen intermedio
+                      validator: _validarHorario,
+                      focusNode: _horarioFocusNode,
+                      onChanged: (value) {
+                        setState(() {
+                          horarioSeleccionado = value;
+                        });
+                      },
+                      onEnterPressed: () {
+                        // Pasar al siguiente campo
+                        _asientoFocusNode.requestFocus();
+                        // Hacer scroll para alinear con la AppBar
+                        _scrollToWidget(_asientoKey);
+                      },
                     ),
                   ),
 
@@ -390,7 +449,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                   // Campo de asiento con teclado numérico
                   Container(
                     key: _asientoKey,
-                    padding: EdgeInsets.only(top: 8.0), // Agrega un padding superior para mejor alineación
+                    padding: EdgeInsets.only(top: 8.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -404,9 +463,9 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                         ),
                         SizedBox(height: 8.0),
                         NumericInputField(
-                          label: '', // Quitamos el label del componente ya que lo mostramos arriba
+                          label: '',
                           value: asientoSeleccionado,
-                          hintText: '0-45',
+                          hintText: '01-45',
                           validator: _validarAsiento,
                           focusNode: _asientoFocusNode,
                           onChanged: (value) {
@@ -430,7 +489,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                   // Campo de valor con teclado numérico
                   Container(
                     key: _valorKey,
-                    padding: EdgeInsets.only(top: 8.0), // Agrega un padding superior para mejor alineación
+                    padding: EdgeInsets.only(top: 8.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -444,7 +503,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                         ),
                         SizedBox(height: 8.0),
                         NumericInputField(
-                          label: '', // Quitamos el label del componente ya que lo mostramos arriba
+                          label: '',
                           value: valorBoleto == '0' ? '' : valorBoleto,
                           hintText: 'Ingrese valor',
                           prefix: '\$',
@@ -471,7 +530,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                     width: double.infinity,
                     height: 50,
                     child: ElevatedButton(
-                      onPressed: _isLoading ? null : _confirmarVenta, // Deshabilitar durante la carga
+                      onPressed: _isLoading ? null : _confirmarVenta,
                       child: Text(
                         'GENERAR TICKET',
                         style: TextStyle(fontSize: 16),

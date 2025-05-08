@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import 'cargo_database.dart';
 import 'comprobante.dart';
 import 'caja_database.dart';
+import 'pdf_optimizer.dart';
 
 class CargoTicketGenerator {
   // Formato estandarizado para tickets de carga (térmico)
@@ -18,6 +19,21 @@ class CargoTicketGenerator {
 
   // Formateador para precios en CLP
   static final _priceFormatter = NumberFormat('#,##0', 'es_CL');
+
+  // Configuración para el rectángulo de cinta
+  static final double tapeRectangleHeight = 45.0;
+
+  // Optimizador de PDF para mejorar el rendimiento
+  static final PdfOptimizer _optimizer = PdfOptimizer();
+  static bool _resourcesLoaded = false;
+
+  // Precargar recursos
+  static Future<void> preloadResources() async {
+    if (!_resourcesLoaded) {
+      await _optimizer.preloadResources();
+      _resourcesLoaded = true;
+    }
+  }
 
   /// Genera e imprime dos PDFs separados: copia cliente y copia carga (inspector)
   static Future<void> generateAndPrintTicket({
@@ -30,6 +46,9 @@ class CargoTicketGenerator {
     String? telefonoRemit = '',
   }) async {
     try {
+      // Asegurar que los recursos estén precargados
+      await preloadResources();
+
       final comprobanteManager = ComprobanteManager();
       final numeroComprobante = await comprobanteManager.getNextCargoComprobante();
 
@@ -37,15 +56,8 @@ class CargoTicketGenerator {
       final currentDate = DateFormat('dd/MM/yyyy').format(now);
       final currentTime = DateFormat('HH:mm:ss').format(now);
 
-      final logo = await _loadImageAsset('assets/logobkwt.png');
-      final endImage = await _loadImageAsset('assets/endTicket.png');
-      final scissorsImage = await _loadImageAsset('assets/tijera.png');
-
       // COPIA CLIENTE
       final clientPdf = await _generateClientPdf(
-        logo,
-        endImage,
-        scissorsImage,
         remitente,
         destinatario,
         destino,
@@ -76,9 +88,6 @@ class CargoTicketGenerator {
 
       // COPIA INSPECTOR (CARGA)
       final cargaPdf = await _generateCargaPdf(
-        logo,
-        endImage,
-        scissorsImage,
         remitente,
         destinatario,
         destino,
@@ -119,6 +128,8 @@ class CargoTicketGenerator {
       );
     } catch (e) {
       debugPrint('Error al generar ticket: $e');
+      // Limpiar caché en caso de error
+      _optimizer.clearCache();
       throw e;
     }
   }
@@ -130,9 +141,8 @@ class CargoTicketGenerator {
     required Map<String, dynamic> data,
   }) async {
     try {
-      final logo = await _loadImageAsset('assets/logobkwt.png');
-      final endImage = await _loadImageAsset('assets/endTicket.png');
-      final scissorsImage = await _loadImageAsset('assets/tijera.png');
+      // Asegurar que los recursos estén precargados
+      await preloadResources();
 
       final remitente = data['remitente'] ?? '';
       final destinatario = data['destinatario'] ?? '';
@@ -146,9 +156,6 @@ class CargoTicketGenerator {
 
       if (tipo == 'Cliente') {
         final clientPdf = await _generateClientPdf(
-          logo,
-          endImage,
-          scissorsImage,
           remitente,
           destinatario,
           destino,
@@ -164,9 +171,6 @@ class CargoTicketGenerator {
         await Printing.layoutPdf(onLayout: (_) async => clientPdf, format: ticketFormat);
       } else {
         final cargaPdf = await _generateCargaPdf(
-          logo,
-          endImage,
-          scissorsImage,
           remitente,
           destinatario,
           destino,
@@ -183,15 +187,67 @@ class CargoTicketGenerator {
       }
     } catch (e) {
       debugPrint('Error al reimprimir ticket: $e');
+      // Limpiar caché en caso de error
+      _optimizer.clearCache();
       throw e;
     }
   }
 
+  // Widget para el rectángulo de cinta adhesiva
+  static pw.Widget _buildTapeRectangle() {
+    return pw.Container(
+      width: double.infinity,
+      height: tapeRectangleHeight,
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(width: 4, color: PdfColors.black),
+      ),
+      child: pw.Center(
+        child: pw.Text(
+          'COLOCAR CINTA',
+          style: pw.TextStyle(
+            fontSize: 16,
+            fontWeight: pw.FontWeight.bold,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Widget para el box de información de entrega
+  static pw.Widget _buildDeliveryInfoBox() {
+    return pw.Container(
+      padding: pw.EdgeInsets.all(6),
+      decoration: pw.BoxDecoration(border: pw.Border.all()),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Row(
+            children: [
+              pw.Text('Entregado el día: ', style: pw.TextStyle(fontSize: 10)),
+              pw.Text('____', style: pw.TextStyle(fontSize: 10)),
+              pw.Text('/', style: pw.TextStyle(fontSize: 10)),
+              pw.Text('____', style: pw.TextStyle(fontSize: 10)),
+              pw.Text('/', style: pw.TextStyle(fontSize: 10)),
+              pw.Text('________', style: pw.TextStyle(fontSize: 10)),
+            ],
+          ),
+          pw.SizedBox(height: 8),
+          pw.Row(
+            children: [
+              pw.Text('A las: ', style: pw.TextStyle(fontSize: 10)),
+              pw.Text('____', style: pw.TextStyle(fontSize: 10)),
+              pw.Text(' : ', style: pw.TextStyle(fontSize: 10)),
+              pw.Text('____', style: pw.TextStyle(fontSize: 10)),
+              pw.Text(' Hrs.', style: pw.TextStyle(fontSize: 10)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   // Genera el PDF para Copia Cliente
   static Future<Uint8List> _generateClientPdf(
-      pw.ImageProvider? logo,
-      pw.ImageProvider? endImage,
-      pw.ImageProvider? scissorsImage,
       String remitente,
       String destinatario,
       String destino,
@@ -214,7 +270,7 @@ class CargoTicketGenerator {
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
               // Encabezado: Logo + Comprobante
-              _buildHeader(logo, numeroComprobante),
+              _buildHeader(numeroComprobante),
 
               pw.SizedBox(height: 4),
 
@@ -256,8 +312,8 @@ class CargoTicketGenerator {
 
               pw.SizedBox(height: 6),
 
-              // Pie
-              pw.Center(child: endImage != null ? pw.Image(endImage, width: ticketFormat.width * 0.8) : pw.Container()),
+              // Pie de página
+              pw.Center(child: pw.Image(_optimizer.getEndImage(), width: ticketFormat.width * 0.8)),
             ],
           );
         },
@@ -269,9 +325,6 @@ class CargoTicketGenerator {
 
   // Genera el PDF para Copia Carga (Inspector)
   static Future<Uint8List> _generateCargaPdf(
-      pw.ImageProvider? logo,
-      pw.ImageProvider? endImage,
-      pw.ImageProvider? scissorsImage,
       String remitente,
       String destinatario,
       String destino,
@@ -293,8 +346,13 @@ class CargoTicketGenerator {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
+              // Rectángulo para cinta adhesiva en la parte superior
+              _buildTapeRectangle(),
+
+              pw.SizedBox(height: 8),
+
               // Encabezado: Logo + Comprobante
-              _buildHeader(logo, numeroComprobante),
+              _buildHeader(numeroComprobante),
 
               pw.SizedBox(height: 4),
 
@@ -336,8 +394,18 @@ class CargoTicketGenerator {
 
               pw.SizedBox(height: 12),
 
+              // Agregar imagen de fin ANTES de la línea de corte
+              pw.Center(child: pw.Image(_optimizer.getEndImage(), width: ticketFormat.width * 0.8)),
+
+              pw.SizedBox(height: 8),
+
+              // Rectángulo para cinta adhesiva ANTES de la línea de corte
+              _buildTapeRectangle(),
+
+              pw.SizedBox(height: 8),
+
               // Línea de separación con tijeras
-              _buildScissorsLine(scissorsImage),
+              _buildScissorsLine(),
 
               pw.SizedBox(height: 12),
 
@@ -353,6 +421,11 @@ class CargoTicketGenerator {
 
               _buildControlInternoBox(numeroComprobante, articulo, precio, fecha),
 
+              pw.SizedBox(height: 8),
+
+              // Nuevo box para información de entrega
+              _buildDeliveryInfoBox(),
+
               pw.SizedBox(height: 69),
 
               pw.Container(width: double.infinity, height: 2, color: PdfColors.black),
@@ -366,18 +439,19 @@ class CargoTicketGenerator {
   }
 
   // Widget para el encabezado del ticket
-  static pw.Widget _buildHeader(pw.ImageProvider? logo, String ticketId) {
+  static pw.Widget _buildHeader(String ticketId) {
     return pw.Row(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
         pw.Container(
-          width: ticketFormat.width * 0.5,
-          child: logo != null ? pw.Image(logo) : pw.Text('Buses Suray', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+          width: ticketFormat.width * 0.4,
+          child: pw.Image(_optimizer.getLogoImage()),
         ),
+        pw.Spacer(),
         pw.Container(
           width: ticketFormat.width * 0.5,
-          padding: pw.EdgeInsets.all(4),
-          decoration: pw.BoxDecoration(border: pw.Border.all(width: 1.5)),
+          padding: pw.EdgeInsets.all(2),
+          decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)),
           child: pw.Column(
             mainAxisAlignment: pw.MainAxisAlignment.center,
             crossAxisAlignment: pw.CrossAxisAlignment.center,
@@ -387,10 +461,10 @@ class CargoTicketGenerator {
                 style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold),
                 textAlign: pw.TextAlign.center,
               ),
-              pw.SizedBox(height: 3),
+              pw.SizedBox(height: 2),
               pw.Text(
                 'N° $ticketId',
-                style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
+                style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
                 textAlign: pw.TextAlign.center,
               ),
             ],
@@ -548,14 +622,13 @@ class CargoTicketGenerator {
   }
 
   // Widget para la línea de corte con tijeras
-  static pw.Widget _buildScissorsLine(pw.ImageProvider? scissorsImage) {
+  static pw.Widget _buildScissorsLine() {
     return pw.Row(
       children: [
-        if (scissorsImage != null)
-          pw.Padding(
-            padding: pw.EdgeInsets.only(right: 4),
-            child: pw.Image(scissorsImage, width: 12),
-          ),
+        pw.Padding(
+          padding: pw.EdgeInsets.only(right: 4),
+          child: pw.Image(_optimizer.getTijeraImage(), width: 12),
+        ),
         pw.Expanded(
           child: pw.Container(
             height: 0.5,
@@ -573,7 +646,7 @@ class CargoTicketGenerator {
     );
   }
 
-  // Widget para el box de control interno
+  // Widget para el box de control interno - versión mejorada
   static pw.Widget _buildControlInternoBox(
       String ticketId,
       String articulo,
@@ -586,35 +659,34 @@ class CargoTicketGenerator {
       child: pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
+          pw.SizedBox(height: 12),
+          pw.Text('__________________________', style: pw.TextStyle(fontSize: 10)),
+          pw.Text('Nombre', style: pw.TextStyle(fontSize: 10)),
+          pw.SizedBox(height: 12),
+          pw.Text('__________________________', style: pw.TextStyle(fontSize: 10)),
+          pw.Text('R.U.T.', style: pw.TextStyle(fontSize: 10)),
+          pw.SizedBox(height: 16),
+          pw.Text('___________________________', style: pw.TextStyle(fontSize: 10)),
+          pw.Text('                 Firma', style: pw.TextStyle(fontSize: 10)),
+          pw.SizedBox(height: 8),
           pw.Text(
-            'N° $ticketId',
+            'Comprobante N° $ticketId',
             style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
           ),
-          pw.SizedBox(height: 6),
-          pw.Text('Nombre: __________________________', style: pw.TextStyle(fontSize: 10)),
           pw.SizedBox(height: 4),
-          pw.Text('RUT: ____________________________', style: pw.TextStyle(fontSize: 10)),
-          pw.SizedBox(height: 4),
-          pw.Text('Firma: ___________________________', style: pw.TextStyle(fontSize: 10)),
-          pw.SizedBox(height: 6),
           pw.Text('Artículo: $articulo', style: pw.TextStyle(fontSize: 10)),
           pw.SizedBox(height: 4),
           pw.Text('Valor: \$${_priceFormatter.format(precio)}', style: pw.TextStyle(fontSize: 10)),
           pw.SizedBox(height: 4),
-          pw.Text('Fecha despacho: $fechaDespacho', style: pw.TextStyle(fontSize: 10)),
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              pw.Text('Fecha: $fechaDespacho', style: pw.TextStyle(fontSize: 10)),
+              pw.Text('Hora: ${DateFormat('HH:mm').format(DateTime.now())}', style: pw.TextStyle(fontSize: 10)),
+            ],
+          ),
         ],
       ),
     );
-  }
-
-  // Carga imágenes desde assets
-  static Future<pw.ImageProvider?> _loadImageAsset(String path) async {
-    try {
-      final data = await rootBundle.load(path);
-      return pw.MemoryImage(data.buffer.asUint8List());
-    } catch (e) {
-      debugPrint('Error al cargar imagen "$path": $e');
-      return null;
-    }
   }
 }
