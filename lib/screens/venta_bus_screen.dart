@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'bus_ticket_generator.dart';
-import 'numeric_input_field.dart';
-import 'horario_input_field.dart';
+import '../services/bus_ticket_generator.dart';
+import '../widgets/numeric_input_field.dart';
+import '../widgets/horario_input_field.dart';
 
 class VentaBusScreen extends StatefulWidget {
   @override

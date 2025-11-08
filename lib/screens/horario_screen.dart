@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'horario.dart';
-import 'shared_widgets.dart';
+import '../models/horario.dart';
+import '../widgets/shared_widgets.dart';
 
 class HorarioScreen extends StatefulWidget {
   @override

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'comprobante.dart';
-import 'shared_widgets.dart';
+import '../models/comprobante.dart';
+import '../widgets/shared_widgets.dart';
 
 class AdminComprobantesScreen extends StatefulWidget {
   @override

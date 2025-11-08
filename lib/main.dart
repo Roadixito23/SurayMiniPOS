@@ -1,18 +1,18 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'splash.dart';
-import 'home.dart';
-import 'venta_bus_screen.dart';
-import 'venta_cargo_screen.dart';
-import 'admin_comprobantes_screen.dart';
-import 'cargo_history_screen.dart';
-import 'cierre_caja_screen.dart';
-import 'data_management_screen.dart';
-import 'horario_screen.dart'; // Nueva importación para la pantalla de horarios
-import 'settings_screen.dart'; // Nueva importación para la pantalla de configuración
-import 'comprobante.dart';
-import 'caja_database.dart';
+import 'screens/splash.dart';
+import 'screens/home.dart';
+import 'screens/venta_bus_screen.dart';
+import 'screens/venta_cargo_screen.dart';
+import 'screens/admin_comprobantes_screen.dart';
+import 'screens/cargo_history_screen.dart';
+import 'screens/cierre_caja_screen.dart';
+import 'screens/data_management_screen.dart';
+import 'screens/horario_screen.dart'; // Nueva importación para la pantalla de horarios
+import 'screens/settings_screen.dart'; // Nueva importación para la pantalla de configuración
+import 'models/comprobante.dart';
+import 'database/caja_database.dart';
 import 'package:path_provider/path_provider.dart';
 
 void main() async {
