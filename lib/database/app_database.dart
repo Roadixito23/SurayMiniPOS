@@ -19,8 +19,9 @@ class AppDatabase {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: _createDB,
+      onUpgrade: _onUpgrade,
     );
   }
 
@@ -64,6 +65,32 @@ class AppDatabase {
         horario TEXT NOT NULL,
         activo INTEGER NOT NULL DEFAULT 1,
         orden INTEGER NOT NULL
+      )
+    ''');
+
+    // Tabla de salidas de bus
+    await db.execute('''
+      CREATE TABLE salidas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        fecha TEXT NOT NULL,
+        horario TEXT NOT NULL,
+        destino TEXT NOT NULL,
+        tipo_dia TEXT NOT NULL,
+        activo INTEGER NOT NULL DEFAULT 1,
+        UNIQUE(fecha, horario, destino)
+      )
+    ''');
+
+    // Tabla de asientos reservados
+    await db.execute('''
+      CREATE TABLE asientos_reservados (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        salida_id INTEGER NOT NULL,
+        numero_asiento INTEGER NOT NULL,
+        comprobante TEXT,
+        fecha_reserva TEXT NOT NULL,
+        FOREIGN KEY (salida_id) REFERENCES salidas (id) ON DELETE CASCADE,
+        UNIQUE(salida_id, numero_asiento)
       )
     ''');
 
@@ -301,6 +328,112 @@ class AppDatabase {
       {'activo': 0},
       where: 'id = ?',
       whereArgs: [id],
+    );
+  }
+
+  // Cerrar la base de datos
+  Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // Agregar tablas de salidas y asientos reservados
+      await db.execute('''
+        CREATE TABLE salidas (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          fecha TEXT NOT NULL,
+          horario TEXT NOT NULL,
+          destino TEXT NOT NULL,
+          tipo_dia TEXT NOT NULL,
+          activo INTEGER NOT NULL DEFAULT 1,
+          UNIQUE(fecha, horario, destino)
+        )
+      ''');
+
+      await db.execute('''
+        CREATE TABLE asientos_reservados (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          salida_id INTEGER NOT NULL,
+          numero_asiento INTEGER NOT NULL,
+          comprobante TEXT,
+          fecha_reserva TEXT NOT NULL,
+          FOREIGN KEY (salida_id) REFERENCES salidas (id) ON DELETE CASCADE,
+          UNIQUE(salida_id, numero_asiento)
+        )
+      ''');
+    }
+  }
+
+  // MÉTODOS PARA SALIDAS
+  Future<int> crearObtenerSalida({
+    required String fecha,
+    required String horario,
+    required String destino,
+    required String tipoDia,
+  }) async {
+    final db = await database;
+
+    // Buscar si ya existe la salida
+    final result = await db.query(
+      'salidas',
+      where: 'fecha = ? AND horario = ? AND destino = ? AND activo = 1',
+      whereArgs: [fecha, horario, destino],
+    );
+
+    if (result.isNotEmpty) {
+      return result.first['id'] as int;
+    }
+
+    // Crear nueva salida
+    return await db.insert('salidas', {
+      'fecha': fecha,
+      'horario': horario,
+      'destino': destino,
+      'tipo_dia': tipoDia,
+      'activo': 1,
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> getAsientosOcupados(int salidaId) async {
+    final db = await database;
+    return await db.query(
+      'asientos_reservados',
+      where: 'salida_id = ?',
+      whereArgs: [salidaId],
+      orderBy: 'numero_asiento ASC',
+    );
+  }
+
+  Future<int> reservarAsiento({
+    required int salidaId,
+    required int numeroAsiento,
+    String? comprobante,
+  }) async {
+    final db = await database;
+    return await db.insert('asientos_reservados', {
+      'salida_id': salidaId,
+      'numero_asiento': numeroAsiento,
+      'comprobante': comprobante,
+      'fecha_reserva': DateTime.now().toIso8601String(),
+    });
+  }
+
+  Future<int> liberarAsiento(int salidaId, int numeroAsiento) async {
+    final db = await database;
+    return await db.delete(
+      'asientos_reservados',
+      where: 'salida_id = ? AND numero_asiento = ?',
+      whereArgs: [salidaId, numeroAsiento],
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getSalidasEnRango({
+    required String fechaInicio,
+    required String fechaFin,
+  }) async {
+    final db = await database;
+    return await db.query(
+      'salidas',
+      where: 'fecha >= ? AND fecha <= ? AND activo = 1',
+      whereArgs: [fechaInicio, fechaFin],
+      orderBy: 'fecha ASC, horario ASC',
     );
   }
 
