@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'bus_ticket_generator.dart';
 import 'numeric_input_field.dart';
 import 'horario_input_field.dart';
+import 'responsive_helper.dart';
 
 class VentaBusScreen extends StatefulWidget {
   @override
@@ -225,12 +226,19 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
           ),
           body: Form(
             key: _formKey,
-            child: SingleChildScrollView(
-              controller: _scrollController,
-              padding: const EdgeInsets.only(left: 16.0, right: 16.0, bottom: 16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+            child: Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: 1000),
+                child: SingleChildScrollView(
+                  controller: _scrollController,
+                  padding: EdgeInsets.only(
+                    left: ResponsiveHelper.getHorizontalPadding(context),
+                    right: ResponsiveHelper.getHorizontalPadding(context),
+                    bottom: ResponsiveHelper.getVerticalPadding(context),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                   // Agregamos un espacio en la parte superior para que el primer elemento no quede
                   // justo debajo de la AppBar
                   SizedBox(height: 16.0),
@@ -543,7 +551,9 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                       ),
                     ),
                   ),
-                ],
+                    ],
+                  ),
+                ),
               ),
             ),
           ),

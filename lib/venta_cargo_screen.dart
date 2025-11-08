@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'cargo_ticket_generator.dart';
 import 'numeric_input_field.dart';
 import 'shared_widgets.dart';
+import 'responsive_helper.dart';
 
 class VentaCargoScreen extends StatefulWidget {
   @override

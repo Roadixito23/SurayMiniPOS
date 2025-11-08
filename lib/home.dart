@@ -1,32 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // Para HapticFeedback
 import 'dart:math' as math;
+import 'responsive_helper.dart';
+import 'responsive_scaffold.dart';
 
 class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Inicio',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            letterSpacing: 0.5,
-          ),
+    return ResponsiveScaffold(
+      title: 'Inicio',
+      currentRoute: '/home',
+      actions: [
+        IconButton(
+          icon: Icon(Icons.settings),
+          onPressed: () {
+            Navigator.pushNamed(context, '/settings');
+          },
+          tooltip: 'Configuración',
         ),
-        centerTitle: true,
-        elevation: 2,
-        backgroundColor: Theme.of(context).primaryColor,
-        actions: [
-          IconButton(
-            icon: Icon(Icons.settings),
-            onPressed: () {
-              Navigator.pushNamed(context, '/settings');
-            },
-            tooltip: 'Configuración',
-          ),
-        ],
-      ),
+      ],
       body: HomePage(),
     );
   }
@@ -66,6 +58,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
   @override
   Widget build(BuildContext context) {
+    final horizontalPadding = ResponsiveHelper.getHorizontalPadding(context);
+    final verticalPadding = ResponsiveHelper.getVerticalPadding(context);
+    final maxWidth = ResponsiveHelper.getMaxContentWidth(context);
+
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -77,9 +73,15 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           ],
         ),
       ),
-      child: ListView(
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-        children: [
+      child: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: maxWidth),
+          child: ListView(
+            padding: EdgeInsets.symmetric(
+              horizontal: horizontalPadding,
+              vertical: verticalPadding,
+            ),
+            children: [
           // Logo animado
           Center(
             child: TweenAnimationBuilder(
@@ -87,6 +89,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               duration: Duration(milliseconds: 1500),
               curve: Curves.elasticOut,
               builder: (context, double value, child) {
+                final logoSize = ResponsiveHelper.getIconSize(context, 120.0);
+                final imageSize = ResponsiveHelper.getIconSize(context, 80.0);
+
                 return Transform.scale(
                   scale: value,
                   child: Stack(
@@ -98,8 +103,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                           return Transform.rotate(
                             angle: _controller.value * 2 * math.pi,
                             child: Container(
-                              height: 120,
-                              width: 120,
+                              height: logoSize,
+                              width: logoSize,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 gradient: SweepGradient(
@@ -119,8 +124,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                         tag: 'logo',
                         child: Image.asset(
                           'assets/logocolorminipos.png',
-                          height: 80,
-                          width: 80,
+                          height: imageSize,
+                          width: imageSize,
                         ),
                       ),
                     ],
@@ -129,7 +134,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               },
             ),
           ),
-          SizedBox(height: 24),
+          SizedBox(height: ResponsiveHelper.getResponsiveSpacing(context, 24)),
 
           // Título con animación
           TweenAnimationBuilder(
@@ -145,7 +150,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                     'Bienvenido',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 24,
+                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 24),
                       fontWeight: FontWeight.bold,
                       color: Theme.of(context).primaryColor,
                       letterSpacing: 0.5,
@@ -155,19 +160,19 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               );
             },
           ),
-          SizedBox(height: 30),
+          SizedBox(height: ResponsiveHelper.getResponsiveSpacing(context, 30)),
 
           // Sección Principal - Grid de botones
-          _buildSectionTitle('Menú Principal', 300),
+          _buildSectionTitle('Menú Principal', 300, context),
 
           // Grid de botones en lugar de lista
           GridView.count(
             shrinkWrap: true,
             physics: NeverScrollableScrollPhysics(),
-            crossAxisCount: 2,
-            childAspectRatio: 1.3,
-            mainAxisSpacing: 16,
-            crossAxisSpacing: 16,
+            crossAxisCount: ResponsiveHelper.getGridColumnCount(context, mobile: 2, tablet: 3, desktop: 4),
+            childAspectRatio: ResponsiveHelper.isWideScreen(context) ? 1.2 : 1.3,
+            mainAxisSpacing: ResponsiveHelper.getResponsiveSpacing(context, 16),
+            crossAxisSpacing: ResponsiveHelper.getResponsiveSpacing(context, 16),
             children: [
               _buildGridMenuButton(
                 key: _buttonKeys[0],
@@ -209,42 +214,73 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             ],
           ),
 
-          SizedBox(height: 24),
+          SizedBox(height: ResponsiveHelper.getResponsiveSpacing(context, 24)),
           Divider(color: Colors.blue.shade100, thickness: 1),
-          _buildSectionTitle('Administración', 600),
+          _buildSectionTitle('Administración', 600, context),
 
-          // Botones de administración en una fila
-          Row(
-            children: [
-              Expanded(
-                child: _buildGridMenuButton(
-                  key: _buttonKeys[4],
-                  icon: Icons.calculate,
-                  label: 'Cierre de Caja',
-                  color: Colors.green.shade600,
-                  index: 4,
-                  route: '/cierre_caja',
-                  delay: 800,
-                  small: true,
+          // Botones de administración - adaptativo según pantalla
+          ResponsiveHelper.isWideScreen(context)
+              ? GridView.count(
+                  shrinkWrap: true,
+                  physics: NeverScrollableScrollPhysics(),
+                  crossAxisCount: ResponsiveHelper.getGridColumnCount(context, mobile: 2, tablet: 2, desktop: 4),
+                  childAspectRatio: ResponsiveHelper.isWideScreen(context) ? 1.2 : 1.3,
+                  mainAxisSpacing: ResponsiveHelper.getResponsiveSpacing(context, 16),
+                  crossAxisSpacing: ResponsiveHelper.getResponsiveSpacing(context, 16),
+                  children: [
+                    _buildGridMenuButton(
+                      key: _buttonKeys[4],
+                      icon: Icons.calculate,
+                      label: 'Cierre de Caja',
+                      color: Colors.green.shade600,
+                      index: 4,
+                      route: '/cierre_caja',
+                      delay: 800,
+                      small: false,
+                    ),
+                    _buildGridMenuButton(
+                      key: _buttonKeys[5],
+                      icon: Icons.storage,
+                      label: 'Gestión de Datos',
+                      color: Colors.indigo,
+                      index: 5,
+                      route: '/data_management',
+                      delay: 900,
+                      small: false,
+                    ),
+                  ],
+                )
+              : Row(
+                  children: [
+                    Expanded(
+                      child: _buildGridMenuButton(
+                        key: _buttonKeys[4],
+                        icon: Icons.calculate,
+                        label: 'Cierre de Caja',
+                        color: Colors.green.shade600,
+                        index: 4,
+                        route: '/cierre_caja',
+                        delay: 800,
+                        small: true,
+                      ),
+                    ),
+                    SizedBox(width: ResponsiveHelper.getResponsiveSpacing(context, 16)),
+                    Expanded(
+                      child: _buildGridMenuButton(
+                        key: _buttonKeys[5],
+                        icon: Icons.storage,
+                        label: 'Gestión de Datos',
+                        color: Colors.indigo,
+                        index: 5,
+                        route: '/data_management',
+                        delay: 900,
+                        small: true,
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              SizedBox(width: 16),
-              Expanded(
-                child: _buildGridMenuButton(
-                  key: _buttonKeys[5],
-                  icon: Icons.storage,
-                  label: 'Gestión de Datos',
-                  color: Colors.indigo,
-                  index: 5,
-                  route: '/data_management',
-                  delay: 900,
-                  small: true,
-                ),
-              ),
-            ],
-          ),
 
-          SizedBox(height: 30),
+          SizedBox(height: ResponsiveHelper.getResponsiveSpacing(context, 30)),
 
           // Sección de información
           AnimatedOpacity(
@@ -303,13 +339,15 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               ),
             ),
           ),
-          SizedBox(height: 30),
-        ],
+          SizedBox(height: ResponsiveHelper.getResponsiveSpacing(context, 30)),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildSectionTitle(String title, int delayMs) {
+  Widget _buildSectionTitle(String title, int delayMs, BuildContext context) {
     return AnimatedOpacity(
       opacity: _showButtons ? 1.0 : 0.0,
       duration: Duration(milliseconds: 800),
@@ -318,11 +356,14 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         duration: Duration(milliseconds: 800),
         curve: Curves.easeOutQuad,
         transform: Matrix4.translationValues(0, _showButtons ? 0 : 20, 0),
-        padding: const EdgeInsets.only(bottom: 14.0, top: 6.0),
+        padding: EdgeInsets.only(
+          bottom: ResponsiveHelper.getResponsiveSpacing(context, 14.0),
+          top: ResponsiveHelper.getResponsiveSpacing(context, 6.0),
+        ),
         child: Text(
           title,
           style: TextStyle(
-            fontSize: 20,
+            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 20),
             fontWeight: FontWeight.bold,
             color: Colors.blue.shade800,
             letterSpacing: 0.5,
@@ -343,67 +384,88 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     required int delay,
     bool small = false,
   }) {
-    return AnimatedOpacity(
-      key: key,
-      opacity: _showButtons ? 1.0 : 0.0,
-      duration: Duration(milliseconds: 600),
-      curve: Curves.easeIn,
-      child: AnimatedContainer(
-        duration: Duration(milliseconds: 800),
-        curve: Curves.easeOutQuad,
-        transform: Matrix4.translationValues(0, _showButtons ? 0 : 50, 0),
-        child: Card(
-          elevation: 4,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: InkWell(
-            onTap: () {
-              // Solo vibración de feedback, sin animación
-              HapticFeedback.mediumImpact();
-              Navigator.pushNamed(context, route);
-            },
-            borderRadius: BorderRadius.circular(16),
-            splashColor: color.withOpacity(0.2),
-            highlightColor: color.withOpacity(0.1),
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    color,
-                    color.withOpacity(0.8),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+    return Builder(
+      builder: (context) {
+        final iconSize = ResponsiveHelper.getIconSize(
+          context,
+          small ? 32.0 : 42.0,
+        );
+        final fontSize = ResponsiveHelper.getResponsiveFontSize(
+          context,
+          small ? 14.0 : 16.0,
+        );
+        final padding = ResponsiveHelper.getResponsiveSpacing(
+          context,
+          small ? 14.0 : 20.0,
+        );
+        final spacing = ResponsiveHelper.getResponsiveSpacing(
+          context,
+          small ? 8.0 : 12.0,
+        );
+
+        return AnimatedOpacity(
+          key: key,
+          opacity: _showButtons ? 1.0 : 0.0,
+          duration: Duration(milliseconds: 600),
+          curve: Curves.easeIn,
+          child: AnimatedContainer(
+            duration: Duration(milliseconds: 800),
+            curve: Curves.easeOutQuad,
+            transform: Matrix4.translationValues(0, _showButtons ? 0 : 50, 0),
+            child: Card(
+              elevation: 4,
+              shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
-              padding: EdgeInsets.all(small ? 14 : 20),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    icon,
-                    color: Colors.white,
-                    size: small ? 32 : 42,
-                  ),
-                  SizedBox(height: small ? 8 : 12),
-                  Text(
-                    label,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: small ? 14 : 16,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.3,
+              child: InkWell(
+                onTap: () {
+                  // Solo vibración de feedback, sin animación
+                  HapticFeedback.mediumImpact();
+                  Navigator.pushNamed(context, route);
+                },
+                borderRadius: BorderRadius.circular(16),
+                splashColor: color.withOpacity(0.2),
+                highlightColor: color.withOpacity(0.1),
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        color,
+                        color.withOpacity(0.8),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                ],
+                  padding: EdgeInsets.all(padding),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        icon,
+                        color: Colors.white,
+                        size: iconSize,
+                      ),
+                      SizedBox(height: spacing),
+                      Text(
+                        label,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: fontSize,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

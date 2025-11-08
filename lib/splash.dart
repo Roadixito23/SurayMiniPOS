@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'responsive_helper.dart';
 
 class SplashScreen extends StatefulWidget {
   @override
@@ -17,6 +18,11 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final logoSize = ResponsiveHelper.getIconSize(context, 150);
+    final titleFontSize = ResponsiveHelper.getResponsiveFontSize(context, 22);
+    final footerFontSize = ResponsiveHelper.getResponsiveFontSize(context, 14);
+    final poweredByFontSize = ResponsiveHelper.getResponsiveFontSize(context, 12);
+
     return Scaffold(
       backgroundColor: Colors.blue.shade700,
       body: Stack(
@@ -29,22 +35,22 @@ class _SplashScreenState extends State<SplashScreen> {
                 // Logo centered in the middle of the screen
                 Image.asset(
                   'assets/logocolorminipos.png',
-                  width: 150,
-                  height: 150,
+                  width: logoSize,
+                  height: logoSize,
                 ),
-                SizedBox(height: 24),
+                SizedBox(height: ResponsiveHelper.getResponsiveSpacing(context, 24)),
                 // Title below logo
                 Text(
-                  'INICIANDO SISTEMA ',
+                  'INICIANDO SISTEMA',
                   style: TextStyle(
-                      fontSize: 22,
+                      fontSize: titleFontSize,
                       fontWeight: FontWeight.bold,
                       color: Colors.white
                   ),
                   textAlign: TextAlign.center,
                 ),
-                SizedBox(height: 12),
-                SizedBox(height: 24),
+                SizedBox(height: ResponsiveHelper.getResponsiveSpacing(context, 12)),
+                SizedBox(height: ResponsiveHelper.getResponsiveSpacing(context, 24)),
                 CircularProgressIndicator(color: Colors.white),
               ],
             ),
@@ -54,13 +60,13 @@ class _SplashScreenState extends State<SplashScreen> {
           Positioned(
             left: 0,
             right: 0,
-            bottom: 24,
+            bottom: ResponsiveHelper.getResponsiveSpacing(context, 24),
             child: Column(
               children: [
                 Text(
                   '© www.suray.cl',
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: footerFontSize,
                     color: Colors.white70,
                   ),
                   textAlign: TextAlign.center,
@@ -69,7 +75,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 Text(
                   'POWERED BY: RoadTech Studio',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: poweredByFontSize,
                     fontWeight: FontWeight.bold,
                     color: Colors.white70,
                   ),
