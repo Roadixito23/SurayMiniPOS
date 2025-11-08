@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../services/bus_ticket_generator.dart';
 import '../widgets/numeric_input_field.dart';
 import '../widgets/horario_input_field.dart';
+import '../models/tarifa.dart';
+import '../database/app_database.dart';
 
 class VentaBusScreen extends StatefulWidget {
   @override
@@ -18,6 +20,12 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
   String? asientoSeleccionado;
   String valorBoleto = '0';
   bool _isLoading = false; // Estado para controlar la carga
+
+  // Variables para tipo de día y tarifa
+  String tipoDia = 'LUNES A SÁBADO';
+  final List<String> tiposDia = ['LUNES A SÁBADO', 'DOMINGO / FERIADO'];
+  List<Tarifa> tarifasDisponibles = [];
+  Tarifa? tarifaSeleccionada;
 
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
@@ -39,6 +47,28 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
   @override
   void initState() {
     super.initState();
+    _cargarTarifas();
+  }
+
+  // Método para cargar tarifas desde la base de datos
+  Future<void> _cargarTarifas() async {
+    try {
+      final tarifas = await AppDatabase.instance.getTarifasByTipoDia(tipoDia);
+      setState(() {
+        tarifasDisponibles = tarifas.map((map) => Tarifa.fromMap(map)).toList();
+        // Seleccionar automáticamente la primera tarifa si está disponible
+        if (tarifasDisponibles.isNotEmpty && tarifaSeleccionada == null) {
+          tarifaSeleccionada = tarifasDisponibles.first;
+          // Actualizar el valor del boleto con la tarifa seleccionada
+          valorBoleto = tarifaSeleccionada!.valor.toStringAsFixed(0);
+        }
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Error al cargar tarifas: $e'),
+        backgroundColor: Colors.red,
+      ));
+    }
   }
 
   // Método para desplazar y alinear el widget con la AppBar
@@ -111,6 +141,15 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
   void _confirmarVenta() async {
     // Validar formulario
     if (_formKey.currentState!.validate()) {
+      // Validar tarifa seleccionada
+      if (tarifaSeleccionada == null) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Por favor seleccione una tarifa'),
+          backgroundColor: Colors.red,
+        ));
+        return;
+      }
+
       if (horarioSeleccionado == null || asientoSeleccionado == null || int.parse(valorBoleto) <= 0) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Por favor complete todos los campos correctamente'),
@@ -136,6 +175,9 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Text('Tipo de día: $tipoDia', style: TextStyle(fontWeight: FontWeight.w500)),
+              Text('Tarifa: ${tarifaSeleccionada?.categoria ?? "No especificada"}', style: TextStyle(fontWeight: FontWeight.w500)),
+              Divider(),
               if (destino == 'Intermedio')
                 Text('Origen: $origenIntermedio'),
               Text(destino == 'Intermedio'
@@ -178,6 +220,10 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
             horario: horarioSeleccionado!,
             asiento: asientoSeleccionado!,
             valor: valorBoleto,
+            tipoDia: tipoDia,
+            tituloTarifa: tarifaSeleccionada?.categoria ?? 'PUBLICO GENERAL',
+            origen: destino == 'Intermedio' ? origenIntermedio : null,
+            kilometros: destino == 'Intermedio' ? kilometroIntermedio : null,
           );
 
           // Mostrar mensaje de éxito
@@ -417,6 +463,132 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                       ),
                     ),
                   ],
+
+                  SizedBox(height: 24),
+
+                  // Selector de tipo de día
+                  Text(
+                    'Tipo de Día',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue.shade700,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade400),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: tiposDia.map((tipo) {
+                        bool isSelected = tipoDia == tipo;
+                        return Expanded(
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                tipoDia = tipo;
+                                tarifaSeleccionada = null; // Resetear tarifa seleccionada
+                              });
+                              _cargarTarifas(); // Recargar tarifas para el nuevo tipo de día
+                            },
+                            child: Container(
+                              padding: EdgeInsets.symmetric(vertical: 12),
+                              decoration: BoxDecoration(
+                                color: isSelected ? Colors.blue.shade100 : Colors.transparent,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                tipo,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                  color: isSelected ? Colors.blue.shade700 : Colors.black,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+
+                  SizedBox(height: 24),
+
+                  // Selector de tarifa/categoría
+                  Text(
+                    'Categoría de Tarifa',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue.shade700,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  if (tarifasDisponibles.isEmpty)
+                    Container(
+                      padding: EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.orange.shade400),
+                        borderRadius: BorderRadius.circular(8),
+                        color: Colors.orange.shade50,
+                      ),
+                      child: Text(
+                        'No hay tarifas disponibles para este tipo de día',
+                        style: TextStyle(color: Colors.orange.shade700),
+                        textAlign: TextAlign.center,
+                      ),
+                    )
+                  else
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade400),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<Tarifa>(
+                          isExpanded: true,
+                          value: tarifaSeleccionada,
+                          hint: Text('Seleccione una tarifa'),
+                          items: tarifasDisponibles.map((tarifa) {
+                            return DropdownMenuItem<Tarifa>(
+                              value: tarifa,
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      tarifa.categoria,
+                                      style: TextStyle(fontSize: 14),
+                                    ),
+                                  ),
+                                  Text(
+                                    '\$${tarifa.valor.toStringAsFixed(0)}',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.blue.shade700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (tarifa) {
+                            setState(() {
+                              tarifaSeleccionada = tarifa;
+                              if (tarifa != null) {
+                                // Actualizar el valor del boleto con la tarifa seleccionada
+                                valorBoleto = tarifa.valor.toStringAsFixed(0);
+                              }
+                            });
+                          },
+                        ),
+                      ),
+                    ),
 
                   SizedBox(height: 24),
 
