@@ -1,9 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'cargo_database.dart';
-import 'cargo_ticket_generator.dart';
-import 'cargo_stats_widget.dart';
+import '../database/cargo_database.dart';
+import '../services/cargo_ticket_generator.dart';
+import '../widgets/cargo_stats_widget.dart';
 
 class CargoHistoryScreen extends StatefulWidget {
   @override

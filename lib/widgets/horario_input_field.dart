@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'numeric_input_field.dart';
-import 'horario.dart';
+import '../models/horario.dart';
 
 class HorarioInputField extends StatefulWidget {
   final String? value;

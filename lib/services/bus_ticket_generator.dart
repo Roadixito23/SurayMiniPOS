@@ -5,8 +5,8 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:intl/intl.dart';
-import 'comprobante.dart';
-import 'caja_database.dart';
+import '../models/comprobante.dart';
+import '../database/caja_database.dart';
 
 class BusTicketGenerator {
   // Dimensiones ajustadas para coincidir con el formato de impresora térmica

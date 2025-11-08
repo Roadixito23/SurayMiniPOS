@@ -2,9 +2,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
-import 'caja_database.dart';
-import 'shared_widgets.dart';
-import 'comprobante.dart';
+import '../database/caja_database.dart';
+import '../widgets/shared_widgets.dart';
+import '../models/comprobante.dart';
 
 /// Pantalla para gestionar los datos y backups de la aplicación
 class DataManagementScreen extends StatefulWidget {

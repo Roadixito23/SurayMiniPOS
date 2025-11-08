@@ -5,9 +5,9 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:intl/intl.dart';
-import 'cargo_database.dart';
-import 'comprobante.dart';
-import 'caja_database.dart';
+import '../database/cargo_database.dart';
+import '../models/comprobante.dart';
+import '../database/caja_database.dart';
 import 'pdf_optimizer.dart';
 
 class CargoTicketGenerator {
