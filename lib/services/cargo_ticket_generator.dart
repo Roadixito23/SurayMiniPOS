@@ -11,17 +11,17 @@ import '../database/caja_database.dart';
 import 'pdf_optimizer.dart';
 
 class CargoTicketGenerator {
-  // Formato estandarizado para tickets de carga (térmico)
+  // Formato estandarizado para tickets de carga (térmico - 25% más pequeño)
   static final PdfPageFormat ticketFormat = PdfPageFormat(
-    58 * PdfPageFormat.mm,
+    43.5 * PdfPageFormat.mm,
     double.infinity,
   );
 
   // Formateador para precios en CLP
   static final _priceFormatter = NumberFormat('#,##0', 'es_CL');
 
-  // Configuración para el rectángulo de cinta
-  static final double tapeRectangleHeight = 45.0;
+  // Configuración para el rectángulo de cinta (25% más pequeño)
+  static final double tapeRectangleHeight = 34.0;
 
   // Optimizador de PDF para mejorar el rendimiento
   static final PdfOptimizer _optimizer = PdfOptimizer();
@@ -205,13 +205,13 @@ class CargoTicketGenerator {
       width: double.infinity,
       height: tapeRectangleHeight,
       decoration: pw.BoxDecoration(
-        border: pw.Border.all(width: 4, color: PdfColors.black),
+        border: pw.Border.all(width: 3, color: PdfColors.black),
       ),
       child: pw.Center(
         child: pw.Text(
           'COLOCAR CINTA',
           style: pw.TextStyle(
-            fontSize: 16,
+            fontSize: 12,
             fontWeight: pw.FontWeight.bold,
           ),
         ),
@@ -222,29 +222,29 @@ class CargoTicketGenerator {
   // Widget para el box de información de entrega
   static pw.Widget _buildDeliveryInfoBox() {
     return pw.Container(
-      padding: pw.EdgeInsets.all(6),
-      decoration: pw.BoxDecoration(border: pw.Border.all()),
+      padding: pw.EdgeInsets.all(4.5),
+      decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.75)),
       child: pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
           pw.Row(
             children: [
-              pw.Text('Entregado el día: ', style: pw.TextStyle(fontSize: 10)),
-              pw.Text('____', style: pw.TextStyle(fontSize: 10)),
-              pw.Text('/', style: pw.TextStyle(fontSize: 10)),
-              pw.Text('____', style: pw.TextStyle(fontSize: 10)),
-              pw.Text('/', style: pw.TextStyle(fontSize: 10)),
-              pw.Text('________', style: pw.TextStyle(fontSize: 10)),
+              pw.Text('Entregado el día: ', style: pw.TextStyle(fontSize: 7.5)),
+              pw.Text('____', style: pw.TextStyle(fontSize: 7.5)),
+              pw.Text('/', style: pw.TextStyle(fontSize: 7.5)),
+              pw.Text('____', style: pw.TextStyle(fontSize: 7.5)),
+              pw.Text('/', style: pw.TextStyle(fontSize: 7.5)),
+              pw.Text('________', style: pw.TextStyle(fontSize: 7.5)),
             ],
           ),
-          pw.SizedBox(height: 8),
+          pw.SizedBox(height: 6),
           pw.Row(
             children: [
-              pw.Text('A las: ', style: pw.TextStyle(fontSize: 10)),
-              pw.Text('____', style: pw.TextStyle(fontSize: 10)),
-              pw.Text(' : ', style: pw.TextStyle(fontSize: 10)),
-              pw.Text('____', style: pw.TextStyle(fontSize: 10)),
-              pw.Text(' Hrs.', style: pw.TextStyle(fontSize: 10)),
+              pw.Text('A las: ', style: pw.TextStyle(fontSize: 7.5)),
+              pw.Text('____', style: pw.TextStyle(fontSize: 7.5)),
+              pw.Text(' : ', style: pw.TextStyle(fontSize: 7.5)),
+              pw.Text('____', style: pw.TextStyle(fontSize: 7.5)),
+              pw.Text(' Hrs.', style: pw.TextStyle(fontSize: 7.5)),
             ],
           ),
         ],
@@ -271,7 +271,7 @@ class CargoTicketGenerator {
     doc.addPage(
       pw.Page(
         pageFormat: ticketFormat,
-        margin: pw.EdgeInsets.symmetric(vertical: 25, horizontal: 6),
+        margin: pw.EdgeInsets.symmetric(vertical: 19, horizontal: 4.5),
         build: (pw.Context context) {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.center,
@@ -279,18 +279,18 @@ class CargoTicketGenerator {
               // Encabezado: Logo + Rectángulo CARGO
               _buildHeader(numeroComprobante, false),
 
-              pw.SizedBox(height: 4),
+              pw.SizedBox(height: 3),
 
               // Marca de reimpresión si aplica
               if (isReprint)
                 pw.Center(
                   child: pw.Container(
                     color: PdfColors.grey200,
-                    padding: pw.EdgeInsets.all(4),
-                    margin: pw.EdgeInsets.only(bottom: 4),
+                    padding: pw.EdgeInsets.all(3),
+                    margin: pw.EdgeInsets.only(bottom: 3),
                     child: pw.Text(
                       'COPIA CLIENTE (REIMPRESIÓN)',
-                      style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.red),
+                      style: pw.TextStyle(fontSize: 6, fontWeight: pw.FontWeight.bold, color: PdfColors.red),
                     ),
                   ),
                 )
@@ -298,11 +298,11 @@ class CargoTicketGenerator {
                 pw.Center(
                   child: pw.Text(
                     'COPIA CLIENTE',
-                    style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold),
+                    style: pw.TextStyle(fontSize: 6, fontWeight: pw.FontWeight.bold),
                   ),
                 ),
 
-              pw.SizedBox(height: 8),
+              pw.SizedBox(height: 6),
 
               // Contenido principal
               _buildContent(
@@ -317,7 +317,7 @@ class CargoTicketGenerator {
                 hora,
               ),
 
-              pw.SizedBox(height: 6),
+              pw.SizedBox(height: 4.5),
 
               // Pie de página
               pw.Center(child: pw.Image(_optimizer.getEndImage(), width: ticketFormat.width * 0.8)),
@@ -349,7 +349,7 @@ class CargoTicketGenerator {
     doc.addPage(
       pw.Page(
         pageFormat: ticketFormat,
-        margin: pw.EdgeInsets.symmetric(vertical: 25, horizontal: 6),
+        margin: pw.EdgeInsets.symmetric(vertical: 19, horizontal: 4.5),
         build: (pw.Context context) {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.center,
@@ -357,23 +357,23 @@ class CargoTicketGenerator {
               // Rectángulo para cinta adhesiva en la parte superior
               _buildTapeRectangle(),
 
-              pw.SizedBox(height: 8),
+              pw.SizedBox(height: 6),
 
               // Encabezado: Logo + Rectángulo CARGO
               _buildHeader(numeroComprobante, false),
 
-              pw.SizedBox(height: 4),
+              pw.SizedBox(height: 3),
 
               // Marca de reimpresión si aplica
               if (isReprint)
                 pw.Center(
                   child: pw.Container(
                     color: PdfColors.grey200,
-                    padding: pw.EdgeInsets.all(4),
-                    margin: pw.EdgeInsets.only(bottom: 4),
+                    padding: pw.EdgeInsets.all(3),
+                    margin: pw.EdgeInsets.only(bottom: 3),
                     child: pw.Text(
                       'COPIA CARGA (REIMPRESIÓN)',
-                      style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.red),
+                      style: pw.TextStyle(fontSize: 6, fontWeight: pw.FontWeight.bold, color: PdfColors.red),
                     ),
                   ),
                 )
@@ -381,11 +381,11 @@ class CargoTicketGenerator {
                 pw.Center(
                   child: pw.Text(
                     'COPIA CARGA',
-                    style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold),
+                    style: pw.TextStyle(fontSize: 6, fontWeight: pw.FontWeight.bold),
                   ),
                 ),
 
-              pw.SizedBox(height: 8),
+              pw.SizedBox(height: 6),
 
               // Contenido principal
               _buildContent(
@@ -400,43 +400,43 @@ class CargoTicketGenerator {
                 hora,
               ),
 
-              pw.SizedBox(height: 12),
+              pw.SizedBox(height: 9),
 
               // Agregar imagen de fin ANTES de la línea de corte
               pw.Center(child: pw.Image(_optimizer.getEndImage(), width: ticketFormat.width * 0.8)),
 
-              pw.SizedBox(height: 8),
+              pw.SizedBox(height: 6),
 
               // Rectángulo para cinta adhesiva ANTES de la línea de corte
               _buildTapeRectangle(),
 
-              pw.SizedBox(height: 8),
+              pw.SizedBox(height: 6),
 
               // Línea de separación con tijeras
               _buildScissorsLine(),
 
-              pw.SizedBox(height: 12),
+              pw.SizedBox(height: 9),
 
               // Control Interno
               pw.Center(
                 child: pw.Text(
                   'CONTROL INTERNO',
-                  style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
+                  style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold),
                 ),
               ),
 
-              pw.SizedBox(height: 4),
+              pw.SizedBox(height: 3),
 
               _buildControlInternoBox(numeroComprobante, articulo, precio, fecha),
 
-              pw.SizedBox(height: 8),
+              pw.SizedBox(height: 6),
 
               // Nuevo box para información de entrega
               _buildDeliveryInfoBox(),
 
-              pw.SizedBox(height: 69),
+              pw.SizedBox(height: 52),
 
-              pw.Container(width: double.infinity, height: 2, color: PdfColors.black),
+              pw.Container(width: double.infinity, height: 1.5, color: PdfColors.black),
             ],
           );
         },
@@ -454,20 +454,20 @@ class CargoTicketGenerator {
       children: [
         // Logo izquierda
         pw.Container(
-          width: 65,
+          width: 49,
           child: pw.Image(_optimizer.getLogoImage()),
         ),
 
-        pw.SizedBox(width: 6),
+        pw.SizedBox(width: 4.5),
 
         // Rectángulo con bordes negros, fondo blanco con CARGO y N° comprobante
         pw.Expanded(
           child: pw.Container(
-            padding: pw.EdgeInsets.all(8),
+            padding: pw.EdgeInsets.all(6),
             decoration: pw.BoxDecoration(
               color: PdfColors.white,
-              border: pw.Border.all(width: 2, color: PdfColors.black),
-              borderRadius: pw.BorderRadius.circular(4),
+              border: pw.Border.all(width: 1.5, color: PdfColors.black),
+              borderRadius: pw.BorderRadius.circular(3),
             ),
             child: pw.Column(
               mainAxisAlignment: pw.MainAxisAlignment.center,
@@ -475,17 +475,17 @@ class CargoTicketGenerator {
                 pw.Text(
                   'CARGO',
                   style: pw.TextStyle(
-                    fontSize: 9,
+                    fontSize: 6.75,
                     fontWeight: pw.FontWeight.bold,
                     color: PdfColors.black,
                   ),
                   textAlign: pw.TextAlign.center,
                 ),
-                pw.SizedBox(height: 4),
+                pw.SizedBox(height: 3),
                 pw.Text(
                   'N° $ticketId',
                   style: pw.TextStyle(
-                    fontSize: 8,
+                    fontSize: 6,
                     color: PdfColors.black,
                   ),
                   textAlign: pw.TextAlign.center,
@@ -514,139 +514,139 @@ class CargoTicketGenerator {
       crossAxisAlignment: pw.CrossAxisAlignment.stretch,
       children: [
         pw.Container(
-          decoration: pw.BoxDecoration(border: pw.Border.all()),
-          padding: pw.EdgeInsets.all(5),
+          decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.75)),
+          padding: pw.EdgeInsets.all(3.75),
           child: pw.Row(
             mainAxisAlignment: pw.MainAxisAlignment.center,
             children: [
-              pw.Text('Destino:', style: pw.TextStyle(fontSize: 9)),
-              pw.SizedBox(width: 4),
+              pw.Text('Destino:', style: pw.TextStyle(fontSize: 6.75)),
+              pw.SizedBox(width: 3),
               pw.Text(
                 destino,
-                style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
+                style: pw.TextStyle(fontSize: 8.25, fontWeight: pw.FontWeight.bold),
               ),
             ],
           ),
         ),
 
-        pw.SizedBox(height: 5),
+        pw.SizedBox(height: 3.75),
 
         pw.Container(
-          decoration: pw.BoxDecoration(border: pw.Border.all()),
-          padding: pw.EdgeInsets.all(5),
+          decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.75)),
+          padding: pw.EdgeInsets.all(3.75),
           child: pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.center,
             children: [
-              pw.Text('Artículo:', style: pw.TextStyle(fontSize: 9)),
+              pw.Text('Artículo:', style: pw.TextStyle(fontSize: 6.75)),
               pw.Text(
                 articulo,
-                style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
+                style: pw.TextStyle(fontSize: 8.25, fontWeight: pw.FontWeight.bold),
                 textAlign: pw.TextAlign.center,
               ),
             ],
           ),
         ),
 
-        pw.SizedBox(height: 5),
+        pw.SizedBox(height: 3.75),
 
         pw.Container(
-          decoration: pw.BoxDecoration(border: pw.Border.all()),
-          padding: pw.EdgeInsets.all(5),
+          decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.75)),
+          padding: pw.EdgeInsets.all(3.75),
           child: pw.Row(
             mainAxisAlignment: pw.MainAxisAlignment.center,
             children: [
-              pw.Text('Precio:', style: pw.TextStyle(fontSize: 9)),
-              pw.SizedBox(width: 4),
+              pw.Text('Precio:', style: pw.TextStyle(fontSize: 6.75)),
+              pw.SizedBox(width: 3),
               pw.Text(
                 '\${_priceFormatter.format(precio)}',
-                style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
+                style: pw.TextStyle(fontSize: 8.25, fontWeight: pw.FontWeight.bold),
               ),
             ],
           ),
         ),
 
-        pw.SizedBox(height: 5),
+        pw.SizedBox(height: 3.75),
 
         pw.Container(
-          decoration: pw.BoxDecoration(border: pw.Border.all()),
-          padding: pw.EdgeInsets.all(5),
+          decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.75)),
+          padding: pw.EdgeInsets.all(3.75),
           child: pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.center,
             children: [
-              pw.Text('Destinatario:', style: pw.TextStyle(fontSize: 9)),
+              pw.Text('Destinatario:', style: pw.TextStyle(fontSize: 6.75)),
               pw.Text(
                 destinatario,
-                style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
+                style: pw.TextStyle(fontSize: 8.25, fontWeight: pw.FontWeight.bold),
                 textAlign: pw.TextAlign.center,
               ),
             ],
           ),
         ),
 
-        if (telefonoDest.isNotEmpty) pw.SizedBox(height: 5),
+        if (telefonoDest.isNotEmpty) pw.SizedBox(height: 3.75),
 
         if (telefonoDest.isNotEmpty)
           pw.Container(
-            decoration: pw.BoxDecoration(border: pw.Border.all()),
-            padding: pw.EdgeInsets.all(5),
+            decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.75)),
+            padding: pw.EdgeInsets.all(3.75),
             child: pw.Row(
               mainAxisAlignment: pw.MainAxisAlignment.center,
               children: [
-                pw.Text('Teléfono Dest.:', style: pw.TextStyle(fontSize: 9)),
-                pw.SizedBox(width: 4),
+                pw.Text('Teléfono Dest.:', style: pw.TextStyle(fontSize: 6.75)),
+                pw.SizedBox(width: 3),
                 pw.Text(
                   telefonoDest,
-                  style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
+                  style: pw.TextStyle(fontSize: 8.25, fontWeight: pw.FontWeight.bold),
                 ),
               ],
             ),
           ),
 
-        pw.SizedBox(height: 5),
+        pw.SizedBox(height: 3.75),
 
         pw.Container(
-          decoration: pw.BoxDecoration(border: pw.Border.all()),
-          padding: pw.EdgeInsets.all(5),
+          decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.75)),
+          padding: pw.EdgeInsets.all(3.75),
           child: pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.center,
             children: [
-              pw.Text('Remitente:', style: pw.TextStyle(fontSize: 9)),
+              pw.Text('Remitente:', style: pw.TextStyle(fontSize: 6.75)),
               pw.Text(
                 remitente,
-                style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
+                style: pw.TextStyle(fontSize: 8.25, fontWeight: pw.FontWeight.bold),
                 textAlign: pw.TextAlign.center,
               ),
             ],
           ),
         ),
 
-        if (telefonoRemit.isNotEmpty) pw.SizedBox(height: 5),
+        if (telefonoRemit.isNotEmpty) pw.SizedBox(height: 3.75),
 
         if (telefonoRemit.isNotEmpty)
           pw.Container(
-            decoration: pw.BoxDecoration(border: pw.Border.all()),
-            padding: pw.EdgeInsets.all(5),
+            decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.75)),
+            padding: pw.EdgeInsets.all(3.75),
             child: pw.Row(
               mainAxisAlignment: pw.MainAxisAlignment.center,
               children: [
-                pw.Text('Teléfono Remit.:', style: pw.TextStyle(fontSize: 9)),
-                pw.SizedBox(width: 4),
+                pw.Text('Teléfono Remit.:', style: pw.TextStyle(fontSize: 6.75)),
+                pw.SizedBox(width: 3),
                 pw.Text(
                   telefonoRemit,
-                  style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
+                  style: pw.TextStyle(fontSize: 8.25, fontWeight: pw.FontWeight.bold),
                 ),
               ],
             ),
           ),
 
-        pw.SizedBox(height: 5),
+        pw.SizedBox(height: 3.75),
 
         pw.Row(
           mainAxisAlignment: pw.MainAxisAlignment.center,
           children: [
-            pw.Text('Fecha: $fecha', style: pw.TextStyle(fontSize: 8)),
-            pw.SizedBox(width: 8),
-            pw.Text('Hora: $hora', style: pw.TextStyle(fontSize: 8)),
+            pw.Text('Fecha: $fecha', style: pw.TextStyle(fontSize: 6)),
+            pw.SizedBox(width: 6),
+            pw.Text('Hora: $hora', style: pw.TextStyle(fontSize: 6)),
           ],
         ),
       ],
@@ -658,16 +658,16 @@ class CargoTicketGenerator {
     return pw.Row(
       children: [
         pw.Padding(
-          padding: pw.EdgeInsets.only(right: 4),
-          child: pw.Image(_optimizer.getTijeraImage(), width: 12),
+          padding: pw.EdgeInsets.only(right: 3),
+          child: pw.Image(_optimizer.getTijeraImage(), width: 9),
         ),
         pw.Expanded(
           child: pw.Container(
-            height: 0.5,
+            height: 0.4,
             decoration: pw.BoxDecoration(
               border: pw.Border(
                 top: pw.BorderSide(
-                  width: 0.5,
+                  width: 0.4,
                   style: pw.BorderStyle.dashed,
                 ),
               ),
@@ -686,46 +686,46 @@ class CargoTicketGenerator {
       String fechaDespacho,
       ) {
     return pw.Container(
-      padding: pw.EdgeInsets.all(6),
-      decoration: pw.BoxDecoration(border: pw.Border.all()),
+      padding: pw.EdgeInsets.all(4.5),
+      decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.75)),
       child: pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.center,
         children: [
+          pw.SizedBox(height: 9),
+          pw.Container(
+            width: double.infinity,
+            child: pw.Text('__________________________', style: pw.TextStyle(fontSize: 7.5), textAlign: pw.TextAlign.center),
+          ),
+          pw.Text('Nombre', style: pw.TextStyle(fontSize: 7.5)),
+          pw.SizedBox(height: 9),
+          pw.Container(
+            width: double.infinity,
+            child: pw.Text('__________________________', style: pw.TextStyle(fontSize: 7.5), textAlign: pw.TextAlign.center),
+          ),
+          pw.Text('R.U.T.', style: pw.TextStyle(fontSize: 7.5)),
           pw.SizedBox(height: 12),
           pw.Container(
             width: double.infinity,
-            child: pw.Text('__________________________', style: pw.TextStyle(fontSize: 10), textAlign: pw.TextAlign.center),
+            child: pw.Text('___________________________', style: pw.TextStyle(fontSize: 7.5), textAlign: pw.TextAlign.center),
           ),
-          pw.Text('Nombre', style: pw.TextStyle(fontSize: 10)),
-          pw.SizedBox(height: 12),
-          pw.Container(
-            width: double.infinity,
-            child: pw.Text('__________________________', style: pw.TextStyle(fontSize: 10), textAlign: pw.TextAlign.center),
-          ),
-          pw.Text('R.U.T.', style: pw.TextStyle(fontSize: 10)),
-          pw.SizedBox(height: 16),
-          pw.Container(
-            width: double.infinity,
-            child: pw.Text('___________________________', style: pw.TextStyle(fontSize: 10), textAlign: pw.TextAlign.center),
-          ),
-          pw.Text('Firma', style: pw.TextStyle(fontSize: 10)),
-          pw.SizedBox(height: 8),
+          pw.Text('Firma', style: pw.TextStyle(fontSize: 7.5)),
+          pw.SizedBox(height: 6),
           pw.Text(
             'Comprobante N° $ticketId',
-            style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
+            style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold),
             textAlign: pw.TextAlign.center,
           ),
-          pw.SizedBox(height: 4),
-          pw.Text('Artículo: $articulo', style: pw.TextStyle(fontSize: 10), textAlign: pw.TextAlign.center),
-          pw.SizedBox(height: 4),
-          pw.Text('Valor: \$${_priceFormatter.format(precio)}', style: pw.TextStyle(fontSize: 10), textAlign: pw.TextAlign.center),
-          pw.SizedBox(height: 4),
+          pw.SizedBox(height: 3),
+          pw.Text('Artículo: $articulo', style: pw.TextStyle(fontSize: 7.5), textAlign: pw.TextAlign.center),
+          pw.SizedBox(height: 3),
+          pw.Text('Valor: \$${_priceFormatter.format(precio)}', style: pw.TextStyle(fontSize: 7.5), textAlign: pw.TextAlign.center),
+          pw.SizedBox(height: 3),
           pw.Row(
             mainAxisAlignment: pw.MainAxisAlignment.center,
             children: [
-              pw.Text('Fecha: $fechaDespacho', style: pw.TextStyle(fontSize: 10)),
-              pw.SizedBox(width: 8),
-              pw.Text('Hora: ${DateFormat('HH:mm').format(DateTime.now())}', style: pw.TextStyle(fontSize: 10)),
+              pw.Text('Fecha: $fechaDespacho', style: pw.TextStyle(fontSize: 7.5)),
+              pw.SizedBox(width: 6),
+              pw.Text('Hora: ${DateFormat('HH:mm').format(DateTime.now())}', style: pw.TextStyle(fontSize: 7.5)),
             ],
           ),
         ],

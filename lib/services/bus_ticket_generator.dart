@@ -9,9 +9,9 @@ import '../models/comprobante.dart';
 import '../database/caja_database.dart';
 
 class BusTicketGenerator {
-  // Dimensiones ajustadas para impresora térmica de 80mm
+  // Dimensiones ajustadas para impresora térmica de 60mm (25% más pequeño)
   static final PdfPageFormat ticketFormat = PdfPageFormat(
-    80 * PdfPageFormat.mm,  // Ancho de 80mm para impresoras térmicas
+    60 * PdfPageFormat.mm,  // Ancho de 60mm para ahorrar papel térmico
     double.infinity,        // Altura flexible basada en el contenido
   );
 
@@ -122,7 +122,7 @@ class BusTicketGenerator {
     doc.addPage(
       pw.Page(
         pageFormat: ticketFormat,
-        margin: pw.EdgeInsets.only(top: 20, left: 8, right: 8, bottom: 20),
+        margin: pw.EdgeInsets.only(top: 15, left: 6, right: 6, bottom: 15),
         build: (context) {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.center,
@@ -151,15 +151,15 @@ class BusTicketGenerator {
                 children: [
                   // Línea punteada gruesa
                   pw.Container(
-                    margin: pw.EdgeInsets.symmetric(vertical: 15),
+                    margin: pw.EdgeInsets.symmetric(vertical: 11),
                     child: pw.Row(
                       children: List.generate(
                         (ticketFormat.width / 5).round(),
                             (index) => pw.Container(
-                          width: 3,
-                          height: 1.5,
+                          width: 2.25,
+                          height: 1.1,
                           color: PdfColors.black,
-                          margin: pw.EdgeInsets.only(right: 2),
+                          margin: pw.EdgeInsets.only(right: 1.5),
                         ),
                       ),
                     ),
@@ -168,10 +168,10 @@ class BusTicketGenerator {
                   // Tijera en el lado izquierdo
                   scissorsImage != null
                       ? pw.Positioned(
-                    left: 5,
+                    left: 4,
                     child: pw.Container(
-                      width: 15,
-                      height: 15,
+                      width: 11,
+                      height: 11,
                       child: pw.Image(scissorsImage),
                     ),
                   )
@@ -181,7 +181,7 @@ class BusTicketGenerator {
 
               pw.Container(
                 width: double.infinity,
-                padding: pw.EdgeInsets.symmetric(vertical: 6),
+                padding: pw.EdgeInsets.symmetric(vertical: 4.5),
                 decoration: pw.BoxDecoration(
                   color: PdfColors.grey600,
                 ),
@@ -190,7 +190,7 @@ class BusTicketGenerator {
                   style: pw.TextStyle(
                     color: PdfColors.white,
                     fontWeight: pw.FontWeight.bold,
-                    fontSize: 11,
+                    fontSize: 8.25,
                   ),
                   textAlign: pw.TextAlign.center,
                 ),
@@ -205,7 +205,7 @@ class BusTicketGenerator {
               ),
 
               // Espacio adicional al final
-              pw.SizedBox(height: 20),
+              pw.SizedBox(height: 15),
             ],
           );
         },
@@ -244,22 +244,22 @@ class BusTicketGenerator {
             children: [
               // Logo izquierda
               pw.Container(
-                width: 85,
-                height: 85,
+                width: 64,
+                height: 64,
                 child: logoImage != null
                     ? pw.Image(logoImage, fit: pw.BoxFit.contain)
-                    : pw.Text('SURAY', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+                    : pw.Text('SURAY', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
               ),
 
-              pw.SizedBox(width: 8),
+              pw.SizedBox(width: 6),
 
               // Rectángulo negro con tipo de día y N° comprobante
               pw.Expanded(
                 child: pw.Container(
-                  padding: pw.EdgeInsets.all(8),
+                  padding: pw.EdgeInsets.all(6),
                   decoration: pw.BoxDecoration(
                     color: PdfColors.black,
-                    borderRadius: pw.BorderRadius.circular(4),
+                    borderRadius: pw.BorderRadius.circular(3),
                   ),
                   child: pw.Column(
                     mainAxisAlignment: pw.MainAxisAlignment.center,
@@ -267,17 +267,17 @@ class BusTicketGenerator {
                       pw.Text(
                         tipoDia,
                         style: pw.TextStyle(
-                          fontSize: 10,
+                          fontSize: 7.5,
                           fontWeight: pw.FontWeight.bold,
                           color: PdfColors.white,
                         ),
                         textAlign: pw.TextAlign.center,
                       ),
-                      pw.SizedBox(height: 4),
+                      pw.SizedBox(height: 3),
                       pw.Text(
                         'N° $numeroComprobante',
                         style: pw.TextStyle(
-                          fontSize: 9,
+                          fontSize: 6.75,
                           color: PdfColors.white,
                         ),
                         textAlign: pw.TextAlign.center,
@@ -290,16 +290,16 @@ class BusTicketGenerator {
           ),
         ),
 
-        pw.SizedBox(height: 12),
+        pw.SizedBox(height: 9),
 
         // TIPO DE TARIFA EN NEGRITAS CENTRADO
         pw.Container(
           width: double.infinity,
-          padding: pw.EdgeInsets.symmetric(vertical: 8),
+          padding: pw.EdgeInsets.symmetric(vertical: 6),
           child: pw.Text(
             tituloTarifa.contains('INTERMEDIO') ? 'INTERMEDIO' : tituloTarifa,
             style: pw.TextStyle(
-              fontSize: 16,
+              fontSize: 12,
               fontWeight: pw.FontWeight.bold,
             ),
             textAlign: pw.TextAlign.center,
@@ -310,43 +310,43 @@ class BusTicketGenerator {
           pw.Text(
             'KM $kilometros',
             style: pw.TextStyle(
-              fontSize: 14,
+              fontSize: 10.5,
               fontWeight: pw.FontWeight.bold,
             ),
             textAlign: pw.TextAlign.center,
           ),
-          pw.SizedBox(height: 5),
+          pw.SizedBox(height: 4),
         ],
 
-        pw.SizedBox(height: 8),
+        pw.SizedBox(height: 6),
 
         // DESTINO en cuadrado redondeado
         pw.Container(
           decoration: pw.BoxDecoration(
-            border: pw.Border.all(width: 1.5),
-            borderRadius: pw.BorderRadius.circular(8),
+            border: pw.Border.all(width: 1.1),
+            borderRadius: pw.BorderRadius.circular(6),
           ),
-          padding: pw.EdgeInsets.all(10),
+          padding: pw.EdgeInsets.all(7.5),
           width: double.infinity,
           child: pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.center,
             children: [
               pw.Text(
                 'DESTINO:',
-                style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.normal),
+                style: pw.TextStyle(fontSize: 8.25, fontWeight: pw.FontWeight.normal),
                 textAlign: pw.TextAlign.center,
               ),
-              pw.SizedBox(height: 4),
+              pw.SizedBox(height: 3),
               pw.Text(
                 destino,
-                style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
+                style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
                 textAlign: pw.TextAlign.center,
               ),
             ],
           ),
         ),
 
-        pw.SizedBox(height: 8),
+        pw.SizedBox(height: 6),
 
         // Fila con SALIDA y FECHA
         pw.Row(
@@ -356,22 +356,22 @@ class BusTicketGenerator {
               flex: 1,
               child: pw.Container(
                 decoration: pw.BoxDecoration(
-                  border: pw.Border.all(width: 1.5),
-                  borderRadius: pw.BorderRadius.circular(8),
+                  border: pw.Border.all(width: 1.1),
+                  borderRadius: pw.BorderRadius.circular(6),
                 ),
-                padding: pw.EdgeInsets.all(10),
+                padding: pw.EdgeInsets.all(7.5),
                 child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.center,
                   children: [
                     pw.Text(
                       'SALIDA:',
-                      style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.normal),
+                      style: pw.TextStyle(fontSize: 8.25, fontWeight: pw.FontWeight.normal),
                       textAlign: pw.TextAlign.center,
                     ),
-                    pw.SizedBox(height: 4),
+                    pw.SizedBox(height: 3),
                     pw.Text(
                       horario,
-                      style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+                      style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold),
                       textAlign: pw.TextAlign.center,
                     ),
                   ],
@@ -379,29 +379,29 @@ class BusTicketGenerator {
               ),
             ),
 
-            pw.SizedBox(width: 5),
+            pw.SizedBox(width: 4),
 
             // Fecha (derecha)
             pw.Expanded(
               flex: 1,
               child: pw.Container(
                 decoration: pw.BoxDecoration(
-                  border: pw.Border.all(width: 1.5),
-                  borderRadius: pw.BorderRadius.circular(8),
+                  border: pw.Border.all(width: 1.1),
+                  borderRadius: pw.BorderRadius.circular(6),
                 ),
-                padding: pw.EdgeInsets.all(10),
+                padding: pw.EdgeInsets.all(7.5),
                 child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.center,
                   children: [
                     pw.Text(
                       'FECHA:',
-                      style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.normal),
+                      style: pw.TextStyle(fontSize: 8.25, fontWeight: pw.FontWeight.normal),
                       textAlign: pw.TextAlign.center,
                     ),
-                    pw.SizedBox(height: 4),
+                    pw.SizedBox(height: 3),
                     pw.Text(
                       fechaFormato,
-                      style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+                      style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold),
                       textAlign: pw.TextAlign.center,
                     ),
                   ],
@@ -411,17 +411,17 @@ class BusTicketGenerator {
           ],
         ),
 
-        pw.SizedBox(height: 10),
+        pw.SizedBox(height: 7.5),
 
         // Texto de validez
         pw.Container(
           width: double.infinity,
           alignment: pw.Alignment.center,
-          padding: pw.EdgeInsets.symmetric(vertical: 5),
+          padding: pw.EdgeInsets.symmetric(vertical: 4),
           child: pw.Text(
             'Válido hora y fecha señaladas',
             style: pw.TextStyle(
-              fontSize: 9,
+              fontSize: 6.75,
               fontStyle: pw.FontStyle.italic,
             ),
             textAlign: pw.TextAlign.center,
@@ -432,13 +432,13 @@ class BusTicketGenerator {
         pw.Text(
           'PRESENTARSE 10 MINS ANTES',
           style: pw.TextStyle(
-            fontSize: 9,
+            fontSize: 6.75,
             fontStyle: pw.FontStyle.italic,
           ),
           textAlign: pw.TextAlign.center,
         ),
 
-        pw.SizedBox(height: 10),
+        pw.SizedBox(height: 7.5),
 
         // Fila con asiento y valor
         pw.Row(
@@ -448,22 +448,22 @@ class BusTicketGenerator {
               flex: 1,
               child: pw.Container(
                 decoration: pw.BoxDecoration(
-                  border: pw.Border.all(width: 1.5),
-                  borderRadius: pw.BorderRadius.circular(8),
+                  border: pw.Border.all(width: 1.1),
+                  borderRadius: pw.BorderRadius.circular(6),
                 ),
-                padding: pw.EdgeInsets.all(10),
+                padding: pw.EdgeInsets.all(7.5),
                 child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.center,
                   children: [
                     pw.Text(
                       'ASIENTO',
-                      style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.normal),
+                      style: pw.TextStyle(fontSize: 8.25, fontWeight: pw.FontWeight.normal),
                       textAlign: pw.TextAlign.center,
                     ),
-                    pw.SizedBox(height: 4),
+                    pw.SizedBox(height: 3),
                     pw.Text(
                       asiento,
-                      style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold, color: asientoColor),
+                      style: pw.TextStyle(fontSize: 13.5, fontWeight: pw.FontWeight.bold, color: asientoColor),
                       textAlign: pw.TextAlign.center,
                     ),
                   ],
@@ -471,29 +471,29 @@ class BusTicketGenerator {
               ),
             ),
 
-            pw.SizedBox(width: 5),
+            pw.SizedBox(width: 4),
 
             // Valor (derecha)
             pw.Expanded(
               flex: 1,
               child: pw.Container(
                 decoration: pw.BoxDecoration(
-                  border: pw.Border.all(width: 1.5),
-                  borderRadius: pw.BorderRadius.circular(8),
+                  border: pw.Border.all(width: 1.1),
+                  borderRadius: pw.BorderRadius.circular(6),
                 ),
-                padding: pw.EdgeInsets.all(10),
+                padding: pw.EdgeInsets.all(7.5),
                 child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.center,
                   children: [
                     pw.Text(
                       'VALOR',
-                      style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.normal),
+                      style: pw.TextStyle(fontSize: 8.25, fontWeight: pw.FontWeight.normal),
                       textAlign: pw.TextAlign.center,
                     ),
-                    pw.SizedBox(height: 4),
+                    pw.SizedBox(height: 3),
                     pw.Text(
                       '\$${_formatPrice(double.parse(valor))}',
-                      style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
+                      style: pw.TextStyle(fontSize: 13.5, fontWeight: pw.FontWeight.bold),
                       textAlign: pw.TextAlign.center,
                     ),
                   ],
@@ -503,16 +503,16 @@ class BusTicketGenerator {
           ],
         ),
 
-        pw.SizedBox(height: 10),
+        pw.SizedBox(height: 7.5),
 
         // Hora de emisión (sin N° de comprobante)
         pw.Text(
           'Emisión: $horaEmision - $fechaFormato',
-          style: pw.TextStyle(fontSize: 9),
+          style: pw.TextStyle(fontSize: 6.75),
           textAlign: pw.TextAlign.center,
         ),
 
-        pw.SizedBox(height: 15),
+        pw.SizedBox(height: 11),
       ],
     );
   }
@@ -528,19 +528,19 @@ class BusTicketGenerator {
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.center,
       children: [
-        pw.SizedBox(height: 15),
+        pw.SizedBox(height: 11),
 
         // Rectángulo negro con N° de comprobante
         pw.Container(
-          padding: pw.EdgeInsets.all(10),
+          padding: pw.EdgeInsets.all(7.5),
           decoration: pw.BoxDecoration(
             color: PdfColors.black,
-            borderRadius: pw.BorderRadius.circular(4),
+            borderRadius: pw.BorderRadius.circular(3),
           ),
           child: pw.Text(
             'N° $numeroComprobante',
             style: pw.TextStyle(
-              fontSize: 12,
+              fontSize: 9,
               fontWeight: pw.FontWeight.bold,
               color: PdfColors.white,
             ),
@@ -548,23 +548,23 @@ class BusTicketGenerator {
           ),
         ),
 
-        pw.SizedBox(height: 12),
+        pw.SizedBox(height: 9),
 
         // Tabla con información organizada
         pw.Container(
           width: double.infinity,
           decoration: pw.BoxDecoration(
-            border: pw.Border.all(width: 1.5),
-            borderRadius: pw.BorderRadius.circular(8),
+            border: pw.Border.all(width: 1.1),
+            borderRadius: pw.BorderRadius.circular(6),
           ),
           child: pw.Column(
             children: [
               // Fila Destino
               pw.Container(
-                padding: pw.EdgeInsets.all(10),
+                padding: pw.EdgeInsets.all(7.5),
                 decoration: pw.BoxDecoration(
                   border: pw.Border(
-                    bottom: pw.BorderSide(width: 1),
+                    bottom: pw.BorderSide(width: 0.75),
                   ),
                 ),
                 child: pw.Row(
@@ -572,11 +572,11 @@ class BusTicketGenerator {
                   children: [
                     pw.Text(
                       'Destino:',
-                      style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
+                      style: pw.TextStyle(fontSize: 8.25, fontWeight: pw.FontWeight.bold),
                     ),
                     pw.Text(
                       destino,
-                      style: pw.TextStyle(fontSize: 11),
+                      style: pw.TextStyle(fontSize: 8.25),
                     ),
                   ],
                 ),
@@ -584,10 +584,10 @@ class BusTicketGenerator {
 
               // Fila Horario
               pw.Container(
-                padding: pw.EdgeInsets.all(10),
+                padding: pw.EdgeInsets.all(7.5),
                 decoration: pw.BoxDecoration(
                   border: pw.Border(
-                    bottom: pw.BorderSide(width: 1),
+                    bottom: pw.BorderSide(width: 0.75),
                   ),
                 ),
                 child: pw.Row(
@@ -595,11 +595,11 @@ class BusTicketGenerator {
                   children: [
                     pw.Text(
                       'Horario:',
-                      style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
+                      style: pw.TextStyle(fontSize: 8.25, fontWeight: pw.FontWeight.bold),
                     ),
                     pw.Text(
                       horario,
-                      style: pw.TextStyle(fontSize: 11),
+                      style: pw.TextStyle(fontSize: 8.25),
                     ),
                   ],
                 ),
@@ -607,10 +607,10 @@ class BusTicketGenerator {
 
               // Fila Fecha
               pw.Container(
-                padding: pw.EdgeInsets.all(10),
+                padding: pw.EdgeInsets.all(7.5),
                 decoration: pw.BoxDecoration(
                   border: pw.Border(
-                    bottom: pw.BorderSide(width: 1),
+                    bottom: pw.BorderSide(width: 0.75),
                   ),
                 ),
                 child: pw.Row(
@@ -618,11 +618,11 @@ class BusTicketGenerator {
                   children: [
                     pw.Text(
                       'Fecha:',
-                      style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
+                      style: pw.TextStyle(fontSize: 8.25, fontWeight: pw.FontWeight.bold),
                     ),
                     pw.Text(
                       fechaFormato,
-                      style: pw.TextStyle(fontSize: 11),
+                      style: pw.TextStyle(fontSize: 8.25),
                     ),
                   ],
                 ),
@@ -630,17 +630,17 @@ class BusTicketGenerator {
 
               // Fila Valor
               pw.Container(
-                padding: pw.EdgeInsets.all(10),
+                padding: pw.EdgeInsets.all(7.5),
                 child: pw.Row(
                   mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                   children: [
                     pw.Text(
                       'Valor:',
-                      style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
+                      style: pw.TextStyle(fontSize: 8.25, fontWeight: pw.FontWeight.bold),
                     ),
                     pw.Text(
                       '\$${_formatPrice(double.parse(valor))}',
-                      style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
+                      style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
                     ),
                   ],
                 ),
@@ -649,19 +649,19 @@ class BusTicketGenerator {
           ),
         ),
 
-        pw.SizedBox(height: 15),
+        pw.SizedBox(height: 11),
 
         // Área para insertar en planilla
         pw.Container(
           width: double.infinity,
-          height: 120,
-          margin: pw.EdgeInsets.only(top: 8),
+          height: 90,
+          margin: pw.EdgeInsets.only(top: 6),
           decoration: pw.BoxDecoration(
-            border: pw.Border.all(width: 0.5),
+            border: pw.Border.all(width: 0.4),
           ),
         ),
 
-        pw.SizedBox(height: 15),
+        pw.SizedBox(height: 11),
       ],
     );
   }
