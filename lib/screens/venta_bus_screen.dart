@@ -5,9 +5,11 @@ import '../services/bus_ticket_generator.dart';
 import '../widgets/numeric_input_field.dart';
 import '../widgets/horario_input_field.dart';
 import '../widgets/shared_widgets.dart';
+import '../widgets/bus_seat_map.dart';
 import '../models/tarifa.dart';
 import '../models/auth_provider.dart';
 import '../database/app_database.dart';
+import 'package:intl/intl.dart';
 
 class VentaBusScreen extends StatefulWidget {
   @override
@@ -29,6 +31,12 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
   final List<String> tiposDia = ['LUNES A SÁBADO', 'DOMINGO / FERIADO'];
   List<Tarifa> tarifasDisponibles = [];
   Tarifa? tarifaSeleccionada;
+
+  // Para gestión de asientos
+  int? salidaId;
+  Set<int> asientosOcupados = {};
+  String fechaSeleccionada = DateFormat('yyyy-MM-dd').format(DateTime.now());
+  final ScrollController _scrollController = ScrollController();
 
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
@@ -115,6 +123,13 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
       return;
     }
 
+    // Verificar que el asiento no esté ocupado
+    final numAsiento = int.tryParse(asientoSeleccionado!);
+    if (numAsiento != null && asientosOcupados.contains(numAsiento)) {
+      _mostrarError('El asiento $asientoSeleccionado ya está ocupado');
+      return;
+    }
+
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (_) => _ConfirmDialog(
@@ -148,7 +163,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
           destinoFormateado = '$origenIntermedio - Intermedio Km $kilometroIntermedio';
         }
 
-        await BusTicketGenerator.generateAndPrintTicket(
+        final comprobante = await BusTicketGenerator.generateAndPrintTicket(
           destino: destinoFormateado,
           horario: horarioSeleccionado!,
           asiento: asientoSeleccionado!,
@@ -161,6 +176,17 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
           montoEfectivo: paymentResult['montoEfectivo'],
           montoTarjeta: paymentResult['montoTarjeta'],
         );
+
+        // Reservar el asiento en la base de datos
+        if (salidaId != null) {
+          await AppDatabase.instance.reservarAsiento(
+            salidaId: salidaId!,
+            numeroAsiento: int.parse(asientoSeleccionado!),
+            comprobante: comprobante,
+          );
+          // Recargar asientos ocupados
+          await _cargarAsientosOcupados();
+        }
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Ticket generado exitosamente'), backgroundColor: Colors.green),
@@ -181,12 +207,57 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
     }
   }
 
+  Future<void> _cargarAsientosOcupados() async {
+    if (horarioSeleccionado == null || horarioSeleccionado!.isEmpty) return;
+
+    try {
+      // Crear o obtener la salida
+      final id = await AppDatabase.instance.crearObtenerSalida(
+        fecha: fechaSeleccionada,
+        horario: horarioSeleccionado!,
+        destino: destino,
+        tipoDia: tipoDia,
+      );
+
+      // Obtener asientos ocupados
+      final asientos = await AppDatabase.instance.getAsientosOcupados(id);
+      setState(() {
+        salidaId = id;
+        asientosOcupados = asientos.map((a) => a['numero_asiento'] as int).toSet();
+      });
+    } catch (e) {
+      _mostrarError('Error al cargar asientos: $e');
+    }
+  }
+
+  void _onAsientoSeleccionado(int asiento) {
+    setState(() {
+      asientoSeleccionado = asiento.toString().padLeft(2, '0');
+    });
+    _asientoFocusNode.requestFocus();
+  }
+
+  void _autoScrollToAsiento() {
+    // Hacer scroll hacia el campo de asiento
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      }
+      _asientoFocusNode.requestFocus();
+    });
+  }
+
   @override
   void dispose() {
     _horarioFocusNode.dispose();
     _asientoFocusNode.dispose();
     _valorFocusNode.dispose();
     _kmIntermedioFocusNode.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -296,6 +367,50 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
 
                           SizedBox(height: 24),
 
+                          // Fecha de salida
+                          _buildLabel('Fecha de Salida'),
+                          InkWell(
+                            onTap: () async {
+                              final fechaLimite = DateTime.now().add(Duration(days: 35)); // 5 semanas
+                              final fechaPick = await showDatePicker(
+                                context: context,
+                                initialDate: DateTime.parse(fechaSeleccionada),
+                                firstDate: DateTime.now(),
+                                lastDate: fechaLimite,
+                                locale: const Locale('es', 'ES'),
+                              );
+                              if (fechaPick != null) {
+                                setState(() {
+                                  fechaSeleccionada = DateFormat('yyyy-MM-dd').format(fechaPick);
+                                  horarioSeleccionado = null;
+                                  asientoSeleccionado = null;
+                                  salidaId = null;
+                                  asientosOcupados.clear();
+                                });
+                              }
+                            },
+                            child: Container(
+                              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.grey.shade300),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    DateFormat('EEEE, dd MMMM yyyy', 'es_ES').format(DateTime.parse(fechaSeleccionada)),
+                                    style: TextStyle(fontSize: 14),
+                                  ),
+                                  Icon(Icons.calendar_today, size: 20, color: Colors.blue.shade700),
+                                ],
+                              ),
+                            ),
+                          ),
+
+                          SizedBox(height: 24),
+
                           // Tipo de día
                           _buildLabel('Tipo de Día'),
                           _buildSegmentedButton(
@@ -368,6 +483,18 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                                 ),
                               ),
                             ),
+
+                          SizedBox(height: 32),
+
+                          // Mapa de asientos del bus
+                          _buildLabel('Mapa de Asientos'),
+                          BusSeatMap(
+                            selectedSeat: asientoSeleccionado != null && asientoSeleccionado!.isNotEmpty
+                                ? int.tryParse(asientoSeleccionado!)
+                                : null,
+                            occupiedSeats: asientosOcupados,
+                            onSeatTap: _onAsientoSeleccionado,
+                          ),
                         ],
                       ),
                     ),
@@ -381,6 +508,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                 child: Container(
                   color: Colors.white,
                   child: SingleChildScrollView(
+                    controller: _scrollController,
                     padding: EdgeInsets.all(24),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -396,58 +524,60 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                           origenIntermedio: origenIntermedio,
                           validator: _validarHorario,
                           focusNode: _horarioFocusNode,
-                          onChanged: (value) => setState(() => horarioSeleccionado = value),
-                          onEnterPressed: () => _asientoFocusNode.requestFocus(),
+                          onChanged: (value) {
+                            setState(() => horarioSeleccionado = value);
+                            _cargarAsientosOcupados();
+                          },
+                          onEnterPressed: _autoScrollToAsiento,
                         ),
 
                         SizedBox(height: 24),
 
-                        // Asiento y Valor en fila
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  _buildLabel('Número de Asiento'),
-                                  NumericInputField(
-                                    label: '',
-                                    value: asientoSeleccionado,
-                                    hintText: '01-45',
-                                    validator: _validarAsiento,
-                                    focusNode: _asientoFocusNode,
-                                    onChanged: (value) => setState(() => asientoSeleccionado = value),
-                                    onEnterPressed: () => _valorFocusNode.requestFocus(),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            SizedBox(width: 24),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  _buildLabel('Valor del Boleto'),
-                                  Builder(
-                                    builder: (context) {
-                                      final authProvider = Provider.of<AuthProvider>(context);
-                                      return NumericInputField(
-                                        label: '',
-                                        value: valorBoleto == '0' ? '' : valorBoleto,
-                                        hintText: 'Ingrese valor',
-                                        prefix: '\$',
-                                        validator: _validarValor,
-                                        focusNode: _valorFocusNode,
-                                        onChanged: (value) => setState(() => valorBoleto = value),
-                                        onEnterPressed: _confirmarVenta,
-                                        showKeyboard: !authProvider.isSecretaria, // Ocultar teclado para secretarias
-                                      );
-                                    },
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
+                        // Campo de Asiento (solo este para secretarias)
+                        _buildLabel('Número de Asiento'),
+                        NumericInputField(
+                          label: '',
+                          value: asientoSeleccionado,
+                          hintText: '01-45',
+                          validator: _validarAsiento,
+                          focusNode: _asientoFocusNode,
+                          onChanged: (value) => setState(() => asientoSeleccionado = value),
+                          onEnterPressed: () {
+                            final authProvider = Provider.of<AuthProvider>(context, listen: false);
+                            if (authProvider.isSecretaria) {
+                              _confirmarVenta();
+                            } else {
+                              _valorFocusNode.requestFocus();
+                            }
+                          },
+                        ),
+
+                        // Valor del boleto - SOLO para administradores
+                        Builder(
+                          builder: (context) {
+                            final authProvider = Provider.of<AuthProvider>(context);
+                            if (authProvider.isSecretaria) {
+                              return const SizedBox.shrink(); // No mostrar nada para secretarias
+                            }
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                SizedBox(height: 24),
+                                _buildLabel('Valor del Boleto'),
+                                NumericInputField(
+                                  label: '',
+                                  value: valorBoleto == '0' ? '' : valorBoleto,
+                                  hintText: 'Ingrese valor',
+                                  prefix: '\$',
+                                  validator: _validarValor,
+                                  focusNode: _valorFocusNode,
+                                  onChanged: (value) => setState(() => valorBoleto = value),
+                                  onEnterPressed: _confirmarVenta,
+                                  showKeyboard: true,
+                                ),
+                              ],
+                            );
+                          },
                         ),
 
                         SizedBox(height: 32),

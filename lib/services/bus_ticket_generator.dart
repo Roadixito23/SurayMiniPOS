@@ -16,7 +16,7 @@ class BusTicketGenerator {
   );
 
   // Método para generar y guardar los tickets
-  static Future<void> generateAndPrintTicket({
+  static Future<String> generateAndPrintTicket({
     required String destino,
     required String horario,
     required String asiento,
@@ -75,6 +75,9 @@ class BusTicketGenerator {
         montoEfectivo: montoEfectivo,
         montoTarjeta: montoTarjeta,
       );
+
+      // Retornar el número de comprobante generado
+      return numeroComprobante;
 
     } catch (e) {
       // Manejar errores de generación e impresión
