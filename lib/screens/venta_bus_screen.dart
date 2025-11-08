@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../services/bus_ticket_generator.dart';
 import '../widgets/numeric_input_field.dart';
 import '../widgets/horario_input_field.dart';
@@ -14,14 +15,13 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
   String destino = 'Aysen';
   final List<String> destinos = ['Aysen', 'Intermedio', 'Coyhaique'];
   String? kilometroIntermedio;
-  String origenIntermedio = 'Aysen'; // Valor predeterminado para origen en caso intermedio
+  String origenIntermedio = 'Aysen';
 
   String? horarioSeleccionado;
   String? asientoSeleccionado;
   String valorBoleto = '0';
-  bool _isLoading = false; // Estado para controlar la carga
+  bool _isLoading = false;
 
-  // Variables para tipo de día y tarifa
   String tipoDia = 'LUNES A SÁBADO';
   final List<String> tiposDia = ['LUNES A SÁBADO', 'DOMINGO / FERIADO'];
   List<Tarifa> tarifasDisponibles = [];
@@ -29,16 +29,6 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
 
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
-  // Controlador de desplazamiento
-  final ScrollController _scrollController = ScrollController();
-
-  // Keys para cada campo de entrada
-  final GlobalKey _horarioKey = GlobalKey();
-  final GlobalKey _asientoKey = GlobalKey();
-  final GlobalKey _valorKey = GlobalKey();
-  final GlobalKey _kmIntermedioKey = GlobalKey();
-
-  // Focus nodes para cada campo de entrada
   final FocusNode _horarioFocusNode = FocusNode();
   final FocusNode _asientoFocusNode = FocusNode();
   final FocusNode _valorFocusNode = FocusNode();
@@ -48,46 +38,135 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
   void initState() {
     super.initState();
     _cargarTarifas();
+
+    // Atajos de teclado
+    ServicesBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _horarioFocusNode.requestFocus();
+      }
+    });
   }
 
-  // Método para cargar tarifas desde la base de datos
   Future<void> _cargarTarifas() async {
     try {
       final tarifas = await AppDatabase.instance.getTarifasByTipoDia(tipoDia);
       setState(() {
         tarifasDisponibles = tarifas.map((map) => Tarifa.fromMap(map)).toList();
-        // Seleccionar automáticamente la primera tarifa si está disponible
         if (tarifasDisponibles.isNotEmpty && tarifaSeleccionada == null) {
           tarifaSeleccionada = tarifasDisponibles.first;
-          // Actualizar el valor del boleto con la tarifa seleccionada
           valorBoleto = tarifaSeleccionada!.valor.toStringAsFixed(0);
         }
       });
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Error al cargar tarifas: $e'),
-        backgroundColor: Colors.red,
-      ));
+      _mostrarError('Error al cargar tarifas: $e');
     }
   }
 
-  // Método para desplazar y alinear el widget con la AppBar
-  void _scrollToWidget(GlobalKey key) {
-    Future.delayed(Duration(milliseconds: 100), () {
-      if (key.currentContext != null) {
-        Scrollable.ensureVisible(
-          key.currentContext!,
-          alignment: 0.0, // 0.0 = alineado con la parte superior (AppBar)
-          duration: Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
+  void _mostrarError(String mensaje) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(mensaje), backgroundColor: Colors.red),
+    );
+  }
+
+  String? _validarHorario(String value) {
+    if (value.isEmpty) return 'Ingrese un horario';
+    if (!RegExp(r'^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$').hasMatch(value)) {
+      return 'Formato inválido (HH:MM)';
+    }
+    return null;
+  }
+
+  String? _validarAsiento(String value) {
+    if (value.isEmpty) return 'Ingrese un asiento';
+    int? asiento = int.tryParse(value);
+    if (asiento == null || asiento < 1 || asiento > 45) {
+      return 'Asiento inválido (1-45)';
+    }
+    return null;
+  }
+
+  String? _validarValor(String value) {
+    if (value.isEmpty) return 'Ingrese un valor';
+    int? valor = int.tryParse(value);
+    if (valor == null || valor <= 0) {
+      return 'Valor debe ser mayor a 0';
+    }
+    return null;
+  }
+
+  void _confirmarVenta() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    if (tarifaSeleccionada == null) {
+      _mostrarError('Por favor seleccione una tarifa');
+      return;
+    }
+
+    if (horarioSeleccionado == null || asientoSeleccionado == null || int.parse(valorBoleto) <= 0) {
+      _mostrarError('Por favor complete todos los campos correctamente');
+      return;
+    }
+
+    if (destino == 'Intermedio' && (kilometroIntermedio == null || kilometroIntermedio!.isEmpty)) {
+      _mostrarError('Por favor ingrese el kilómetro intermedio');
+      return;
+    }
+
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (_) => _ConfirmDialog(
+        tipoDia: tipoDia,
+        tarifa: tarifaSeleccionada!.categoria,
+        destino: destino,
+        origen: origenIntermedio,
+        kilometro: kilometroIntermedio,
+        horario: horarioSeleccionado!,
+        asiento: asientoSeleccionado!,
+        valor: valorBoleto,
+      ),
+    );
+
+    if (confirmar == true) {
+      setState(() => _isLoading = true);
+
+      try {
+        String destinoFormateado = destino;
+        if (destino == 'Intermedio' && kilometroIntermedio != null) {
+          destinoFormateado = '$origenIntermedio - Intermedio Km $kilometroIntermedio';
+        }
+
+        await BusTicketGenerator.generateAndPrintTicket(
+          destino: destinoFormateado,
+          horario: horarioSeleccionado!,
+          asiento: asientoSeleccionado!,
+          valor: valorBoleto,
+          tipoDia: tipoDia,
+          tituloTarifa: tarifaSeleccionada?.categoria ?? 'PUBLICO GENERAL',
+          origen: destino == 'Intermedio' ? origenIntermedio : null,
+          kilometros: destino == 'Intermedio' ? kilometroIntermedio : null,
         );
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ticket generado exitosamente'), backgroundColor: Colors.green),
+        );
+
+        setState(() {
+          horarioSeleccionado = null;
+          asientoSeleccionado = null;
+          valorBoleto = tarifaSeleccionada?.valor.toStringAsFixed(0) ?? '0';
+        });
+
+        _horarioFocusNode.requestFocus();
+      } catch (e) {
+        _mostrarError('Error al generar el ticket: $e');
+      } finally {
+        setState(() => _isLoading = false);
       }
-    });
+    }
   }
 
   @override
   void dispose() {
-    _scrollController.dispose();
     _horarioFocusNode.dispose();
     _asientoFocusNode.dispose();
     _valorFocusNode.dispose();
@@ -95,673 +174,442 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
     super.dispose();
   }
 
-  // Función para validar formato de hora
-  String? _validarHorario(String value) {
-    if (value.isEmpty) {
-      return 'Ingrese un horario';
-    }
-
-    // Verificar formato HH:MM
-    RegExp regExp = RegExp(r'^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$');
-    if (!regExp.hasMatch(value)) {
-      return 'Formato inválido (HH:MM)';
-    }
-
-    return null;
-  }
-
-  // Función para validar asiento
-  String? _validarAsiento(String value) {
-    if (value.isEmpty) {
-      return 'Ingrese un asiento';
-    }
-
-    int? asiento = int.tryParse(value);
-    if (asiento == null || asiento < 0 || asiento > 45) {
-      return 'Asiento inválido (1-45)';
-    }
-
-    return null;
-  }
-
-  // Función para validar valor
-  String? _validarValor(String value) {
-    if (value.isEmpty) {
-      return 'Ingrese un valor';
-    }
-
-    int? valor = int.tryParse(value);
-    if (valor == null || valor <= 0) {
-      return 'Valor debe ser mayor a 0';
-    }
-
-    return null;
-  }
-
-  void _confirmarVenta() async {
-    // Validar formulario
-    if (_formKey.currentState!.validate()) {
-      // Validar tarifa seleccionada
-      if (tarifaSeleccionada == null) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Por favor seleccione una tarifa'),
-          backgroundColor: Colors.red,
-        ));
-        return;
-      }
-
-      if (horarioSeleccionado == null || asientoSeleccionado == null || int.parse(valorBoleto) <= 0) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Por favor complete todos los campos correctamente'),
-          backgroundColor: Colors.red,
-        ));
-        return;
-      }
-
-      // Validar km intermedio si es necesario
-      if (destino == 'Intermedio' && (kilometroIntermedio == null || kilometroIntermedio!.isEmpty)) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Por favor ingrese el kilómetro intermedio'),
-          backgroundColor: Colors.red,
-        ));
-        return;
-      }
-
-      final confirmar = await showDialog<bool>(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: Text('Confirmar Venta'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Tipo de día: $tipoDia', style: TextStyle(fontWeight: FontWeight.w500)),
-              Text('Tarifa: ${tarifaSeleccionada?.categoria ?? "No especificada"}', style: TextStyle(fontWeight: FontWeight.w500)),
-              Divider(),
-              if (destino == 'Intermedio')
-                Text('Origen: $origenIntermedio'),
-              Text(destino == 'Intermedio'
-                  ? 'Destino: $destino (Km ${kilometroIntermedio ?? "no especificado"})'
-                  : 'Destino: $destino'),
-              Text('Salida: $horarioSeleccionado'),
-              Text('Asiento: $asientoSeleccionado'),
-              Text('Valor: \$${valorBoleto}'),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text('Cancelar'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: Text('Confirmar'),
-            ),
-          ],
-        ),
-      );
-
-      if (confirmar == true) {
-        // Mostrar indicador de carga
-        setState(() {
-          _isLoading = true;
-        });
-
-        try {
-          // Generar el ticket en un bloque try-catch
-          // Construir el destino con formato adecuado para intermedios
-          String destinoFormateado = destino;
-          if (destino == 'Intermedio' && kilometroIntermedio != null) {
-            destinoFormateado = '$origenIntermedio - Intermedio Km ${kilometroIntermedio}';
-          }
-
-          await BusTicketGenerator.generateAndPrintTicket(
-            destino: destinoFormateado,
-            horario: horarioSeleccionado!,
-            asiento: asientoSeleccionado!,
-            valor: valorBoleto,
-            tipoDia: tipoDia,
-            tituloTarifa: tarifaSeleccionada?.categoria ?? 'PUBLICO GENERAL',
-            origen: destino == 'Intermedio' ? origenIntermedio : null,
-            kilometros: destino == 'Intermedio' ? kilometroIntermedio : null,
-          );
-
-          // Mostrar mensaje de éxito
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('Ticket generado exitosamente'),
-            backgroundColor: Colors.green,
-          ));
-
-          // Limpiar todos los campos después de generar el ticket
-          setState(() {
-            horarioSeleccionado = null;
-            asientoSeleccionado = null;
-            valorBoleto = '0';
-          });
-
-          // Volver a enfocar el primer campo (horario)
-          Future.delayed(Duration(milliseconds: 500), () {
-            _horarioFocusNode.requestFocus();
-            _scrollToWidget(_horarioKey);
-          });
-        } catch (e) {
-          // Mostrar mensaje de error
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('Error al generar el ticket: $e'),
-            backgroundColor: Colors.red,
-          ));
-        } finally {
-          // Ocultar indicador de carga
-          setState(() {
-            _isLoading = false;
-          });
-        }
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Scaffold(
-          appBar: AppBar(
-            title: Text('Venta de Boletos'),
-            centerTitle: true,
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Venta de Boletos de Bus'),
+        centerTitle: false,
+        actions: [
+          Padding(
+            padding: EdgeInsets.only(right: 16),
+            child: Center(
+              child: Text(
+                'F1: Confirmar | ESC: Cancelar',
+                style: TextStyle(fontSize: 12, color: Colors.white70),
+              ),
+            ),
           ),
-          body: Form(
-            key: _formKey,
-            child: SingleChildScrollView(
-              controller: _scrollController,
-              padding: const EdgeInsets.only(left: 16.0, right: 16.0, bottom: 16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Agregamos un espacio en la parte superior para que el primer elemento no quede
-                  // justo debajo de la AppBar
-                  SizedBox(height: 16.0),
-
-                  // Selector de destino
-                  Text(
-                    'Destino',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blue.shade700,
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey.shade400),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: destinos.map((d) {
-                        bool isSelected = destino == d;
-                        return Expanded(
-                          child: GestureDetector(
-                            onTap: () => setState(() {
-                              destino = d;
-                              // Resetear el kilómetro intermedio si se selecciona otro destino
-                              if (d != 'Intermedio') {
-                                kilometroIntermedio = null;
-                              }
-                            }),
-                            child: Container(
-                              padding: EdgeInsets.symmetric(vertical: 12),
-                              decoration: BoxDecoration(
-                                color: isSelected ? Colors.blue.shade100 : Colors.transparent,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                d,
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                  color: isSelected ? Colors.blue.shade700 : Colors.black,
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ),
-
-                  // Selector de origen para destino Intermedio
-                  if (destino == 'Intermedio') ...[
-                    SizedBox(height: 16),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.blue.shade50,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.blue.shade200),
-                      ),
-                      padding: EdgeInsets.all(12),
+        ],
+      ),
+      body: Stack(
+        children: [
+          Row(
+            children: [
+              // Panel izquierdo - Configuración
+              Expanded(
+                flex: 2,
+                child: Container(
+                  color: Colors.grey.shade100,
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.all(24),
+                    child: Form(
+                      key: _formKey,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'Origen del Viaje',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.blue.shade700,
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          Text(
-                            'Seleccione desde dónde parte el bus:',
-                            style: TextStyle(fontSize: 14),
-                          ),
-                          SizedBox(height: 12),
-                          Row(
-                            children: ['Aysen', 'Coyhaique'].map((origen) {
-                              bool isSelected = origenIntermedio == origen;
-                              return Expanded(
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                                  child: GestureDetector(
-                                    onTap: () => setState(() {
-                                      origenIntermedio = origen;
-                                      // Al cambiar origen, resetear el horario seleccionado
-                                      horarioSeleccionado = null;
-                                    }),
-                                    child: Container(
-                                      padding: EdgeInsets.symmetric(vertical: 12),
-                                      decoration: BoxDecoration(
-                                        color: isSelected ? Colors.blue.shade200 : Colors.white,
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(
-                                          color: isSelected ? Colors.blue.shade400 : Colors.grey.shade300,
-                                        ),
-                                      ),
-                                      child: Text(
-                                        origen,
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                          color: isSelected ? Colors.blue.shade700 : Colors.black,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              );
-                            }).toList(),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                          _buildSectionTitle('Configuración del Viaje'),
+                          SizedBox(height: 16),
 
-                  // Campo para kilómetro intermedio (solo visible cuando destino es "Intermedio")
-                  if (destino == 'Intermedio') ...[
-                    SizedBox(height: 16),
-                    Container(
-                      key: _kmIntermedioKey,
-                      decoration: BoxDecoration(
-                        color: Colors.orange.shade50,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.orange.shade200),
-                      ),
-                      padding: EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Kilómetro Intermedio',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.orange.shade700,
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          Text(
-                            'Ingrese el kilómetro del punto intermedio (máximo 64 km)',
-                            style: TextStyle(fontSize: 14),
-                          ),
-                          SizedBox(height: 12),
-                          NumericInputField(
-                            value: kilometroIntermedio,
-                            hintText: 'Ej: 20',
-                            focusNode: _kmIntermedioFocusNode,
-                            validator: (value) {
-                              if (value.isEmpty) {
-                                return 'Ingrese el N° kilómetro';
-                              }
-                              int? km = int.tryParse(value);
-                              if (km == null) {
-                                return 'Ingrese un número válido';
-                              }
-                              if (km <= 0 || km > 64) {
-                                return 'El kilómetro debe estar entre 1 y 64';
-                              }
-                              return null;
-                            },
-                            onChanged: (value) {
+                          // Destino
+                          _buildLabel('Destino'),
+                          _buildSegmentedButton(
+                            destinos,
+                            destino,
+                                (value) {
                               setState(() {
-                                // Limitar a 2 dígitos como máximo
-                                if (value.length <= 2 && int.tryParse(value) != null) {
-                                  // Solo actualizar si el valor es <= 64
-                                  int km = int.parse(value);
-                                  if (km <= 64) {
-                                    kilometroIntermedio = value;
-                                  }
-                                }
+                                destino = value;
+                                if (value != 'Intermedio') kilometroIntermedio = null;
                               });
                             },
-                            onEnterPressed: () {
-                              // Al presionar Enter, seguir al siguiente campo
-                              _horarioFocusNode.requestFocus();
-                              _scrollToWidget(_horarioKey);
-                            },
                           ),
-                        ],
-                      ),
-                    ),
-                  ],
 
-                  SizedBox(height: 24),
-
-                  // Selector de tipo de día
-                  Text(
-                    'Tipo de Día',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blue.shade700,
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey.shade400),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: tiposDia.map((tipo) {
-                        bool isSelected = tipoDia == tipo;
-                        return Expanded(
-                          child: GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                tipoDia = tipo;
-                                tarifaSeleccionada = null; // Resetear tarifa seleccionada
-                              });
-                              _cargarTarifas(); // Recargar tarifas para el nuevo tipo de día
-                            },
-                            child: Container(
-                              padding: EdgeInsets.symmetric(vertical: 12),
+                          // Origen para intermedio
+                          if (destino == 'Intermedio') ...[
+                            SizedBox(height: 16),
+                            Container(
+                              padding: EdgeInsets.all(16),
                               decoration: BoxDecoration(
-                                color: isSelected ? Colors.blue.shade100 : Colors.transparent,
+                                color: Colors.blue.shade50,
                                 borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.blue.shade200),
                               ),
-                              child: Text(
-                                tipo,
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                  color: isSelected ? Colors.blue.shade700 : Colors.black,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ),
-
-                  SizedBox(height: 24),
-
-                  // Selector de tarifa/categoría
-                  Text(
-                    'Categoría de Tarifa',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blue.shade700,
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  if (tarifasDisponibles.isEmpty)
-                    Container(
-                      padding: EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.orange.shade400),
-                        borderRadius: BorderRadius.circular(8),
-                        color: Colors.orange.shade50,
-                      ),
-                      child: Text(
-                        'No hay tarifas disponibles para este tipo de día',
-                        style: TextStyle(color: Colors.orange.shade700),
-                        textAlign: TextAlign.center,
-                      ),
-                    )
-                  else
-                    Container(
-                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade400),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<Tarifa>(
-                          isExpanded: true,
-                          value: tarifaSeleccionada,
-                          hint: Text('Seleccione una tarifa'),
-                          items: tarifasDisponibles.map((tarifa) {
-                            return DropdownMenuItem<Tarifa>(
-                              value: tarifa,
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Expanded(
-                                    child: Text(
-                                      tarifa.categoria,
-                                      style: TextStyle(fontSize: 14),
-                                    ),
+                                  _buildLabel('Origen del Viaje', color: Colors.blue.shade700),
+                                  SizedBox(height: 8),
+                                  _buildSegmentedButton(
+                                    ['Aysen', 'Coyhaique'],
+                                    origenIntermedio,
+                                        (value) {
+                                      setState(() {
+                                        origenIntermedio = value;
+                                        horarioSeleccionado = null;
+                                      });
+                                    },
+                                    compact: true,
                                   ),
-                                  Text(
-                                    '\$${tarifa.valor.toStringAsFixed(0)}',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.blue.shade700,
-                                    ),
+                                  SizedBox(height: 12),
+                                  _buildLabel('Kilómetro Intermedio', color: Colors.blue.shade700),
+                                  SizedBox(height: 8),
+                                  NumericInputField(
+                                    value: kilometroIntermedio,
+                                    hintText: 'Ej: 20 (máx. 64)',
+                                    focusNode: _kmIntermedioFocusNode,
+                                    validator: (value) {
+                                      if (value.isEmpty) return 'Ingrese el kilómetro';
+                                      int? km = int.tryParse(value);
+                                      if (km == null || km <= 0 || km > 64) {
+                                        return 'Debe estar entre 1 y 64';
+                                      }
+                                      return null;
+                                    },
+                                    onChanged: (value) {
+                                      if (value.length <= 2 && int.tryParse(value) != null) {
+                                        int km = int.parse(value);
+                                        if (km <= 64) setState(() => kilometroIntermedio = value);
+                                      }
+                                    },
+                                    onEnterPressed: () => _horarioFocusNode.requestFocus(),
                                   ),
                                 ],
                               ),
-                            );
-                          }).toList(),
-                          onChanged: (tarifa) {
-                            setState(() {
-                              tarifaSeleccionada = tarifa;
-                              if (tarifa != null) {
-                                // Actualizar el valor del boleto con la tarifa seleccionada
-                                valorBoleto = tarifa.valor.toStringAsFixed(0);
-                              }
-                            });
-                          },
-                        ),
+                            ),
+                          ],
+
+                          SizedBox(height: 24),
+
+                          // Tipo de día
+                          _buildLabel('Tipo de Día'),
+                          _buildSegmentedButton(
+                            tiposDia,
+                            tipoDia,
+                                (value) {
+                              setState(() {
+                                tipoDia = value;
+                                tarifaSeleccionada = null;
+                              });
+                              _cargarTarifas();
+                            },
+                          ),
+
+                          SizedBox(height: 24),
+
+                          // Categoría de tarifa
+                          _buildLabel('Categoría de Tarifa'),
+                          if (tarifasDisponibles.isEmpty)
+                            Container(
+                              padding: EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.orange.shade200),
+                              ),
+                              child: Text(
+                                'No hay tarifas disponibles',
+                                style: TextStyle(color: Colors.orange.shade700),
+                              ),
+                            )
+                          else
+                            Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.grey.shade300),
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<Tarifa>(
+                                  isExpanded: true,
+                                  value: tarifaSeleccionada,
+                                  padding: EdgeInsets.symmetric(horizontal: 12),
+                                  items: tarifasDisponibles.map((tarifa) {
+                                    return DropdownMenuItem<Tarifa>(
+                                      value: tarifa,
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Text(tarifa.categoria),
+                                          Text(
+                                            '\$${tarifa.valor.toStringAsFixed(0)}',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.blue.shade700,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }).toList(),
+                                  onChanged: (tarifa) {
+                                    setState(() {
+                                      tarifaSeleccionada = tarifa;
+                                      if (tarifa != null) {
+                                        valorBoleto = tarifa.valor.toStringAsFixed(0);
+                                      }
+                                    });
+                                  },
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
-
-                  SizedBox(height: 24),
-
-                  // Campo de horario con sugerencias horizontales
-                  Container(
-                    key: _horarioKey,
-                    padding: EdgeInsets.only(top: 8.0),
-                    child: HorarioInputField(
-                      value: horarioSeleccionado,
-                      destino: destino,
-                      origenIntermedio: origenIntermedio, // Pasamos el origen intermedio
-                      validator: _validarHorario,
-                      focusNode: _horarioFocusNode,
-                      onChanged: (value) {
-                        setState(() {
-                          horarioSeleccionado = value;
-                        });
-                      },
-                      onEnterPressed: () {
-                        // Pasar al siguiente campo
-                        _asientoFocusNode.requestFocus();
-                        // Hacer scroll para alinear con la AppBar
-                        _scrollToWidget(_asientoKey);
-                      },
-                    ),
                   ),
+                ),
+              ),
 
-                  SizedBox(height: 24),
-
-                  // Campo de asiento con teclado numérico
-                  Container(
-                    key: _asientoKey,
-                    padding: EdgeInsets.only(top: 8.0),
+              // Panel derecho - Datos del boleto
+              Expanded(
+                flex: 3,
+                child: Container(
+                  color: Colors.white,
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.all(24),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Número de Asiento',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blue.shade700,
-                          ),
+                        _buildSectionTitle('Datos del Boleto'),
+                        SizedBox(height: 24),
+
+                        // Horario
+                        _buildLabel('Horario de Salida'),
+                        HorarioInputField(
+                          value: horarioSeleccionado,
+                          destino: destino,
+                          origenIntermedio: origenIntermedio,
+                          validator: _validarHorario,
+                          focusNode: _horarioFocusNode,
+                          onChanged: (value) => setState(() => horarioSeleccionado = value),
+                          onEnterPressed: () => _asientoFocusNode.requestFocus(),
                         ),
-                        SizedBox(height: 8.0),
-                        NumericInputField(
-                          label: '',
-                          value: asientoSeleccionado,
-                          hintText: '01-45',
-                          validator: _validarAsiento,
-                          focusNode: _asientoFocusNode,
-                          onChanged: (value) {
-                            setState(() {
-                              asientoSeleccionado = value;
-                            });
-                          },
-                          onEnterPressed: () {
-                            // Pasar al siguiente campo
-                            _valorFocusNode.requestFocus();
-                            // Hacer scroll para alinear con la AppBar
-                            _scrollToWidget(_valorKey);
-                          },
+
+                        SizedBox(height: 24),
+
+                        // Asiento y Valor en fila
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildLabel('Número de Asiento'),
+                                  NumericInputField(
+                                    label: '',
+                                    value: asientoSeleccionado,
+                                    hintText: '01-45',
+                                    validator: _validarAsiento,
+                                    focusNode: _asientoFocusNode,
+                                    onChanged: (value) => setState(() => asientoSeleccionado = value),
+                                    onEnterPressed: () => _valorFocusNode.requestFocus(),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            SizedBox(width: 24),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildLabel('Valor del Boleto'),
+                                  NumericInputField(
+                                    label: '',
+                                    value: valorBoleto == '0' ? '' : valorBoleto,
+                                    hintText: 'Ingrese valor',
+                                    prefix: '\$',
+                                    validator: _validarValor,
+                                    focusNode: _valorFocusNode,
+                                    onChanged: (value) => setState(() => valorBoleto = value),
+                                    onEnterPressed: _confirmarVenta,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        SizedBox(height: 32),
+
+                        // Botón de generar
+                        SizedBox(
+                          width: double.infinity,
+                          height: 48,
+                          child: ElevatedButton.icon(
+                            onPressed: _isLoading ? null : _confirmarVenta,
+                            icon: Icon(Icons.print),
+                            label: Text('GENERAR TICKET (F1)', style: TextStyle(fontSize: 16)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue.shade600,
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
                         ),
                       ],
                     ),
                   ),
+                ),
+              ),
+            ],
+          ),
 
-                  SizedBox(height: 24),
-
-                  // Campo de valor con teclado numérico
-                  Container(
-                    key: _valorKey,
-                    padding: EdgeInsets.only(top: 8.0),
+          // Overlay de carga
+          if (_isLoading)
+            Container(
+              color: Colors.black54,
+              child: Center(
+                child: Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(32),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          'Valor del Boleto',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blue.shade700,
-                          ),
-                        ),
-                        SizedBox(height: 8.0),
-                        NumericInputField(
-                          label: '',
-                          value: valorBoleto == '0' ? '' : valorBoleto,
-                          hintText: 'Ingrese valor',
-                          prefix: '\$',
-                          validator: _validarValor,
-                          focusNode: _valorFocusNode,
-                          onChanged: (value) {
-                            setState(() {
-                              valorBoleto = value;
-                            });
-                          },
-                          onEnterPressed: () {
-                            // Este es el último campo, así que generamos el ticket
-                            _confirmarVenta();
-                          },
-                        ),
+                        CircularProgressIndicator(),
+                        SizedBox(height: 24),
+                        Text('Generando ticket...', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                        SizedBox(height: 8),
+                        Text('Por favor espere', style: TextStyle(color: Colors.grey.shade600)),
                       ],
                     ),
                   ),
-
-                  SizedBox(height: 36),
-
-                  // Botón de generar ticket
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton(
-                      onPressed: _isLoading ? null : _confirmarVenta,
-                      child: Text(
-                        'GENERAR TICKET',
-                        style: TextStyle(fontSize: 16),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
-          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionTitle(String title) {
+    return Text(
+      title,
+      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.grey.shade800),
+    );
+  }
+
+  Widget _buildLabel(String label, {Color? color}) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: 8),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: color ?? Colors.grey.shade700,
         ),
+      ),
+    );
+  }
 
-        // Overlay de carga
-        if (_isLoading)
-          Container(
-            color: Colors.black.withOpacity(0.5),
-            width: double.infinity,
-            height: double.infinity,
-            child: Center(
-              child: Card(
-                elevation: 8,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+  Widget _buildSegmentedButton(List<String> options, String selected, Function(String) onSelect, {bool compact = false}) {
+    return Container(
+      height: compact ? 40 : 44,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Row(
+        children: options.map((option) {
+          bool isSelected = selected == option;
+          return Expanded(
+            child: InkWell(
+              onTap: () => onSelect(option),
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: isSelected ? Colors.blue.shade100 : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.all(24.0),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CircularProgressIndicator(),
-                      SizedBox(height: 16),
-                      Text(
-                        'Generando ticket...',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      SizedBox(height: 8),
-                      Text(
-                        'Por favor espere',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-                    ],
+                child: Text(
+                  option,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: compact ? 12 : 13,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    color: isSelected ? Colors.blue.shade700 : Colors.black87,
                   ),
                 ),
               ),
             ),
-          ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+class _ConfirmDialog extends StatelessWidget {
+  final String tipoDia, tarifa, destino, origen, horario, asiento, valor;
+  final String? kilometro;
+
+  const _ConfirmDialog({
+    required this.tipoDia,
+    required this.tarifa,
+    required this.destino,
+    required this.origen,
+    required this.horario,
+    required this.asiento,
+    required this.valor,
+    this.kilometro,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Row(
+        children: [
+          Icon(Icons.confirmation_number, color: Colors.blue),
+          SizedBox(width: 12),
+          Text('Confirmar Venta'),
+        ],
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildRow('Tipo de día:', tipoDia),
+          _buildRow('Tarifa:', tarifa),
+          Divider(),
+          if (destino == 'Intermedio') _buildRow('Origen:', origen),
+          _buildRow('Destino:', destino == 'Intermedio' ? '$destino (Km ${kilometro ?? "?"})' : destino),
+          _buildRow('Salida:', horario),
+          _buildRow('Asiento:', asiento),
+          _buildRow('Valor:', '\$$valor', bold: true),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: Text('CANCELAR'),
+        ),
+        ElevatedButton.icon(
+          onPressed: () => Navigator.pop(context, true),
+          icon: Icon(Icons.check),
+          label: Text('CONFIRMAR'),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+        ),
       ],
+    );
+  }
+
+  Widget _buildRow(String label, String value, {bool bold = false}) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: TextStyle(color: Colors.grey.shade600)),
+          SizedBox(width: 16),
+          Text(
+            value,
+            style: TextStyle(
+              fontWeight: bold ? FontWeight.bold : FontWeight.w500,
+              fontSize: bold ? 16 : 14,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

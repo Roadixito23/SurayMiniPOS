@@ -87,7 +87,7 @@ class BusTicketGenerator {
     final doc = pw.Document();
 
     // Cargar recursos
-    final pw.ImageProvider? logoImage = await _loadImageAsset('assets/logocolorminipos.png');
+    final pw.ImageProvider? logoImage = await _loadImageAsset('assets/logobkwt.png');
     final pw.ImageProvider? scissorsImage = await _loadImageAsset('assets/tijera.png');
 
     // Obtener fecha y hora actuales en formato requerido

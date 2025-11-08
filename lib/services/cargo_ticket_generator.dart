@@ -237,7 +237,7 @@ class CargoTicketGenerator {
               pw.Text('A las: ', style: pw.TextStyle(fontSize: 10)),
               pw.Text('____', style: pw.TextStyle(fontSize: 10)),
               pw.Text(' : ', style: pw.TextStyle(fontSize: 10)),
-              pw.Text('____', style: pw.TextStyle(fontSize: 10)),
+                pw.Text('____', style: pw.TextStyle(fontSize: 10)),
               pw.Text(' Hrs.', style: pw.TextStyle(fontSize: 10)),
             ],
           ),
