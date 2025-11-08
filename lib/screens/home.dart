@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import '../models/auth_provider.dart';
 import 'dart:math' as math;
 
 class HomeScreen extends StatelessWidget {
@@ -292,6 +294,39 @@ class HomePage extends StatelessWidget {
                           onTap: () => Navigator.pushNamed(context, '/data_management'),
                         ),
                       ),
+                    ],
+                  ),
+                  SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Builder(
+                          builder: (context) {
+                            final authProvider = Provider.of<AuthProvider>(context);
+                            return _ActionCard(
+                              icon: Icons.people,
+                              title: 'Gestión de Usuarios',
+                              description: authProvider.isAdmin
+                                  ? 'Administrar usuarios y permisos'
+                                  : 'Solo administradores',
+                              color: authProvider.isAdmin ? Colors.deepPurple : Colors.grey,
+                              shortcut: 'F6',
+                              onTap: authProvider.isAdmin
+                                  ? () => Navigator.pushNamed(context, '/usuarios')
+                                  : () {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('Solo los administradores pueden acceder a esta sección'),
+                                          backgroundColor: Colors.red,
+                                        ),
+                                      );
+                                    },
+                            );
+                          },
+                        ),
+                      ),
+                      SizedBox(width: 16),
+                      Expanded(child: SizedBox()),
                     ],
                   ),
                   SizedBox(height: 24),
