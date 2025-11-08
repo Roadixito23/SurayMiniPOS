@@ -24,6 +24,7 @@ class CajaDatabase {
   // Constantes para nombres de archivos
   static const String _ventasFileName = 'ventas_diarias.json';
   static const String _cierresCajaFileName = 'cierres_caja.json';
+  static const String _gastosFileName = 'gastos_diarios.json';
   static const String _backupDirName = 'backups';
 
   // Directorio de la aplicación
@@ -64,6 +65,10 @@ class CajaDatabase {
     required String asiento,
     required double valor,
     required String comprobante,
+    required String tipoBoleto, // Categoría del boleto (PUBLICO GENERAL, ESCOLAR, etc.)
+    String metodoPago = 'Efectivo', // Efectivo, Tarjeta, Personalizar
+    double? montoEfectivo, // Para método personalizado
+    double? montoTarjeta, // Para método personalizado
   }) async {
     final venta = {
       'tipo': 'bus',
@@ -72,6 +77,10 @@ class CajaDatabase {
       'asiento': asiento,
       'valor': valor,
       'comprobante': comprobante,
+      'tipoBoleto': tipoBoleto,
+      'metodoPago': metodoPago,
+      'montoEfectivo': metodoPago == 'Personalizar' ? (montoEfectivo ?? 0) : (metodoPago == 'Efectivo' ? valor : 0),
+      'montoTarjeta': metodoPago == 'Personalizar' ? (montoTarjeta ?? 0) : (metodoPago == 'Tarjeta' ? valor : 0),
       'timestamp': DateTime.now().millisecondsSinceEpoch,
       'fecha': DateFormat('yyyy-MM-dd').format(DateTime.now()),
       'hora': DateFormat('HH:mm:ss').format(DateTime.now()),
@@ -88,6 +97,9 @@ class CajaDatabase {
     required String articulo,
     required double valor,
     required String comprobante,
+    String metodoPago = 'Efectivo', // Efectivo, Tarjeta, Personalizar
+    double? montoEfectivo, // Para método personalizado
+    double? montoTarjeta, // Para método personalizado
   }) async {
     final venta = {
       'tipo': 'cargo',
@@ -97,12 +109,103 @@ class CajaDatabase {
       'articulo': articulo,
       'valor': valor,
       'comprobante': comprobante,
+      'metodoPago': metodoPago,
+      'montoEfectivo': metodoPago == 'Personalizar' ? (montoEfectivo ?? 0) : (metodoPago == 'Efectivo' ? valor : 0),
+      'montoTarjeta': metodoPago == 'Personalizar' ? (montoTarjeta ?? 0) : (metodoPago == 'Tarjeta' ? valor : 0),
       'timestamp': DateTime.now().millisecondsSinceEpoch,
       'fecha': DateFormat('yyyy-MM-dd').format(DateTime.now()),
       'hora': DateFormat('HH:mm:ss').format(DateTime.now()),
     };
 
     await _guardarVenta(venta);
+  }
+
+  /// Registra un gasto
+  Future<void> registrarGasto({
+    required String tipoGasto, // "Combustible" o "Otros"
+    required double monto,
+    String? numeroMaquina, // Solo para Combustible (máx 6 caracteres alfanuméricos)
+    String? chofer, // Solo para Combustible
+    String? descripcion, // Solo para Otros
+  }) async {
+    final gasto = {
+      'tipoGasto': tipoGasto,
+      'monto': monto,
+      'numeroMaquina': numeroMaquina,
+      'chofer': chofer,
+      'descripcion': descripcion,
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+      'fecha': DateFormat('yyyy-MM-dd').format(DateTime.now()),
+      'hora': DateFormat('HH:mm:ss').format(DateTime.now()),
+    };
+
+    await _guardarGasto(gasto);
+  }
+
+  /// Guarda un gasto en la base de datos
+  Future<void> _guardarGasto(Map<String, dynamic> gasto) async {
+    try {
+      await _ensureInitialized();
+
+      // Obtener gastos existentes
+      List<Map<String, dynamic>> gastos = await getGastosDiarios();
+
+      // Añadir el nuevo gasto
+      gastos.add(gasto);
+
+      // Guardar la lista actualizada en archivo
+      await _saveJsonToFile(_gastosFileName, gastos);
+    } catch (e) {
+      debugPrint('Error al guardar gasto: $e');
+      rethrow;
+    }
+  }
+
+  /// Obtiene todos los gastos desde el último cierre
+  Future<List<Map<String, dynamic>>> getGastosDiarios() async {
+    try {
+      await _ensureInitialized();
+
+      final gastosFile = File('${_appDirectory!.path}/$_gastosFileName');
+
+      // Si el archivo no existe, devolver una lista vacía
+      if (!await gastosFile.exists()) {
+        return [];
+      }
+
+      // Leer y decodificar el archivo
+      final String gastosJson = await gastosFile.readAsString();
+      if (gastosJson.isEmpty) {
+        return [];
+      }
+
+      List<dynamic> gastosList = jsonDecode(gastosJson);
+
+      // Verificar integridad de datos si hay checksum
+      if (gastosList.isNotEmpty && gastosList.last is Map && gastosList.last.containsKey('_checksum')) {
+        final checksumMap = gastosList.removeLast();
+        final storedChecksum = checksumMap['_checksum'];
+        final calculatedChecksum = _calculateChecksum(jsonEncode(gastosList));
+
+        if (storedChecksum != calculatedChecksum) {
+          debugPrint('Advertencia: Checksum de gastos no coincide, posible corrupción de datos');
+          // Recuperar datos de respaldo si es necesario
+          return await _recuperarDesdeBackup(_gastosFileName) ?? [];
+        }
+      }
+
+      // Convertir a lista de mapas
+      return gastosList.map((g) => Map<String, dynamic>.from(g)).toList();
+    } catch (e) {
+      debugPrint('Error al obtener gastos diarios: $e');
+
+      // Intentar recuperar desde backup
+      final backupData = await _recuperarDesdeBackup(_gastosFileName);
+      if (backupData != null) {
+        return backupData;
+      }
+      return [];
+    }
   }
 
   /// Guarda una venta en la base de datos
@@ -206,6 +309,7 @@ class CajaDatabase {
       await _ensureInitialized();
 
       final ventas = await getVentasDiarias();
+      final gastos = await getGastosDiarios();
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final fecha = DateFormat('yyyy-MM-dd').format(DateTime.now());
       final hora = DateFormat('HH:mm:ss').format(DateTime.now());
@@ -216,13 +320,24 @@ class CajaDatabase {
       int cantidadBus = 0;
       int cantidadCargo = 0;
 
+      // Totales por método de pago
+      double totalEfectivo = 0;
+      double totalTarjeta = 0;
+
       // Destinos para bus
       Map<String, Map<String, dynamic>> destinosBus = {};
 
       // Destinos para cargo
       Map<String, Map<String, dynamic>> destinosCargo = {};
 
+      // Control de caja por tipo de boleto
+      Map<String, Map<String, dynamic>> controlCaja = {};
+
       for (var venta in ventas) {
+        // Sumar métodos de pago
+        totalEfectivo += (venta['montoEfectivo'] ?? 0.0);
+        totalTarjeta += (venta['montoTarjeta'] ?? 0.0);
+
         if (venta['tipo'] == 'bus') {
           totalBus += venta['valor'];
           cantidadBus++;
@@ -234,6 +349,24 @@ class CajaDatabase {
           }
           destinosBus[destino]!['cantidad'] = destinosBus[destino]!['cantidad'] + 1;
           destinosBus[destino]!['total'] = destinosBus[destino]!['total'] + venta['valor'];
+
+          // Control de caja por tipo de boleto
+          final tipoBoleto = venta['tipoBoleto'] ?? 'PUBLICO GENERAL';
+          final comprobante = venta['comprobante'] ?? '';
+
+          if (!controlCaja.containsKey(tipoBoleto)) {
+            controlCaja[tipoBoleto] = {
+              'tipo': tipoBoleto,
+              'primerComprobante': comprobante,
+              'ultimoComprobante': comprobante,
+              'cantidad': 0,
+              'subtotal': 0.0,
+            };
+          }
+
+          controlCaja[tipoBoleto]!['ultimoComprobante'] = comprobante;
+          controlCaja[tipoBoleto]!['cantidad'] = controlCaja[tipoBoleto]!['cantidad'] + 1;
+          controlCaja[tipoBoleto]!['subtotal'] = controlCaja[tipoBoleto]!['subtotal'] + venta['valor'];
         } else if (venta['tipo'] == 'cargo') {
           totalCargo += venta['valor'];
           cantidadCargo++;
@@ -248,6 +381,15 @@ class CajaDatabase {
         }
       }
 
+      // Calcular totales de gastos
+      double totalGastos = 0;
+      for (var gasto in gastos) {
+        totalGastos += (gasto['monto'] ?? 0.0);
+      }
+
+      // Efectivo final (restar gastos)
+      double efectivoFinal = totalEfectivo - totalGastos;
+
       // Crear informe de cierre
       final cierre = {
         'timestamp': timestamp,
@@ -261,8 +403,14 @@ class CajaDatabase {
         'cantidadBus': cantidadBus,
         'cantidadCargo': cantidadCargo,
         'cantidad': cantidadBus + cantidadCargo,
+        'totalEfectivo': totalEfectivo,
+        'totalTarjeta': totalTarjeta,
+        'totalGastos': totalGastos,
+        'efectivoFinal': efectivoFinal,
         'destinosBus': destinosBus,
         'destinosCargo': destinosCargo,
+        'controlCaja': controlCaja.values.toList(),
+        'gastos': gastos,
         'ventas': ventas
       };
 
@@ -275,6 +423,9 @@ class CajaDatabase {
 
       // Limpiar ventas diarias
       await _saveJsonToFile(_ventasFileName, []);
+
+      // Limpiar gastos diarios
+      await _saveJsonToFile(_gastosFileName, []);
 
       // Crear backup del cierre
       await crearBackup();
@@ -391,6 +542,12 @@ class CajaDatabase {
         await cierresFile.delete();
       }
 
+      // Eliminar archivo de gastos
+      final gastosFile = File('${_appDirectory!.path}/$_gastosFileName');
+      if (await gastosFile.exists()) {
+        await gastosFile.delete();
+      }
+
       // Limpiar último cierre
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_keyUltimoCierre);
@@ -422,6 +579,13 @@ class CajaDatabase {
         await cierresFile.copy(cierresBackupFile.path);
       }
 
+      // Backup de gastos diarios
+      final gastosFile = File('${_appDirectory!.path}/$_gastosFileName');
+      if (await gastosFile.exists()) {
+        final gastosBackupFile = File('${backupDir.path}/gastos_$timestamp.json');
+        await gastosFile.copy(gastosBackupFile.path);
+      }
+
       // Limpiar backups antiguos (mantener solo los últimos 10)
       await _limpiarBackupsAntiguos();
 
@@ -446,6 +610,7 @@ class CajaDatabase {
       // Eliminar los archivos más antiguos, dejando solo los 10 más recientes de cada tipo
       final ventasBackups = backupFiles.where((file) => file.path.contains('ventas_')).toList();
       final cierresBackups = backupFiles.where((file) => file.path.contains('cierres_')).toList();
+      final gastosBackups = backupFiles.where((file) => file.path.contains('gastos_')).toList();
 
       if (ventasBackups.length > 10) {
         for (int i = 10; i < ventasBackups.length; i++) {
@@ -456,6 +621,12 @@ class CajaDatabase {
       if (cierresBackups.length > 10) {
         for (int i = 10; i < cierresBackups.length; i++) {
           await (cierresBackups[i] as File).delete();
+        }
+      }
+
+      if (gastosBackups.length > 10) {
+        for (int i = 10; i < gastosBackups.length; i++) {
+          await (gastosBackups[i] as File).delete();
         }
       }
     } catch (e) {

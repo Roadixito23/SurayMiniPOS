@@ -44,6 +44,9 @@ class CargoTicketGenerator {
     required double valor,
     String? telefonoDest = '',
     String? telefonoRemit = '',
+    String metodoPago = 'Efectivo', // Método de pago: "Efectivo", "Tarjeta", "Personalizar"
+    double? montoEfectivo,          // Para método personalizado
+    double? montoTarjeta,           // Para método personalizado
   }) async {
     try {
       // Asegurar que los recursos estén precargados
@@ -116,7 +119,7 @@ class CargoTicketGenerator {
 
       await Printing.layoutPdf(onLayout: (_) async => cargaPdf, format: ticketFormat);
 
-      // Registrar en caja
+      // Registrar en caja con método de pago
       final cajaDb = CajaDatabase();
       await cajaDb.registrarVentaCargo(
         remitente: remitente,
@@ -125,6 +128,9 @@ class CargoTicketGenerator {
         articulo: articulo,
         valor: valor,
         comprobante: numeroComprobante,
+        metodoPago: metodoPago,
+        montoEfectivo: montoEfectivo,
+        montoTarjeta: montoTarjeta,
       );
     } catch (e) {
       debugPrint('Error al generar ticket: $e');
