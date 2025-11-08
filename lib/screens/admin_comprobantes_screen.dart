@@ -30,8 +30,9 @@ class _AdminComprobantesScreenState extends State<AdminComprobantesScreen> {
     try {
       await _comprobanteManager.initialize();
 
-      final counter = await _comprobanteManager.getCurrentCounter();
-      final formattedCounter = await _comprobanteManager.getCurrentFormattedCounter();
+      // Obtener contadores para PUBLICO GENERAL como referencia
+      final counter = await _comprobanteManager.getCurrentCounter('PUBLICO GENERAL');
+      final formattedCounter = await _comprobanteManager.getCurrentFormattedCounter('PUBLICO GENERAL');
 
       setState(() {
         _counter = counter;
