@@ -50,6 +50,14 @@ class CierreCajaReportGenerator {
     final destinosBus = cierre['destinosBus'] as Map<String, dynamic>?;
     final destinosCargo = cierre['destinosCargo'] as Map<String, dynamic>?;
 
+    // Nuevos campos para métodos de pago y gastos
+    final totalEfectivo = cierre['totalEfectivo'] ?? 0.0;
+    final totalTarjeta = cierre['totalTarjeta'] ?? 0.0;
+    final totalGastos = cierre['totalGastos'] ?? 0.0;
+    final efectivoFinal = cierre['efectivoFinal'] ?? 0.0;
+    final controlCaja = cierre['controlCaja'] as List<dynamic>?;
+    final gastos = cierre['gastos'] as List<dynamic>?;
+
     doc.addPage(
       pw.Page(
         pageFormat: ticketFormat,
@@ -157,6 +165,143 @@ class CierreCajaReportGenerator {
                   ],
                 ),
               ),
+
+              pw.SizedBox(height: 10),
+
+              // RESUMEN DE PAGOS
+              pw.Divider(height: 1),
+              pw.SizedBox(height: 5),
+
+              pw.Text(
+                'RESUMEN DE PAGOS',
+                style: pw.TextStyle(
+                  fontSize: 12,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+
+              pw.SizedBox(height: 5),
+
+              _buildPaymentRow('Efectivo:', totalEfectivo),
+              _buildPaymentRow('Tarjeta:', totalTarjeta),
+
+              if (totalGastos > 0) ...[
+                pw.Divider(height: 6),
+                _buildPaymentRow('Gastos:', totalGastos, isNegative: true),
+              ],
+
+              pw.Divider(height: 6),
+
+              pw.Container(
+                padding: pw.EdgeInsets.symmetric(vertical: 4, horizontal: 6),
+                decoration: pw.BoxDecoration(
+                  color: efectivoFinal < 0 ? PdfColors.red100 : PdfColors.green100,
+                  borderRadius: pw.BorderRadius.circular(4),
+                ),
+                child: pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text(
+                      'Efectivo Final:',
+                      style: pw.TextStyle(
+                        fontSize: 10,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                    pw.Text(
+                      '\$${_formatNumber(efectivoFinal)}',
+                      style: pw.TextStyle(
+                        fontSize: 11,
+                        fontWeight: pw.FontWeight.bold,
+                        color: efectivoFinal < 0 ? PdfColors.red800 : PdfColors.green800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // GASTOS
+              if (gastos != null && gastos.isNotEmpty) ...[
+                pw.SizedBox(height: 10),
+                pw.Divider(height: 1),
+                pw.SizedBox(height: 5),
+
+                pw.Text(
+                  'GASTOS DEL DÍA',
+                  style: pw.TextStyle(
+                    fontSize: 12,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+
+                pw.SizedBox(height: 5),
+
+                ...gastos.map((gasto) => _buildGastoItem(gasto)),
+              ],
+
+              // CONTROL DE CAJA
+              if (controlCaja != null && controlCaja.isNotEmpty) ...[
+                pw.SizedBox(height: 10),
+                pw.Divider(height: 1),
+                pw.SizedBox(height: 5),
+
+                pw.Text(
+                  'CONTROL DE CAJA',
+                  style: pw.TextStyle(
+                    fontSize: 12,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+
+                pw.SizedBox(height: 5),
+
+                // Encabezados
+                pw.Container(
+                  padding: pw.EdgeInsets.symmetric(vertical: 3, horizontal: 2),
+                  decoration: pw.BoxDecoration(
+                    color: PdfColors.grey300,
+                  ),
+                  child: pw.Row(
+                    children: [
+                      pw.Expanded(
+                        flex: 3,
+                        child: pw.Text(
+                          'Tipo',
+                          style: pw.TextStyle(
+                            fontSize: 7,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      pw.Container(
+                        width: 30,
+                        child: pw.Text(
+                          'Cant',
+                          style: pw.TextStyle(
+                            fontSize: 7,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                          textAlign: pw.TextAlign.center,
+                        ),
+                      ),
+                      pw.Expanded(
+                        flex: 2,
+                        child: pw.Text(
+                          'Subtotal',
+                          style: pw.TextStyle(
+                            fontSize: 7,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                          textAlign: pw.TextAlign.right,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Filas de datos
+                ...controlCaja.map((item) => _buildControlCajaRow(item)),
+              ],
 
               pw.SizedBox(height: 10),
 
@@ -347,6 +492,160 @@ class CierreCajaReportGenerator {
               style: pw.TextStyle(fontSize: 9),
               textAlign: pw.TextAlign.right,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Widget para mostrar fila de pago
+  static pw.Widget _buildPaymentRow(String label, double amount, {bool isNegative = false}) {
+    return pw.Container(
+      margin: pw.EdgeInsets.only(bottom: 2),
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          pw.Text(
+            label,
+            style: pw.TextStyle(fontSize: 9),
+          ),
+          pw.Text(
+            '\$${_formatNumber(amount)}',
+            style: pw.TextStyle(
+              fontSize: 9,
+              color: isNegative ? PdfColors.red700 : PdfColors.black,
+              fontWeight: isNegative ? pw.FontWeight.bold : pw.FontWeight.normal,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Widget para mostrar item de gasto
+  static pw.Widget _buildGastoItem(Map<String, dynamic> gasto) {
+    final tipoGasto = gasto['tipoGasto'] ?? '';
+    final monto = gasto['monto'] ?? 0.0;
+    final hora = gasto['hora'] ?? '';
+
+    return pw.Container(
+      margin: pw.EdgeInsets.only(bottom: 4),
+      padding: pw.EdgeInsets.all(4),
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(width: 0.5, color: PdfColors.red300),
+        borderRadius: pw.BorderRadius.circular(3),
+        color: PdfColors.red50,
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              pw.Text(
+                tipoGasto,
+                style: pw.TextStyle(
+                  fontSize: 9,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+              pw.Text(
+                '\$${_formatNumber(monto)}',
+                style: pw.TextStyle(
+                  fontSize: 9,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColors.red800,
+                ),
+              ),
+            ],
+          ),
+          if (tipoGasto == 'Combustible') ...[
+            pw.SizedBox(height: 2),
+            pw.Text(
+              'N° Máquina: ${gasto['numeroMaquina'] ?? ''}',
+              style: pw.TextStyle(fontSize: 7, color: PdfColors.grey700),
+            ),
+            pw.Text(
+              'Chofer: ${gasto['chofer'] ?? ''}',
+              style: pw.TextStyle(fontSize: 7, color: PdfColors.grey700),
+            ),
+          ] else if (tipoGasto == 'Otros') ...[
+            pw.SizedBox(height: 2),
+            pw.Text(
+              'Desc: ${gasto['descripcion'] ?? ''}',
+              style: pw.TextStyle(fontSize: 7, color: PdfColors.grey700),
+            ),
+          ],
+          pw.SizedBox(height: 2),
+          pw.Text(
+            'Hora: $hora',
+            style: pw.TextStyle(fontSize: 6, color: PdfColors.grey600),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Widget para mostrar fila de control de caja
+  static pw.Widget _buildControlCajaRow(Map<String, dynamic> item) {
+    final tipo = item['tipo'] ?? '';
+    final cantidad = item['cantidad'] ?? 0;
+    final subtotal = item['subtotal'] ?? 0.0;
+    final primerComprobante = item['primerComprobante'] ?? '';
+    final ultimoComprobante = item['ultimoComprobante'] ?? '';
+
+    // Extraer solo el número final del comprobante
+    String formatComprobante(String comprobante) {
+      if (comprobante.isEmpty) return '';
+      final parts = comprobante.split('-');
+      return parts.length >= 3 ? parts[2] : comprobante;
+    }
+
+    return pw.Container(
+      padding: pw.EdgeInsets.symmetric(vertical: 2, horizontal: 2),
+      decoration: pw.BoxDecoration(
+        border: pw.Border(
+          bottom: pw.BorderSide(width: 0.3, color: PdfColors.grey300),
+        ),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Row(
+            children: [
+              pw.Expanded(
+                flex: 3,
+                child: pw.Text(
+                  tipo,
+                  style: pw.TextStyle(fontSize: 7),
+                  overflow: pw.TextOverflow.clip,
+                ),
+              ),
+              pw.Container(
+                width: 30,
+                child: pw.Text(
+                  '$cantidad',
+                  style: pw.TextStyle(fontSize: 7),
+                  textAlign: pw.TextAlign.center,
+                ),
+              ),
+              pw.Expanded(
+                flex: 2,
+                child: pw.Text(
+                  '\$${_formatNumber(subtotal)}',
+                  style: pw.TextStyle(
+                    fontSize: 7,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                  textAlign: pw.TextAlign.right,
+                ),
+              ),
+            ],
+          ),
+          pw.SizedBox(height: 1),
+          pw.Text(
+            'N°: ${formatComprobante(primerComprobante)} - ${formatComprobante(ultimoComprobante)}',
+            style: pw.TextStyle(fontSize: 6, color: PdfColors.grey600),
           ),
         ],
       ),
