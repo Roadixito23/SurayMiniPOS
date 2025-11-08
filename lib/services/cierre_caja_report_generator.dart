@@ -53,21 +53,11 @@ class CierreCajaReportGenerator {
     doc.addPage(
       pw.Page(
         pageFormat: ticketFormat,
+        margin: pw.EdgeInsets.symmetric(vertical: 25, horizontal: 6),
         build: (pw.Context context) {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.center,
             children: [
-              // Cabecera con logo
-              logoImage != null
-                  ? pw.Image(logoImage, width: ticketFormat.width * 0.8)
-                  : pw.SizedBox(),
-              pw.SizedBox(height: 10),
-
-              pw.Align(
-                alignment: pw.Alignment.center,
-                child: pw.Text('Punto de Venta Express', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
-              ),
-
               // Título del reporte
               pw.Container(
                 width: double.infinity,
@@ -237,6 +227,7 @@ class CierreCajaReportGenerator {
                     fontSize: 9,
                     fontStyle: pw.FontStyle.italic,
                   ),
+                  textAlign: pw.TextAlign.center,
                 ),
               ],
 
@@ -276,7 +267,7 @@ class CierreCajaReportGenerator {
               ),
 
               // Imagen de fin de ticket
-              pw.SizedBox(height: 15),
+              pw.SizedBox(height: 10),
             ],
           );
         },
@@ -298,7 +289,7 @@ class CierreCajaReportGenerator {
         children: [
           pw.Expanded(
             child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              crossAxisAlignment: pw.CrossAxisAlignment.center,
               children: [
                 pw.Text(
                   title,
@@ -306,10 +297,12 @@ class CierreCajaReportGenerator {
                     fontSize: 10,
                     fontWeight: pw.FontWeight.bold,
                   ),
+                  textAlign: pw.TextAlign.center,
                 ),
                 pw.Text(
                   'Cantidad: $cantidad',
                   style: pw.TextStyle(fontSize: 9),
+                  textAlign: pw.TextAlign.center,
                 ),
               ],
             ),

@@ -93,12 +93,12 @@ class BusTicketGenerator {
     // Obtener fecha y hora actuales en formato requerido
     final now = DateTime.now();
 
-    // Formato de fecha: DD | MMM | YY
+    // Formato de fecha sin separadores "|"
     final String dia = now.day.toString().padLeft(2, '0');
     final List<String> meses = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
     final String mes = meses[now.month - 1];
     final String anio = (now.year % 100).toString().padLeft(2, '0');
-    final String fechaFormato = "$dia | $mes | $anio";
+    final String fechaFormato = "$dia $mes $anio";
 
     // Hora de emisión en formato HH:MM
     final String horaEmision = "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
@@ -109,7 +109,7 @@ class BusTicketGenerator {
     doc.addPage(
       pw.Page(
         pageFormat: ticketFormat,
-        margin: pw.EdgeInsets.only(top: 0, left: 0, right: 0, bottom: 5),
+        margin: pw.EdgeInsets.only(top: 20, left: 8, right: 8, bottom: 20),
         build: (context) {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.center,
@@ -138,11 +138,11 @@ class BusTicketGenerator {
                 children: [
                   // Línea punteada gruesa
                   pw.Container(
-                    margin: pw.EdgeInsets.symmetric(vertical: 10),
+                    margin: pw.EdgeInsets.symmetric(vertical: 15),
                     child: pw.Row(
                       children: List.generate(
                         (ticketFormat.width / 5).round(),
-                        (index) => pw.Container(
+                            (index) => pw.Container(
                           width: 3,
                           height: 1.5,
                           color: PdfColors.black,
@@ -155,20 +155,20 @@ class BusTicketGenerator {
                   // Tijera en el lado izquierdo
                   scissorsImage != null
                       ? pw.Positioned(
-                          left: 5,
-                          child: pw.Container(
-                            width: 15,
-                            height: 15,
-                            child: pw.Image(scissorsImage),
-                          ),
-                        )
+                    left: 5,
+                    child: pw.Container(
+                      width: 15,
+                      height: 15,
+                      child: pw.Image(scissorsImage),
+                    ),
+                  )
                       : pw.SizedBox(),
                 ],
               ),
 
               pw.Container(
                 width: double.infinity,
-                padding: pw.EdgeInsets.symmetric(vertical: 5),
+                padding: pw.EdgeInsets.symmetric(vertical: 6),
                 decoration: pw.BoxDecoration(
                   color: PdfColors.grey600,
                 ),
@@ -177,7 +177,7 @@ class BusTicketGenerator {
                   style: pw.TextStyle(
                     color: PdfColors.white,
                     fontWeight: pw.FontWeight.bold,
-                    fontSize: 10,
+                    fontSize: 11,
                   ),
                   textAlign: pw.TextAlign.center,
                 ),
@@ -185,22 +185,14 @@ class BusTicketGenerator {
 
               _buildInspectorTicket(
                 destino,
-                origen,
                 horario,
-                asiento,
                 valor,
-                numeroComprobante,
                 fechaFormato,
-                horaEmision,
-                tipoDia,
-                tituloTarifa,
-                esIntermedio,
-                kilometros,
-                asientoColor,
+                numeroComprobante,
               ),
 
               // Espacio adicional al final
-              pw.SizedBox(height: 15),
+              pw.SizedBox(height: 20),
             ],
           );
         },
@@ -212,76 +204,70 @@ class BusTicketGenerator {
 
   // Método para construir el ticket del pasajero
   static pw.Widget _buildPassengerTicket(
-    pw.ImageProvider? logoImage,
-    String destino,
-    String? origen,
-    String horario,
-    String asiento,
-    String valor,
-    String numeroComprobante,
-    String fechaFormato,
-    String horaEmision,
-    String tipoDia,
-    String tituloTarifa,
-    bool esIntermedio,
-    String? kilometros,
-    PdfColor asientoColor,
-  ) {
+      pw.ImageProvider? logoImage,
+      String destino,
+      String? origen,
+      String horario,
+      String asiento,
+      String valor,
+      String numeroComprobante,
+      String fechaFormato,
+      String horaEmision,
+      String tipoDia,
+      String tituloTarifa,
+      bool esIntermedio,
+      String? kilometros,
+      PdfColor asientoColor,
+      ) {
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.center,
       children: [
-        // NUEVA CABECERA: LOGO | N° DE COMPROBANTE
+        // CABECERA: LOGO A LA IZQUIERDA Y RECTÁNGULO NEGRO A LA DERECHA
         pw.Container(
-          padding: pw.EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          padding: pw.EdgeInsets.symmetric(vertical: 5),
           child: pw.Row(
             mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
             crossAxisAlignment: pw.CrossAxisAlignment.center,
             children: [
-              // Logo (izquierda)
+              // Logo izquierda
               pw.Container(
-                width: 80,
-                height: 80,
+                width: 85,
+                height: 85,
                 child: logoImage != null
                     ? pw.Image(logoImage, fit: pw.BoxFit.contain)
                     : pw.Text('SURAY', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
               ),
 
-              // Separador vertical
-              pw.Container(
-                width: 2,
-                height: 80,
-                color: PdfColors.black,
-              ),
+              pw.SizedBox(width: 8),
 
-              // N° de Comprobante (derecha)
+              // Rectángulo negro con tipo de día y N° comprobante
               pw.Expanded(
                 child: pw.Container(
-                  padding: pw.EdgeInsets.symmetric(horizontal: 10),
+                  padding: pw.EdgeInsets.all(8),
+                  decoration: pw.BoxDecoration(
+                    color: PdfColors.black,
+                    borderRadius: pw.BorderRadius.circular(4),
+                  ),
                   child: pw.Column(
                     mainAxisAlignment: pw.MainAxisAlignment.center,
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
                       pw.Text(
-                        'N° de Comprobante',
+                        tipoDia,
                         style: pw.TextStyle(
                           fontSize: 10,
                           fontWeight: pw.FontWeight.bold,
+                          color: PdfColors.white,
                         ),
+                        textAlign: pw.TextAlign.center,
                       ),
                       pw.SizedBox(height: 4),
-                      pw.Container(
-                        padding: pw.EdgeInsets.all(6),
-                        decoration: pw.BoxDecoration(
-                          border: pw.Border.all(width: 1.5),
-                          borderRadius: pw.BorderRadius.circular(4),
+                      pw.Text(
+                        'N° $numeroComprobante',
+                        style: pw.TextStyle(
+                          fontSize: 9,
+                          color: PdfColors.white,
                         ),
-                        child: pw.Text(
-                          numeroComprobante,
-                          style: pw.TextStyle(
-                            fontSize: 12,
-                            fontWeight: pw.FontWeight.bold,
-                          ),
-                        ),
+                        textAlign: pw.TextAlign.center,
                       ),
                     ],
                   ),
@@ -291,164 +277,119 @@ class BusTicketGenerator {
           ),
         ),
 
-        pw.SizedBox(height: 8),
+        pw.SizedBox(height: 12),
 
-        // TÍTULO DEL TIPO DE DÍA
+        // TIPO DE TARIFA EN NEGRITAS CENTRADO
         pw.Container(
           width: double.infinity,
           padding: pw.EdgeInsets.symmetric(vertical: 8),
-          decoration: pw.BoxDecoration(
-            color: PdfColors.grey300,
-          ),
           child: pw.Text(
-            tipoDia,
+            tituloTarifa.contains('INTERMEDIO') ? 'INTERMEDIO' : tituloTarifa,
             style: pw.TextStyle(
-              fontSize: 14,
+              fontSize: 16,
               fontWeight: pw.FontWeight.bold,
             ),
             textAlign: pw.TextAlign.center,
           ),
         ),
 
+        if (kilometros != null) ...[
+          pw.Text(
+            'KM $kilometros',
+            style: pw.TextStyle(
+              fontSize: 14,
+              fontWeight: pw.FontWeight.bold,
+            ),
+            textAlign: pw.TextAlign.center,
+          ),
+          pw.SizedBox(height: 5),
+        ],
+
         pw.SizedBox(height: 8),
 
-        // TÍTULO DE LA TARIFA
-        pw.Container(
-          width: double.infinity,
-          padding: pw.EdgeInsets.symmetric(vertical: 10),
-          decoration: pw.BoxDecoration(
-            border: pw.Border.all(width: 2),
-          ),
-          child: pw.Column(
-            children: [
-              pw.Text(
-                tituloTarifa.contains('INTERMEDIO') ? 'INTERMEDIO' : tituloTarifa,
-                style: pw.TextStyle(
-                  fontSize: 16,
-                  fontWeight: pw.FontWeight.bold,
-                ),
-                textAlign: pw.TextAlign.center,
-              ),
-              if (kilometros != null) ...[
-                pw.SizedBox(height: 4),
-                pw.Text(
-                  'KM $kilometros',
-                  style: pw.TextStyle(
-                    fontSize: 14,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                  textAlign: pw.TextAlign.center,
-                ),
-              ],
-            ],
-          ),
-        ),
-
-        pw.SizedBox(height: 8),
-        pw.Divider(),
-
-        // Origen (solo para destinos intermedios)
-        if (esIntermedio && origen != null)
-          pw.Container(
-            decoration: pw.BoxDecoration(
-              border: pw.Border.all(),
-              borderRadius: pw.BorderRadius.circular(5),
-            ),
-            padding: pw.EdgeInsets.all(8),
-            width: double.infinity,
-            margin: pw.EdgeInsets.only(bottom: 5),
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.center,
-              children: [
-                pw.Text(
-                  'ORIGEN:',
-                  style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.normal),
-                  textAlign: pw.TextAlign.center,
-                ),
-                pw.Text(
-                  origen,
-                  style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
-                  textAlign: pw.TextAlign.center,
-                ),
-              ],
-            ),
-          ),
-
-        // Destino
+        // DESTINO en cuadrado redondeado
         pw.Container(
           decoration: pw.BoxDecoration(
-            border: pw.Border.all(),
-            borderRadius: pw.BorderRadius.circular(5),
+            border: pw.Border.all(width: 1.5),
+            borderRadius: pw.BorderRadius.circular(8),
           ),
-          padding: pw.EdgeInsets.all(8),
+          padding: pw.EdgeInsets.all(10),
           width: double.infinity,
           child: pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.center,
             children: [
               pw.Text(
                 'DESTINO:',
-                style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.normal),
+                style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.normal),
                 textAlign: pw.TextAlign.center,
               ),
+              pw.SizedBox(height: 4),
               pw.Text(
                 destino,
-                style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+                style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
                 textAlign: pw.TextAlign.center,
               ),
             ],
           ),
         ),
-        pw.SizedBox(height: 5),
 
-        // Fila con horario y fecha
+        pw.SizedBox(height: 8),
+
+        // Fila con SALIDA y FECHA
         pw.Row(
           children: [
-            // Horario (izquierda)
+            // Salida (izquierda)
             pw.Expanded(
               flex: 1,
               child: pw.Container(
                 decoration: pw.BoxDecoration(
-                  border: pw.Border.all(),
-                  borderRadius: pw.BorderRadius.circular(5),
+                  border: pw.Border.all(width: 1.5),
+                  borderRadius: pw.BorderRadius.circular(8),
                 ),
-                padding: pw.EdgeInsets.all(6),
+                padding: pw.EdgeInsets.all(10),
                 child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  crossAxisAlignment: pw.CrossAxisAlignment.center,
                   children: [
                     pw.Text(
-                      'Salida:',
-                      style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.normal),
+                      'SALIDA:',
+                      style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.normal),
+                      textAlign: pw.TextAlign.center,
                     ),
+                    pw.SizedBox(height: 4),
                     pw.Text(
                       horario,
-                      style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
+                      style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+                      textAlign: pw.TextAlign.center,
                     ),
                   ],
                 ),
               ),
             ),
 
-            pw.SizedBox(width: 3),
+            pw.SizedBox(width: 5),
 
             // Fecha (derecha)
             pw.Expanded(
               flex: 1,
               child: pw.Container(
                 decoration: pw.BoxDecoration(
-                  border: pw.Border.all(),
-                  borderRadius: pw.BorderRadius.circular(5),
+                  border: pw.Border.all(width: 1.5),
+                  borderRadius: pw.BorderRadius.circular(8),
                 ),
-                padding: pw.EdgeInsets.all(6),
+                padding: pw.EdgeInsets.all(10),
                 child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  crossAxisAlignment: pw.CrossAxisAlignment.center,
                   children: [
                     pw.Text(
                       'FECHA:',
-                      style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.normal),
+                      style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.normal),
+                      textAlign: pw.TextAlign.center,
                     ),
+                    pw.SizedBox(height: 4),
                     pw.Text(
                       fechaFormato,
-                      style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
+                      style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+                      textAlign: pw.TextAlign.center,
                     ),
                   ],
                 ),
@@ -456,6 +397,8 @@ class BusTicketGenerator {
             ),
           ],
         ),
+
+        pw.SizedBox(height: 10),
 
         // Texto de validez
         pw.Container(
@@ -474,7 +417,7 @@ class BusTicketGenerator {
 
         // Texto de recomendación
         pw.Text(
-          'PRESENTARSE 10 MINUTOS ANTES DE LA SALIDA DEL BUS',
+          'PRESENTARSE 10 MINS ANTES',
           style: pw.TextStyle(
             fontSize: 9,
             fontStyle: pw.FontStyle.italic,
@@ -482,7 +425,7 @@ class BusTicketGenerator {
           textAlign: pw.TextAlign.center,
         ),
 
-        pw.SizedBox(height: 5),
+        pw.SizedBox(height: 10),
 
         // Fila con asiento y valor
         pw.Row(
@@ -492,47 +435,53 @@ class BusTicketGenerator {
               flex: 1,
               child: pw.Container(
                 decoration: pw.BoxDecoration(
-                  border: pw.Border.all(),
-                  borderRadius: pw.BorderRadius.circular(5),
+                  border: pw.Border.all(width: 1.5),
+                  borderRadius: pw.BorderRadius.circular(8),
                 ),
-                padding: pw.EdgeInsets.all(6),
+                padding: pw.EdgeInsets.all(10),
                 child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  crossAxisAlignment: pw.CrossAxisAlignment.center,
                   children: [
                     pw.Text(
-                      'ASIENTO:',
-                      style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.normal),
+                      'ASIENTO',
+                      style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.normal),
+                      textAlign: pw.TextAlign.center,
                     ),
+                    pw.SizedBox(height: 4),
                     pw.Text(
                       asiento,
-                      style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: asientoColor),
+                      style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold, color: asientoColor),
+                      textAlign: pw.TextAlign.center,
                     ),
                   ],
                 ),
               ),
             ),
 
-            pw.SizedBox(width: 3),
+            pw.SizedBox(width: 5),
 
             // Valor (derecha)
             pw.Expanded(
               flex: 1,
               child: pw.Container(
                 decoration: pw.BoxDecoration(
-                  border: pw.Border.all(),
-                  borderRadius: pw.BorderRadius.circular(5),
+                  border: pw.Border.all(width: 1.5),
+                  borderRadius: pw.BorderRadius.circular(8),
                 ),
-                padding: pw.EdgeInsets.all(6),
+                padding: pw.EdgeInsets.all(10),
                 child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  crossAxisAlignment: pw.CrossAxisAlignment.center,
                   children: [
                     pw.Text(
-                      'VALOR:',
-                      style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.normal),
+                      'VALOR',
+                      style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.normal),
+                      textAlign: pw.TextAlign.center,
                     ),
+                    pw.SizedBox(height: 4),
                     pw.Text(
                       '\$${_formatPrice(double.parse(valor))}',
-                      style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+                      style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
+                      textAlign: pw.TextAlign.center,
                     ),
                   ],
                 ),
@@ -543,151 +492,163 @@ class BusTicketGenerator {
 
         pw.SizedBox(height: 10),
 
-        // Hora de emisión
+        // Hora de emisión (sin N° de comprobante)
         pw.Text(
           'Emisión: $horaEmision - $fechaFormato',
-          style: pw.TextStyle(fontSize: 10),
+          style: pw.TextStyle(fontSize: 9),
           textAlign: pw.TextAlign.center,
         ),
 
-        pw.SizedBox(height: 10),
+        pw.SizedBox(height: 15),
       ],
     );
   }
 
-  // Método para construir el ticket del inspector (compacto)
+  // Método para construir el ticket del inspector (organizado en tablas)
   static pw.Widget _buildInspectorTicket(
-    String destino,
-    String? origen,
-    String horario,
-    String asiento,
-    String valor,
-    String numeroComprobante,
-    String fechaFormato,
-    String horaEmision,
-    String tipoDia,
-    String tituloTarifa,
-    bool esIntermedio,
-    String? kilometros,
-    PdfColor asientoColor,
-  ) {
+      String destino,
+      String horario,
+      String valor,
+      String fechaFormato,
+      String numeroComprobante,
+      ) {
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.center,
       children: [
-        // Número de comprobante centrado
+        pw.SizedBox(height: 15),
+
+        // Rectángulo negro con N° de comprobante
         pw.Container(
-          width: 150,
           padding: pw.EdgeInsets.all(10),
-          margin: pw.EdgeInsets.only(top: 10),
           decoration: pw.BoxDecoration(
-            border: pw.Border.all(width: 2),
+            color: PdfColors.black,
             borderRadius: pw.BorderRadius.circular(4),
           ),
+          child: pw.Text(
+            'N° $numeroComprobante',
+            style: pw.TextStyle(
+              fontSize: 12,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.white,
+            ),
+            textAlign: pw.TextAlign.center,
+          ),
+        ),
+
+        pw.SizedBox(height: 12),
+
+        // Tabla con información organizada
+        pw.Container(
+          width: double.infinity,
+          decoration: pw.BoxDecoration(
+            border: pw.Border.all(width: 1.5),
+            borderRadius: pw.BorderRadius.circular(8),
+          ),
           child: pw.Column(
-            mainAxisAlignment: pw.MainAxisAlignment.center,
-            crossAxisAlignment: pw.CrossAxisAlignment.center,
             children: [
-              pw.Text(
-                'N° $numeroComprobante',
-                style: pw.TextStyle(
-                  fontSize: 12,
-                  fontWeight: pw.FontWeight.bold,
+              // Fila Destino
+              pw.Container(
+                padding: pw.EdgeInsets.all(10),
+                decoration: pw.BoxDecoration(
+                  border: pw.Border(
+                    bottom: pw.BorderSide(width: 1),
+                  ),
                 ),
-                textAlign: pw.TextAlign.center,
+                child: pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text(
+                      'Destino:',
+                      style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
+                    ),
+                    pw.Text(
+                      destino,
+                      style: pw.TextStyle(fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Fila Horario
+              pw.Container(
+                padding: pw.EdgeInsets.all(10),
+                decoration: pw.BoxDecoration(
+                  border: pw.Border(
+                    bottom: pw.BorderSide(width: 1),
+                  ),
+                ),
+                child: pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text(
+                      'Horario:',
+                      style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
+                    ),
+                    pw.Text(
+                      horario,
+                      style: pw.TextStyle(fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Fila Fecha
+              pw.Container(
+                padding: pw.EdgeInsets.all(10),
+                decoration: pw.BoxDecoration(
+                  border: pw.Border(
+                    bottom: pw.BorderSide(width: 1),
+                  ),
+                ),
+                child: pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text(
+                      'Fecha:',
+                      style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
+                    ),
+                    pw.Text(
+                      fechaFormato,
+                      style: pw.TextStyle(fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Fila Valor
+              pw.Container(
+                padding: pw.EdgeInsets.all(10),
+                child: pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text(
+                      'Valor:',
+                      style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
+                    ),
+                    pw.Text(
+                      '\$${_formatPrice(double.parse(valor))}',
+                      style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
         ),
 
-        pw.SizedBox(height: 8),
-
-        // Tipo de día y tarifa
-        pw.Text(
-          tipoDia,
-          style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
-          textAlign: pw.TextAlign.center,
-        ),
-        pw.SizedBox(height: 4),
-        pw.Text(
-          tituloTarifa.contains('INTERMEDIO') ? 'INTERMEDIO' : tituloTarifa,
-          style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
-          textAlign: pw.TextAlign.center,
-        ),
-        if (kilometros != null)
-          pw.Text(
-            'KM $kilometros',
-            style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
-            textAlign: pw.TextAlign.center,
-          ),
-
-        pw.SizedBox(height: 8),
-
-        // Información resumida y compacta
-        pw.Container(
-          padding: pw.EdgeInsets.all(8),
-          decoration: pw.BoxDecoration(
-            border: pw.Border.all(width: 1),
-            borderRadius: pw.BorderRadius.circular(5),
-          ),
-          child: pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              // Origen (solo si es intermedio)
-              if (esIntermedio && origen != null) _buildCompactInfoRow('Origen', origen),
-
-              // Resto de información
-              _buildCompactInfoRow('Destino', destino),
-              _buildCompactInfoRow('Salida', horario),
-              _buildCompactInfoRow('Fecha', fechaFormato),
-              _buildCompactInfoRow('Asiento', asiento, textColor: asientoColor),
-              pw.Divider(height: 5),
-              // Valor después del divisor
-              _buildCompactInfoRow('Valor', '\$${_formatPrice(double.parse(valor))}'),
-              // Emitido después del valor
-              _buildCompactInfoRow('Hora emisión', horaEmision),
-              _buildCompactInfoRow('Fecha emisión', fechaFormato),
-            ],
-          ),
-        ),
+        pw.SizedBox(height: 15),
 
         // Área para insertar en planilla
         pw.Container(
           width: double.infinity,
-          height: 140,
+          height: 120,
           margin: pw.EdgeInsets.only(top: 8),
           decoration: pw.BoxDecoration(
-            border: pw.Border(
-              top: pw.BorderSide(color: PdfColors.black, width: 0.5),
-              left: pw.BorderSide(color: PdfColors.black, width: 0.05),
-              right: pw.BorderSide(color: PdfColors.black, width: 0.05),
-            ),
+            border: pw.Border.all(width: 0.5),
           ),
         ),
-        // Línea negra inferior
-        pw.Container(
-          width: double.infinity,
-          height: 2,
-          color: PdfColors.black,
-        ),
 
-        pw.SizedBox(height: 10),
-      ],
-    );
-  }
-
-  // Método para crear filas de información compactas para el inspector
-  static pw.Widget _buildCompactInfoRow(String label, String value, {PdfColor? textColor}) {
-    return pw.Row(
-      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-      children: [
-        pw.Text(
-          '$label:',
-          style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
-        ),
-        pw.Text(
-          value,
-          style: pw.TextStyle(fontSize: 10, color: textColor),
-        ),
+        pw.SizedBox(height: 15),
       ],
     );
   }
