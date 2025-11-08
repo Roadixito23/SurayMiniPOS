@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../database/app_database.dart';
 
 /// Clase para gestionar los números de comprobantes en la aplicación
 class ComprobanteManager {
@@ -26,6 +27,9 @@ class ComprobanteManager {
   // ID del dispositivo
   String _deviceId = '01';
 
+  // Origen (AYS o COY)
+  String _origen = 'AYS';
+
   // Número máximo de comprobante (6 dígitos)
   static const int _maxCounter = 999999;
 
@@ -39,6 +43,10 @@ class ComprobanteManager {
       _counter = prefs.getInt(_keyCounter) ?? 1;
       _deviceId = prefs.getString(_keyDeviceId) ?? '01';
 
+      // Cargar origen desde la base de datos
+      final origenDb = await AppDatabase.instance.getConfiguracion('origen');
+      _origen = origenDb ?? 'AYS';
+
       // Asegurar que el contador esté dentro del rango válido
       if (_counter < 1 || _counter > _maxCounter) {
         _counter = 1;
@@ -50,6 +58,7 @@ class ComprobanteManager {
       // En caso de error, usar valores predeterminados
       _counter = 1;
       _deviceId = '01';
+      _origen = 'AYS';
       _initialized = true;
     }
   }
@@ -60,6 +69,17 @@ class ComprobanteManager {
       await initialize();
     }
     return _deviceId;
+  }
+
+  /// Obtiene el origen actual
+  Future<String> getOrigen() async {
+    if (!_initialized) {
+      await initialize();
+    }
+    // Recargar desde la base de datos para obtener el valor más reciente
+    final origenDb = await AppDatabase.instance.getConfiguracion('origen');
+    _origen = origenDb ?? 'AYS';
+    return _origen;
   }
 
   /// Actualiza el ID del dispositivo
@@ -77,11 +97,14 @@ class ComprobanteManager {
   Future<String> getNextBusComprobante() async {
     await _ensureInitialized();
 
+    // Recargar origen desde la base de datos para asegurar que esté actualizado
+    await getOrigen();
+
     // Formatear el número de comprobante a 6 dígitos con ceros a la izquierda
     final formattedNumber = _getFormattedCounter();
 
-    // Combinar el ID del dispositivo con el número de comprobante
-    final fullComprobante = '$_deviceId-$formattedNumber';
+    // Combinar: ORIGEN-ID-NUMERO (ej: AYS-01-000001)
+    final fullComprobante = '$_origen-$_deviceId-$formattedNumber';
 
     // Incrementar y guardar el contador para el próximo uso
     await _incrementCounter();
@@ -93,11 +116,14 @@ class ComprobanteManager {
   Future<String> getNextCargoComprobante() async {
     await _ensureInitialized();
 
+    // Recargar origen desde la base de datos para asegurar que esté actualizado
+    await getOrigen();
+
     // Usar el mismo formato que los tickets de bus
     final formattedNumber = _getFormattedCounter();
 
-    // Combinar el ID del dispositivo con el número de comprobante
-    final fullComprobante = '$_deviceId-$formattedNumber';
+    // Combinar: ORIGEN-ID-NUMERO (ej: COY-01-000001)
+    final fullComprobante = '$_origen-$_deviceId-$formattedNumber';
 
     // Incrementar y guardar el contador para el próximo uso
     await _incrementCounter();
@@ -162,7 +188,8 @@ class ComprobanteManager {
   /// Obtiene el número de comprobante completo con el ID del dispositivo sin incrementar
   Future<String> getCurrentFullComprobante() async {
     await _ensureInitialized();
+    await getOrigen();
     final formattedNumber = _getFormattedCounter();
-    return '$_deviceId-$formattedNumber';
+    return '$_origen-$_deviceId-$formattedNumber';
   }
 }
