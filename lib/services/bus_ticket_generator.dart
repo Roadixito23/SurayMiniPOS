@@ -25,14 +25,21 @@ class BusTicketGenerator {
     required String tituloTarifa,  // "PUBLICO GENERAL", "ESCOLAR", etc.
     String? origen,                // Parámetro opcional para destinos intermedios
     String? kilometros,            // Para intermedios: "15", "50", etc.
+    String metodoPago = 'Efectivo', // Método de pago: "Efectivo", "Tarjeta", "Personalizar"
+    double? montoEfectivo,         // Para método personalizado
+    double? montoTarjeta,          // Para método personalizado
   }) async {
     try {
       // Verificar si se trata de un destino intermedio
       bool esIntermedio = origen != null || kilometros != null;
 
+      // Determinar el tipo de boleto exacto para el comprobante
+      String tipoBoleto = tituloTarifa;
+
       // Obtener número de comprobante (formato AYS-01-000001 o COY-01-000001)
+      // Ahora con comprobantes individualizados por tipo de boleto
       final comprobanteManager = ComprobanteManager();
-      final String numeroComprobante = await comprobanteManager.getNextBusComprobante();
+      final String numeroComprobante = await comprobanteManager.getNextBusComprobante(tipoBoleto);
 
       // Generar el PDF
       final pdfBytes = await _generatePdf(
@@ -46,6 +53,7 @@ class BusTicketGenerator {
         tituloTarifa: tituloTarifa,
         esIntermedio: esIntermedio,
         kilometros: kilometros,
+        metodoPago: metodoPago,
       );
 
       // Imprimir el PDF
@@ -54,7 +62,7 @@ class BusTicketGenerator {
         format: ticketFormat,
       );
 
-      // Registrar la venta en la base de datos de caja
+      // Registrar la venta en la base de datos de caja con método de pago
       final cajaDatabase = CajaDatabase();
       await cajaDatabase.registrarVentaBus(
         destino: destino,
@@ -62,6 +70,10 @@ class BusTicketGenerator {
         asiento: asiento,
         valor: double.parse(valor),
         comprobante: numeroComprobante,
+        tipoBoleto: tipoBoleto,
+        metodoPago: metodoPago,
+        montoEfectivo: montoEfectivo,
+        montoTarjeta: montoTarjeta,
       );
 
     } catch (e) {
@@ -83,6 +95,7 @@ class BusTicketGenerator {
     required String tituloTarifa,
     required bool esIntermedio,
     String? kilometros,
+    String metodoPago = 'Efectivo', // Método de pago agregado
   }) async {
     final doc = pw.Document();
 

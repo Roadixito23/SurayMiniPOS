@@ -15,14 +15,20 @@ class ComprobanteManager {
   ComprobanteManager._internal();
 
   // Constantes para las claves de SharedPreferences
-  static const String _keyCounter = 'comprobante_counter';
   static const String _keyDeviceId = 'device_id';
 
   // Indica si ya se inicializó el contador
   bool _initialized = false;
 
-  // Contador único para todos los comprobantes
-  int _counter = 0;
+  // Contadores individualizados por tipo de boleto
+  final Map<String, int> _counters = {
+    'PUBLICO GENERAL': 1,
+    'ESCOLAR': 1,
+    'ADULTO MAYOR': 1,
+    'INTERMEDIO 15KM': 1,
+    'INTERMEDIO 50KM': 1,
+    'CARGO': 1, // Para servicios de carga
+  };
 
   // ID del dispositivo
   String _deviceId = '01';
@@ -40,23 +46,27 @@ class ComprobanteManager {
     try {
       final prefs = await SharedPreferences.getInstance();
 
-      _counter = prefs.getInt(_keyCounter) ?? 1;
+      // Cargar contadores individualizados por tipo de boleto
+      for (var tipo in _counters.keys) {
+        final keyCounter = 'comprobante_counter_${tipo.replaceAll(' ', '_')}';
+        _counters[tipo] = prefs.getInt(keyCounter) ?? 1;
+
+        // Asegurar que el contador esté dentro del rango válido
+        if (_counters[tipo]! < 1 || _counters[tipo]! > _maxCounter) {
+          _counters[tipo] = 1;
+        }
+      }
+
       _deviceId = prefs.getString(_keyDeviceId) ?? '01';
 
       // Cargar origen desde la base de datos
       final origenDb = await AppDatabase.instance.getConfiguracion('origen');
       _origen = origenDb ?? 'AYS';
 
-      // Asegurar que el contador esté dentro del rango válido
-      if (_counter < 1 || _counter > _maxCounter) {
-        _counter = 1;
-      }
-
       _initialized = true;
     } catch (e) {
       debugPrint('Error inicializando ComprobanteManager: $e');
       // En caso de error, usar valores predeterminados
-      _counter = 1;
       _deviceId = '01';
       _origen = 'AYS';
       _initialized = true;
@@ -94,20 +104,27 @@ class ComprobanteManager {
   }
 
   /// Obtiene y genera el siguiente número de comprobante para boletos de bus
-  Future<String> getNextBusComprobante() async {
+  /// [tipoBoleto] puede ser: "PUBLICO GENERAL", "ESCOLAR", "ADULTO MAYOR", "INTERMEDIO 15KM", "INTERMEDIO 50KM"
+  Future<String> getNextBusComprobante(String tipoBoleto) async {
     await _ensureInitialized();
 
     // Recargar origen desde la base de datos para asegurar que esté actualizado
     await getOrigen();
 
+    // Verificar que el tipo de boleto sea válido
+    if (!_counters.containsKey(tipoBoleto)) {
+      debugPrint('Tipo de boleto no válido: $tipoBoleto, usando PUBLICO GENERAL');
+      tipoBoleto = 'PUBLICO GENERAL';
+    }
+
     // Formatear el número de comprobante a 6 dígitos con ceros a la izquierda
-    final formattedNumber = _getFormattedCounter();
+    final formattedNumber = _getFormattedCounter(tipoBoleto);
 
     // Combinar: ORIGEN-ID-NUMERO (ej: AYS-01-000001)
     final fullComprobante = '$_origen-$_deviceId-$formattedNumber';
 
     // Incrementar y guardar el contador para el próximo uso
-    await _incrementCounter();
+    await _incrementCounter(tipoBoleto);
 
     return fullComprobante;
   }
@@ -120,37 +137,38 @@ class ComprobanteManager {
     await getOrigen();
 
     // Usar el mismo formato que los tickets de bus
-    final formattedNumber = _getFormattedCounter();
+    final formattedNumber = _getFormattedCounter('CARGO');
 
     // Combinar: ORIGEN-ID-NUMERO (ej: COY-01-000001)
     final fullComprobante = '$_origen-$_deviceId-$formattedNumber';
 
     // Incrementar y guardar el contador para el próximo uso
-    await _incrementCounter();
+    await _incrementCounter('CARGO');
 
     return fullComprobante;
   }
 
   /// Incrementa el contador y lo guarda en SharedPreferences
-  Future<void> _incrementCounter() async {
-    _counter++;
+  Future<void> _incrementCounter(String tipoBoleto) async {
+    _counters[tipoBoleto] = (_counters[tipoBoleto] ?? 1) + 1;
 
     // Si llegó al máximo, reiniciar a 1
-    if (_counter > _maxCounter) {
-      _counter = 1;
+    if (_counters[tipoBoleto]! > _maxCounter) {
+      _counters[tipoBoleto] = 1;
     }
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt(_keyCounter, _counter);
+      final keyCounter = 'comprobante_counter_${tipoBoleto.replaceAll(' ', '_')}';
+      await prefs.setInt(keyCounter, _counters[tipoBoleto]!);
     } catch (e) {
-      debugPrint('Error al guardar contador: $e');
+      debugPrint('Error al guardar contador para $tipoBoleto: $e');
     }
   }
 
   /// Formatea el contador actual a 6 dígitos
-  String _getFormattedCounter() {
-    return _counter.toString().padLeft(6, '0');
+  String _getFormattedCounter(String tipoBoleto) {
+    return (_counters[tipoBoleto] ?? 1).toString().padLeft(6, '0');
   }
 
   /// Asegura que la clase esté inicializada antes de usarla
@@ -160,36 +178,61 @@ class ComprobanteManager {
     }
   }
 
-  /// Reinicia manualmente el contador
+  /// Reinicia manualmente todos los contadores
   Future<void> resetCounter() async {
     await _ensureInitialized();
 
     try {
-      _counter = 1;
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt(_keyCounter, _counter);
+      for (var tipo in _counters.keys) {
+        _counters[tipo] = 1;
+        final keyCounter = 'comprobante_counter_${tipo.replaceAll(' ', '_')}';
+        await prefs.setInt(keyCounter, 1);
+      }
     } catch (e) {
-      debugPrint('Error al resetear contador manualmente: $e');
+      debugPrint('Error al resetear contadores manualmente: $e');
     }
   }
 
-  /// Obtiene el número actual del contador (sin incrementarlo)
-  Future<int> getCurrentCounter() async {
+  /// Obtiene el número actual del contador (sin incrementarlo) para un tipo de boleto
+  Future<int> getCurrentCounter(String tipoBoleto) async {
     await _ensureInitialized();
-    return _counter;
+    return _counters[tipoBoleto] ?? 1;
   }
 
-  /// Obtiene el número actual del contador formateado a 6 dígitos
-  Future<String> getCurrentFormattedCounter() async {
+  /// Obtiene el número actual del contador formateado a 6 dígitos para un tipo de boleto
+  Future<String> getCurrentFormattedCounter(String tipoBoleto) async {
     await _ensureInitialized();
-    return _counter.toString().padLeft(6, '0');
+    return (_counters[tipoBoleto] ?? 1).toString().padLeft(6, '0');
   }
 
-  /// Obtiene el número de comprobante completo con el ID del dispositivo sin incrementar
-  Future<String> getCurrentFullComprobante() async {
+  /// Obtiene el número de comprobante completo con el ID del dispositivo sin incrementar para un tipo de boleto
+  Future<String> getCurrentFullComprobante(String tipoBoleto) async {
     await _ensureInitialized();
     await getOrigen();
-    final formattedNumber = _getFormattedCounter();
+    final formattedNumber = _getFormattedCounter(tipoBoleto);
     return '$_origen-$_deviceId-$formattedNumber';
+  }
+
+  /// Obtiene el último número de comprobante vendido (el anterior al actual) para un tipo de boleto
+  Future<String> getLastSoldComprobante(String tipoBoleto) async {
+    await _ensureInitialized();
+    await getOrigen();
+
+    int lastNumber = (_counters[tipoBoleto] ?? 1) - 1;
+
+    // Si es 0, significa que no se ha vendido ninguno aún
+    if (lastNumber < 1) {
+      return 'Sin ventas';
+    }
+
+    final formattedNumber = lastNumber.toString().padLeft(6, '0');
+    return '$_origen-$_deviceId-$formattedNumber';
+  }
+
+  /// Obtiene todos los contadores actuales
+  Future<Map<String, int>> getAllCounters() async {
+    await _ensureInitialized();
+    return Map.from(_counters);
   }
 }
