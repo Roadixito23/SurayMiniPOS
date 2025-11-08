@@ -15,6 +15,7 @@ import 'screens/data_management_screen.dart';
 import 'screens/horario_screen.dart'; // Nueva importación para la pantalla de horarios
 import 'screens/settings_screen.dart'; // Nueva importación para la pantalla de configuración
 import 'screens/tarifas_screen.dart'; // Nueva importación para la pantalla de tarifas
+import 'screens/usuarios_screen.dart'; // Nueva importación para la pantalla de usuarios
 import 'models/comprobante.dart';
 import 'models/auth_provider.dart';
 import 'database/caja_database.dart';
@@ -155,6 +156,7 @@ class MyApp extends StatelessWidget {
         '/horarios': (_) => HorarioScreen(), // Nueva ruta para la pantalla de horarios
         '/settings': (_) => SettingsScreen(), // Nueva ruta para la pantalla de configuración
         '/tarifas': (_) => const TarifasScreen(), // Nueva ruta para la pantalla de tarifas
+        '/usuarios': (_) => UsuariosScreen(), // Nueva ruta para la pantalla de usuarios
       },
     );
   }

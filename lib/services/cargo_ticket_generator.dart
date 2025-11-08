@@ -271,7 +271,7 @@ class CargoTicketGenerator {
     doc.addPage(
       pw.Page(
         pageFormat: ticketFormat,
-        margin: pw.EdgeInsets.symmetric(vertical: 19, horizontal: 4.5),
+        margin: pw.EdgeInsets.only(top: 19, left: 10, right: 4.5, bottom: 19),
         build: (pw.Context context) {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.center,
@@ -349,7 +349,7 @@ class CargoTicketGenerator {
     doc.addPage(
       pw.Page(
         pageFormat: ticketFormat,
-        margin: pw.EdgeInsets.symmetric(vertical: 19, horizontal: 4.5),
+        margin: pw.EdgeInsets.only(top: 19, left: 10, right: 4.5, bottom: 19),
         build: (pw.Context context) {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.center,

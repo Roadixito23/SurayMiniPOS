@@ -61,7 +61,7 @@ class CierreCajaReportGenerator {
     doc.addPage(
       pw.Page(
         pageFormat: ticketFormat,
-        margin: pw.EdgeInsets.symmetric(vertical: 25, horizontal: 6),
+        margin: pw.EdgeInsets.only(top: 25, left: 12, right: 6, bottom: 25),
         build: (pw.Context context) {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.center,

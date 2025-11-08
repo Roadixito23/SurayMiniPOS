@@ -122,7 +122,7 @@ class BusTicketGenerator {
     doc.addPage(
       pw.Page(
         pageFormat: ticketFormat,
-        margin: pw.EdgeInsets.only(top: 15, left: 6, right: 6, bottom: 15),
+        margin: pw.EdgeInsets.only(top: 15, left: 12, right: 6, bottom: 15),
         build: (context) {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.center,
