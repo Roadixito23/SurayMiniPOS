@@ -1,7 +1,9 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'screens/splash.dart';
+import 'screens/login_screen.dart';
 import 'screens/home.dart';
 import 'screens/venta_bus_screen.dart';
 import 'screens/venta_cargo_screen.dart';
@@ -11,8 +13,11 @@ import 'screens/cierre_caja_screen.dart';
 import 'screens/data_management_screen.dart';
 import 'screens/horario_screen.dart'; // Nueva importación para la pantalla de horarios
 import 'screens/settings_screen.dart'; // Nueva importación para la pantalla de configuración
+import 'screens/tarifas_screen.dart'; // Nueva importación para la pantalla de tarifas
 import 'models/comprobante.dart';
+import 'models/auth_provider.dart';
 import 'database/caja_database.dart';
+import 'database/app_database.dart';
 import 'package:path_provider/path_provider.dart';
 
 void main() async {
@@ -26,10 +31,18 @@ void main() async {
   final cajaDatabase = CajaDatabase();
   await cajaDatabase.initialize();
 
+  // Inicializar la base de datos de la aplicación (usuarios, configuración, tarifas, horarios)
+  await AppDatabase.instance.database;
+
   // Verificar y crear los directorios necesarios
   await _ensureDirectoriesExist();
 
-  runApp(MyApp());
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => AuthProvider(),
+      child: MyApp(),
+    ),
+  );
 }
 
 // Función para asegurar que existan los directorios necesarios
@@ -57,31 +70,66 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Suray Mini POS',
+      title: 'Suray Mini POS - Sistema Empresarial',
       theme: ThemeData(
-        primarySwatch: Colors.blue,
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF1976D2),
+          brightness: Brightness.light,
+        ),
         visualDensity: VisualDensity.adaptivePlatformDensity,
-        appBarTheme: AppBarTheme(
-          backgroundColor: Colors.blue.shade700,
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF1976D2),
           foregroundColor: Colors.white,
-          elevation: 2,
+          elevation: 3,
+          centerTitle: true,
+          titleTextStyle: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.5,
+          ),
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
             foregroundColor: Colors.white,
-            backgroundColor: Colors.blue.shade600,
+            backgroundColor: const Color(0xFF1976D2),
+            elevation: 2,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(8),
             ),
+            textStyle: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.5,
+            ),
           ),
         ),
+        cardTheme: CardTheme(
+          elevation: 4,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+          filled: true,
+          fillColor: Colors.grey[50],
+        ),
       ),
-      darkTheme: ThemeData.dark().copyWith(
-        primaryColor: Colors.blue.shade700,
-        appBarTheme: AppBarTheme(
-          backgroundColor: Colors.blue.shade800,
+      darkTheme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF1976D2),
+          brightness: Brightness.dark,
+        ),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF0D47A1),
           foregroundColor: Colors.white,
-          elevation: 2,
+          elevation: 3,
+          centerTitle: true,
         ),
       ),
       themeMode: ThemeMode.system,
@@ -89,6 +137,7 @@ class MyApp extends StatelessWidget {
       initialRoute: '/splash',
       routes: {
         '/splash': (_) => SplashScreen(),
+        '/login': (_) => const LoginScreen(),
         '/home': (_) => HomeScreen(),
         '/venta_bus': (_) => VentaBusScreen(),
         '/venta_cargo': (_) => VentaCargoScreen(),
@@ -98,6 +147,7 @@ class MyApp extends StatelessWidget {
         '/data_management': (_) => DataManagementScreen(),
         '/horarios': (_) => HorarioScreen(), // Nueva ruta para la pantalla de horarios
         '/settings': (_) => SettingsScreen(), // Nueva ruta para la pantalla de configuración
+        '/tarifas': (_) => const TarifasScreen(), // Nueva ruta para la pantalla de tarifas
       },
     );
   }
