@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../database/app_database.dart';
 import '../models/tarifa.dart';
+import '../models/comprobante.dart';
 
 class TarifasScreen extends StatefulWidget {
   const TarifasScreen({super.key});
@@ -342,6 +343,59 @@ class _TarifasScreenState extends State<TarifasScreen> {
                               horizontal: 24,
                               vertical: 16,
                             ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 32),
+                    // Último comprobante vendido
+                    Row(
+                      children: [
+                        const Icon(Icons.receipt_long, color: Color(0xFF1976D2)),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'ÚLTIMO N° DE COMPROBANTE',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              FutureBuilder<String>(
+                                future: ComprobanteManager().getLastSoldComprobante(currentTarifa.categoria),
+                                builder: (context, snapshot) {
+                                  if (snapshot.connectionState == ConnectionState.waiting) {
+                                    return const Text(
+                                      'Cargando...',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        color: Colors.grey,
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    );
+                                  }
+
+                                  final comprobante = snapshot.data ?? 'Sin ventas';
+                                  final color = comprobante == 'Sin ventas'
+                                      ? Colors.grey
+                                      : const Color(0xFF1976D2);
+
+                                  return Text(
+                                    comprobante,
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w600,
+                                      color: color,
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
                           ),
                         ),
                       ],

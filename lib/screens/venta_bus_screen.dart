@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import '../services/bus_ticket_generator.dart';
 import '../widgets/numeric_input_field.dart';
 import '../widgets/horario_input_field.dart';
+import '../widgets/shared_widgets.dart';
 import '../models/tarifa.dart';
+import '../models/auth_provider.dart';
 import '../database/app_database.dart';
 
 class VentaBusScreen extends StatefulWidget {
@@ -127,6 +130,16 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
     );
 
     if (confirmar == true) {
+      // Mostrar diálogo de método de pago
+      final paymentResult = await showDialog<Map<String, dynamic>>(
+        context: context,
+        builder: (context) => PaymentMethodDialog(
+          totalAmount: double.parse(valorBoleto),
+        ),
+      );
+
+      if (paymentResult == null) return; // Usuario canceló el pago
+
       setState(() => _isLoading = true);
 
       try {
@@ -144,6 +157,9 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
           tituloTarifa: tarifaSeleccionada?.categoria ?? 'PUBLICO GENERAL',
           origen: destino == 'Intermedio' ? origenIntermedio : null,
           kilometros: destino == 'Intermedio' ? kilometroIntermedio : null,
+          metodoPago: paymentResult['metodo'],
+          montoEfectivo: paymentResult['montoEfectivo'],
+          montoTarjeta: paymentResult['montoTarjeta'],
         );
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -412,15 +428,21 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   _buildLabel('Valor del Boleto'),
-                                  NumericInputField(
-                                    label: '',
-                                    value: valorBoleto == '0' ? '' : valorBoleto,
-                                    hintText: 'Ingrese valor',
-                                    prefix: '\$',
-                                    validator: _validarValor,
-                                    focusNode: _valorFocusNode,
-                                    onChanged: (value) => setState(() => valorBoleto = value),
-                                    onEnterPressed: _confirmarVenta,
+                                  Builder(
+                                    builder: (context) {
+                                      final authProvider = Provider.of<AuthProvider>(context);
+                                      return NumericInputField(
+                                        label: '',
+                                        value: valorBoleto == '0' ? '' : valorBoleto,
+                                        hintText: 'Ingrese valor',
+                                        prefix: '\$',
+                                        validator: _validarValor,
+                                        focusNode: _valorFocusNode,
+                                        onChanged: (value) => setState(() => valorBoleto = value),
+                                        onEnterPressed: _confirmarVenta,
+                                        showKeyboard: !authProvider.isSecretaria, // Ocultar teclado para secretarias
+                                      );
+                                    },
                                   ),
                                 ],
                               ),

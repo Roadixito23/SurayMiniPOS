@@ -12,7 +12,8 @@ class NumericInputField extends StatefulWidget {
   final String hintText;
   final VoidCallback? onEnterPressed;
   final FocusNode? focusNode;
-  final Widget? suggestionsWidget; // Añadido este parámetro
+  final Widget? suggestionsWidget;
+  final bool showKeyboard; // Parámetro para ocultar el teclado
 
   const NumericInputField({
     Key? key,
@@ -26,7 +27,8 @@ class NumericInputField extends StatefulWidget {
     this.hintText = '',
     this.onEnterPressed,
     this.focusNode,
-    this.suggestionsWidget, // Añadido a la lista de parámetros
+    this.suggestionsWidget,
+    this.showKeyboard = true, // Por defecto mostrar el teclado
   }) : super(key: key);
 
   @override
@@ -222,38 +224,39 @@ class _NumericInputFieldState extends State<NumericInputField> {
             ),
           ),
 
-        // Teclado numérico con sugerencias encima (si están disponibles)
-        Padding(
-          padding: const EdgeInsets.only(top: 12.0),
-          child: Card(
-            elevation: 4,
-            clipBehavior: Clip.antiAlias,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Column(
-              children: [
-                // Widget de sugerencias (si se proporciona)
-                if (widget.suggestionsWidget != null)
-                  widget.suggestionsWidget!,
+        // Teclado numérico con sugerencias encima (si están disponibles y showKeyboard es true)
+        if (widget.showKeyboard)
+          Padding(
+            padding: const EdgeInsets.only(top: 12.0),
+            child: Card(
+              elevation: 4,
+              clipBehavior: Clip.antiAlias,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(
+                children: [
+                  // Widget de sugerencias (si se proporciona)
+                  if (widget.suggestionsWidget != null)
+                    widget.suggestionsWidget!,
 
-                // Teclado numérico
-                Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: NumericKeyboard(
-                    onKeyPressed: _handleKeyPressed,
-                    onDelete: _handleDelete,
-                    onClear: _handleClear,
-                    onClearEntry: _handleClearEntry,
-                    onEnter: _handleEnter,
-                    enableDecimal: widget.enableDecimal,
-                    buttonColor: Colors.grey.shade200,
+                  // Teclado numérico
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: NumericKeyboard(
+                      onKeyPressed: _handleKeyPressed,
+                      onDelete: _handleDelete,
+                      onClear: _handleClear,
+                      onClearEntry: _handleClearEntry,
+                      onEnter: _handleEnter,
+                      enableDecimal: widget.enableDecimal,
+                      buttonColor: Colors.grey.shade200,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
       ],
     );
   }

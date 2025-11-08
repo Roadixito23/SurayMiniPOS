@@ -77,6 +77,16 @@ class _VentaCargoScreenState extends State<VentaCargoScreen> {
     );
 
     if (confirmar == true) {
+      // Mostrar diálogo de método de pago
+      final paymentResult = await showDialog<Map<String, dynamic>>(
+        context: context,
+        builder: (context) => PaymentMethodDialog(
+          totalAmount: double.parse(valorController.text),
+        ),
+      );
+
+      if (paymentResult == null) return; // Usuario canceló el pago
+
       setState(() => _isLoading = true);
 
       try {
@@ -88,6 +98,9 @@ class _VentaCargoScreenState extends State<VentaCargoScreen> {
           valor: double.parse(valorController.text),
           telefonoDest: _formatTelefono(telefonoDestController.text),
           telefonoRemit: _formatTelefono(telefonoRemitController.text),
+          metodoPago: paymentResult['metodo'],
+          montoEfectivo: paymentResult['montoEfectivo'],
+          montoTarjeta: paymentResult['montoTarjeta'],
         );
 
         ScaffoldMessenger.of(context).showSnackBar(
