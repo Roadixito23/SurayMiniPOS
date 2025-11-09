@@ -1,5 +1,5 @@
 name: suray_minipos
-description: "Proyecto de venta movil de servicio de carga y transporte de pasajeros"
+description: "Sistema POS Oficina para servicio de carga y transporte de pasajeros"
 publish_to: 'none'
 
 version: 1.0.0+1

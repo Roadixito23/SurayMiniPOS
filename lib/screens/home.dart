@@ -159,53 +159,137 @@ class _SidebarMenuItemState extends State<_SidebarMenuItem> {
   }
 }
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
+  @override
+  _HomePageState createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      duration: Duration(milliseconds: 1000),
+      vsync: this,
+    );
+    _animationController.forward();
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: Colors.grey.shade50,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.blue.shade50.withOpacity(0.3),
+            Colors.white,
+          ],
+        ),
+      ),
       child: Column(
         children: [
-          // Barra superior
+          // Barra superior moderna
           Container(
-            height: 60,
+            height: 70,
             decoration: BoxDecoration(
               color: Colors.white,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 4,
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 10,
                   offset: Offset(0, 2),
                 ),
               ],
             ),
-            padding: EdgeInsets.symmetric(horizontal: 24),
+            padding: EdgeInsets.symmetric(horizontal: 32),
             child: Row(
               children: [
-                Text(
-                  'Panel Principal',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey.shade800,
+                Container(
+                  padding: EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.dashboard,
+                    color: Colors.blue.shade700,
+                    size: 24,
                   ),
                 ),
+                SizedBox(width: 16),
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Panel Principal',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey.shade800,
+                      ),
+                    ),
+                    Text(
+                      'Bienvenido al sistema',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
                 Spacer(),
-                Text(
-                  DateTime.now().toString().substring(0, 16),
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontSize: 14,
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.access_time,
+                        size: 16,
+                        color: Colors.blue.shade700,
+                      ),
+                      SizedBox(width: 8),
+                      Text(
+                        DateTime.now().toString().substring(0, 16),
+                        style: TextStyle(
+                          color: Colors.blue.shade700,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
-          // Contenido principal
+          // Contenido principal con scrollbar fijo
           Expanded(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.all(24),
-              child: Column(
+            child: Scrollbar(
+              controller: _scrollController,
+              thumbVisibility: true,
+              thickness: 8,
+              radius: Radius.circular(4),
+              child: SingleChildScrollView(
+                controller: _scrollController,
+                padding: EdgeInsets.all(32),
+                child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Sección de ventas
@@ -243,7 +327,7 @@ class HomePage extends StatelessWidget {
 
                   // Sección de consultas
                   _SectionHeader(
-                    title: 'Consultas',
+                    title: 'Consultas y Análisis',
                     icon: Icons.search,
                   ),
                   SizedBox(height: 16),
@@ -260,7 +344,16 @@ class HomePage extends StatelessWidget {
                         ),
                       ),
                       SizedBox(width: 16),
-                      Expanded(child: SizedBox()),
+                      Expanded(
+                        child: _ActionCard(
+                          icon: Icons.analytics,
+                          title: 'Estadísticas',
+                          description: 'Ver análisis y reportes del sistema',
+                          color: Colors.teal,
+                          shortcut: 'F7',
+                          onTap: () => Navigator.pushNamed(context, '/estadisticas'),
+                        ),
+                      ),
                     ],
                   ),
                   SizedBox(height: 24),
@@ -331,36 +424,81 @@ class HomePage extends StatelessWidget {
                   ),
                   SizedBox(height: 24),
 
-                  // Información del sistema
-                  Container(
-                    padding: EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.blue.shade200),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.info_outline, color: Colors.blue.shade700),
-                        SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            'Sistema de respaldo automático activo',
-                            style: TextStyle(
-                              color: Colors.blue.shade800,
-                              fontWeight: FontWeight.w500,
+                  // Información del sistema con animación
+                  FadeTransition(
+                    opacity: _animationController,
+                    child: Container(
+                      padding: EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Colors.blue.shade50, Colors.blue.shade100],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.blue.shade200),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.blue.withOpacity(0.1),
+                            blurRadius: 10,
+                            offset: Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade700,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(
+                              Icons.cloud_done,
+                              color: Colors.white,
+                              size: 28,
                             ),
                           ),
-                        ),
-                      ],
+                          SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Sistema de Respaldo Activo',
+                                  style: TextStyle(
+                                    color: Colors.blue.shade900,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  'Tus datos están protegidos automáticamente',
+                                  style: TextStyle(
+                                    color: Colors.blue.shade700,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(
+                            Icons.check_circle,
+                            color: Colors.green,
+                            size: 24,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
+    ),
     );
   }
 }
