@@ -91,7 +91,7 @@ Se ha implementado un sistema completo de gestión de asientos de bus con las si
 **Cambio en Firma**:
 ```dart
 // Antes
-Future<void> generateAndPrintTicket(...)
+//Future<void> generateAndPrintTicket(...)
 
 // Ahora
 //Future<String> generateAndPrintTicket(...)
