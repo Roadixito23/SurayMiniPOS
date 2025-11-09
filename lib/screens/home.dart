@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/auth_provider.dart';
+import '../database/app_database.dart';
 import 'dart:math' as math;
 
 class HomeScreen extends StatelessWidget {
@@ -164,9 +165,16 @@ class HomePage extends StatefulWidget {
   _HomePageState createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin {
+class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   late AnimationController _animationController;
+  late AnimationController _settingsButtonController;
+  late AnimationController _floatingAnimationController;
   final ScrollController _scrollController = ScrollController();
+  final FocusNode _focusNode = FocusNode();
+
+  String _secretCode = '';
+  bool _showSettingsButton = false;
+  bool _showDebugButtons = false;
 
   @override
   void initState() {
@@ -175,31 +183,195 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       duration: Duration(milliseconds: 1000),
       vsync: this,
     );
+    _settingsButtonController = AnimationController(
+      duration: Duration(milliseconds: 600),
+      vsync: this,
+    );
+    _floatingAnimationController = AnimationController(
+      duration: Duration(milliseconds: 2000),
+      vsync: this,
+    )..repeat(reverse: true);
     _animationController.forward();
   }
 
   @override
   void dispose() {
     _animationController.dispose();
+    _settingsButtonController.dispose();
+    _floatingAnimationController.dispose();
     _scrollController.dispose();
+    _focusNode.dispose();
     super.dispose();
+  }
+
+  void _handleKeyEvent(RawKeyEvent event) {
+    if (event is RawKeyDownEvent) {
+      final key = event.character?.toLowerCase();
+      if (key != null && key.length == 1) {
+        setState(() {
+          _secretCode += key;
+          // Mantener solo los últimos 13 caracteres (longitud de "administrador")
+          if (_secretCode.length > 13) {
+            _secretCode = _secretCode.substring(_secretCode.length - 13);
+          }
+
+          // Verificar si se escribió "administrador"
+          if (_secretCode.contains('administrador')) {
+            if (!_showSettingsButton) {
+              _showSettingsButton = true;
+              _settingsButtonController.forward();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Row(
+                    children: [
+                      Icon(Icons.admin_panel_settings, color: Colors.white),
+                      SizedBox(width: 12),
+                      Text('¡Modo administrador activado!'),
+                    ],
+                  ),
+                  backgroundColor: Colors.green.shade600,
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            }
+            _secretCode = ''; // Reiniciar el código secreto
+          }
+
+          // Verificar si se escribió "debug" para mostrar botones de base de datos
+          if (_secretCode.contains('debug')) {
+            setState(() {
+              _showDebugButtons = !_showDebugButtons;
+            });
+            _secretCode = '';
+          }
+        });
+      }
+    }
+  }
+
+  Future<void> _poblarBaseDatos() async {
+    try {
+      final db = AppDatabase.instance;
+
+      // Mostrar diálogo de confirmación
+      final confirmar = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.warning, color: Colors.orange),
+              SizedBox(width: 12),
+              Text('Poblar Base de Datos'),
+            ],
+          ),
+          content: Text('¿Está seguro de agregar datos de prueba? Esto creará múltiples registros en la base de datos.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text('CANCELAR'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text('CONFIRMAR'),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmar != true) return;
+
+      // Aquí agregar lógica para poblar con datos de prueba
+      // Por ahora solo mostrar mensaje de éxito
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Base de datos poblada con datos de prueba'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al poblar base de datos: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _limpiarBaseDatos() async {
+    try {
+      // Mostrar diálogo de confirmación
+      final confirmar = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.warning_amber, color: Colors.red),
+              SizedBox(width: 12),
+              Text('Limpiar Base de Datos'),
+            ],
+          ),
+          content: Text(
+            '¿Está COMPLETAMENTE SEGURO de eliminar TODOS los datos?\n\nEsta acción NO se puede deshacer.',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text('CANCELAR'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text('ELIMINAR TODO'),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmar != true) return;
+
+      final db = AppDatabase.instance;
+      await db.limpiarTodasLasTablas();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Base de datos limpiada exitosamente'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al limpiar base de datos: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Colors.blue.shade50.withOpacity(0.3),
-            Colors.white,
-          ],
+    return RawKeyboardListener(
+      focusNode: _focusNode,
+      onKey: _handleKeyEvent,
+      autofocus: true,
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.blue.shade50.withOpacity(0.3),
+              Colors.white,
+            ],
+          ),
         ),
-      ),
-      child: Column(
-        children: [
+        child: Stack(
+          children: [
+            Column(
+              children: [
           // Barra superior moderna
           Container(
             height: 70,
@@ -499,6 +671,65 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         ),
       ],
     ),
+
+            // Botón de ajustes animado (aparece al escribir "administrador")
+            if (_showSettingsButton)
+              Positioned(
+                top: 80,
+                right: 20,
+                child: ScaleTransition(
+                  scale: CurvedAnimation(
+                    parent: _settingsButtonController,
+                    curve: Curves.elasticOut,
+                  ),
+                  child: FloatingActionButton.extended(
+                    onPressed: () => Navigator.pushNamed(context, '/settings'),
+                    backgroundColor: Colors.orange.shade600,
+                    icon: Icon(Icons.settings, color: Colors.white),
+                    label: Text(
+                      'Configuración',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
+                    heroTag: 'settings_button',
+                  ),
+                ),
+              ),
+
+            // Botones de debug (aparecen al escribir "debug")
+            if (_showDebugButtons)
+              Positioned(
+                bottom: 20,
+                right: 20,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    FloatingActionButton.extended(
+                      onPressed: _poblarBaseDatos,
+                      backgroundColor: Colors.green.shade600,
+                      icon: Icon(Icons.add_circle, color: Colors.white),
+                      label: Text(
+                        'Poblar DB',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      heroTag: 'populate_db',
+                    ),
+                    SizedBox(height: 12),
+                    FloatingActionButton.extended(
+                      onPressed: _limpiarBaseDatos,
+                      backgroundColor: Colors.red.shade600,
+                      icon: Icon(Icons.delete_forever, color: Colors.white),
+                      label: Text(
+                        'Limpiar DB',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      heroTag: 'clear_db',
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -549,8 +780,24 @@ class _ActionCard extends StatefulWidget {
   State<_ActionCard> createState() => _ActionCardState();
 }
 
-class _ActionCardState extends State<_ActionCard> {
+class _ActionCardState extends State<_ActionCard> with SingleTickerProviderStateMixin {
   bool _isHovered = false;
+  late AnimationController _pulseController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      duration: Duration(milliseconds: 1500),
+      vsync: this,
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -561,7 +808,7 @@ class _ActionCardState extends State<_ActionCard> {
         duration: Duration(milliseconds: 200),
         transform: Matrix4.translationValues(0, _isHovered ? -4 : 0, 0),
         child: Card(
-          elevation: _isHovered ? 8 : 2,
+          elevation: _isHovered ? 12 : 4,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
@@ -569,29 +816,52 @@ class _ActionCardState extends State<_ActionCard> {
             onTap: widget.onTap,
             borderRadius: BorderRadius.circular(12),
             child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                gradient: _isHovered ? LinearGradient(
+                  colors: [
+                    widget.color.withOpacity(0.05),
+                    Colors.white,
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ) : null,
+              ),
               padding: EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      Container(
-                        padding: EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: widget.color.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Icon(
-                          widget.icon,
-                          color: widget.color,
-                          size: 28,
-                        ),
+                      AnimatedBuilder(
+                        animation: _pulseController,
+                        builder: (context, child) {
+                          return Container(
+                            padding: EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: widget.color.withOpacity(_isHovered ? 0.2 : 0.1),
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: _isHovered ? [
+                                BoxShadow(
+                                  color: widget.color.withOpacity(0.3 * _pulseController.value),
+                                  blurRadius: 10,
+                                  spreadRadius: 2,
+                                ),
+                              ] : [],
+                            ),
+                            child: Icon(
+                              widget.icon,
+                              color: widget.color,
+                              size: 28,
+                            ),
+                          );
+                        },
                       ),
                       Spacer(),
                       Container(
                         padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade200,
+                          color: _isHovered ? widget.color.withOpacity(0.1) : Colors.grey.shade200,
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
@@ -599,7 +869,7 @@ class _ActionCardState extends State<_ActionCard> {
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
-                            color: Colors.grey.shade700,
+                            color: _isHovered ? widget.color : Colors.grey.shade700,
                           ),
                         ),
                       ),
