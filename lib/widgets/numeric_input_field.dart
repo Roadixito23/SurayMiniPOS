@@ -57,6 +57,14 @@ class _NumericInputFieldState extends State<NumericInputField> {
   void _handleFocusChange() {
     if (_focusNode.hasFocus) {
       setState(() {});
+      // Posicionar cursor al final cuando gana foco
+      Future.microtask(() {
+        if (_controller.text.isNotEmpty) {
+          _controller.selection = TextSelection.fromPosition(
+            TextPosition(offset: _controller.text.length),
+          );
+        }
+      });
     }
   }
 
@@ -116,6 +124,10 @@ class _NumericInputFieldState extends State<NumericInputField> {
     }
 
     _controller.text = newValue;
+    // Posicionar el cursor al final del texto
+    _controller.selection = TextSelection.fromPosition(
+      TextPosition(offset: newValue.length),
+    );
     _handleValueChanged(newValue);
   }
 

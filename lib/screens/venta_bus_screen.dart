@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../services/bus_ticket_generator.dart';
 import '../widgets/numeric_input_field.dart';
 import '../widgets/horario_input_field.dart';
+import '../widgets/date_input_field.dart';
 import '../widgets/shared_widgets.dart';
 import '../widgets/bus_seat_map.dart';
 import '../models/tarifa.dart';
@@ -40,20 +41,23 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
 
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
+  final FocusNode _fechaFocusNode = FocusNode();
   final FocusNode _horarioFocusNode = FocusNode();
   final FocusNode _asientoFocusNode = FocusNode();
   final FocusNode _valorFocusNode = FocusNode();
   final FocusNode _kmIntermedioFocusNode = FocusNode();
+
+  String? fechaEscrita; // Fecha en formato DD/MM/AA
 
   @override
   void initState() {
     super.initState();
     _cargarTarifas();
 
-    // Atajos de teclado
+    // Atajos de teclado - iniciar en fecha
     ServicesBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        _horarioFocusNode.requestFocus();
+        _fechaFocusNode.requestFocus();
       }
     });
   }
@@ -273,6 +277,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
 
   @override
   void dispose() {
+    _fechaFocusNode.dispose();
     _horarioFocusNode.dispose();
     _asientoFocusNode.dispose();
     _valorFocusNode.dispose();
@@ -303,12 +308,41 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
         children: [
           Row(
             children: [
-              // Panel izquierdo - Configuración
+              // Panel izquierdo - Mapa de asientos ESTÁTICO
               Expanded(
                 flex: 2,
                 child: Container(
                   color: Colors.grey.shade100,
+                  padding: EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSectionTitle('Mapa de Asientos'),
+                      SizedBox(height: 16),
+                      Expanded(
+                        child: Center(
+                          child: BusSeatMap(
+                            selectedSeat: asientoSeleccionado != null && asientoSeleccionado!.isNotEmpty
+                                ? int.tryParse(asientoSeleccionado!)
+                                : null,
+                            occupiedSeats: asientosOcupados,
+                            onSeatTap: _onAsientoSeleccionado,
+                            tipoDia: tipoDia,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Panel derecho - TODOS los controles
+              Expanded(
+                flex: 3,
+                child: Container(
+                  color: Colors.white,
                   child: SingleChildScrollView(
+                    controller: _scrollController,
                     padding: EdgeInsets.all(24),
                     child: Form(
                       key: _formKey,
@@ -506,143 +540,229 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                               ),
                             ),
 
+                          SizedBox(height: 24),
+
+                          // Fecha de salida (selector visual)
+                          _buildLabel('Fecha de Salida (Selector)'),
+                          InkWell(
+                            onTap: () async {
+                              final fechaLimite = DateTime.now().add(Duration(days: 35)); // 5 semanas
+                              final fechaPick = await showDatePicker(
+                                context: context,
+                                initialDate: DateTime.parse(fechaSeleccionada),
+                                firstDate: DateTime.now(),
+                                lastDate: fechaLimite,
+                                locale: const Locale('es', 'ES'),
+                              );
+                              if (fechaPick != null) {
+                                setState(() {
+                                  fechaSeleccionada = DateFormat('yyyy-MM-dd').format(fechaPick);
+                                  horarioSeleccionado = null;
+                                  asientoSeleccionado = null;
+                                  salidaId = null;
+                                  asientosOcupados.clear();
+                                });
+                              }
+                            },
+                            child: Container(
+                              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.grey.shade300),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    DateFormat('EEEE, dd MMMM yyyy', 'es_ES').format(DateTime.parse(fechaSeleccionada)),
+                                    style: TextStyle(fontSize: 14),
+                                  ),
+                                  Icon(Icons.calendar_today, size: 20, color: Colors.blue.shade700),
+                                ],
+                              ),
+                            ),
+                          ),
+
+                          SizedBox(height: 32),
+                          _buildSectionTitle('Datos del Boleto'),
+                          SizedBox(height: 16),
+
+                          // Recuadro guía del boleto
+                          _buildTicketPreview(),
+                          SizedBox(height: 24),
+
+                          // CAMPO DE FECHA ESCRITA (050825 -> 05/08/25)
+                          _buildLabel('Fecha (Escribir)'),
+                          DateInputField(
+                            value: fechaEscrita,
+                            focusNode: _fechaFocusNode,
+                            validator: (value) {
+                              if (value.isEmpty) return null; // Opcional
+                              if (value.length != 8) return 'Formato: DD/MM/AA';
+                              return null;
+                            },
+                            onChanged: (value) {
+                              setState(() => fechaEscrita = value);
+                            },
+                            onEnterPressed: () {
+                              // Auto-scroll al horario
+                              _autoScrollToAsiento();
+                              _horarioFocusNode.requestFocus();
+                            },
+                          ),
+
+                          SizedBox(height: 24),
+
+                          // HORARIO (vertical)
+                          _buildLabel('Horario de Salida'),
+                          HorarioInputField(
+                            value: horarioSeleccionado,
+                            destino: destino,
+                            origenIntermedio: origenIntermedio,
+                            fechaSeleccionada: fechaSeleccionada,
+                            validator: _validarHorario,
+                            focusNode: _horarioFocusNode,
+                            onChanged: (value) {
+                              setState(() => horarioSeleccionado = value);
+                              _cargarAsientosOcupados();
+                            },
+                            onEnterPressed: () {
+                              _autoScrollToAsiento();
+                              _asientoFocusNode.requestFocus();
+                            },
+                          ),
+
+                          SizedBox(height: 24),
+
+                          // ASIENTO (vertical)
+                          _buildLabel('Número de Asiento'),
+                          NumericInputField(
+                            label: '',
+                            value: asientoSeleccionado,
+                            hintText: '01-45',
+                            validator: _validarAsiento,
+                            focusNode: _asientoFocusNode,
+                            onChanged: (value) => setState(() => asientoSeleccionado = value),
+                            onEnterPressed: () {
+                              final authProvider = Provider.of<AuthProvider>(context, listen: false);
+                              if (authProvider.isSecretaria) {
+                                _confirmarVenta();
+                              } else {
+                                _valorFocusNode.requestFocus();
+                              }
+                            },
+                          ),
+
+                          SizedBox(height: 24),
+
+                          // Valor del boleto - Para administradores con teclado, para secretarias panel de tarifas
+                          Builder(
+                            builder: (context) {
+                              final authProvider = Provider.of<AuthProvider>(context);
+                              if (authProvider.isSecretaria) {
+                                // Secretarias: mostrar panel de selección de tarifas
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _buildLabel('Seleccionar Tarifa'),
+                                    if (tarifasDisponibles.isEmpty)
+                                      Container(
+                                        padding: EdgeInsets.all(16),
+                                        decoration: BoxDecoration(
+                                          color: Colors.orange.shade50,
+                                          borderRadius: BorderRadius.circular(8),
+                                          border: Border.all(color: Colors.orange.shade200),
+                                        ),
+                                        child: Text(
+                                          'No hay tarifas disponibles',
+                                          style: TextStyle(color: Colors.orange.shade700),
+                                        ),
+                                      )
+                                    else
+                                      Container(
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius: BorderRadius.circular(8),
+                                          border: Border.all(color: Colors.grey.shade300),
+                                        ),
+                                        child: DropdownButtonHideUnderline(
+                                          child: DropdownButton<Tarifa>(
+                                            isExpanded: true,
+                                            value: tarifaSeleccionada,
+                                            padding: EdgeInsets.symmetric(horizontal: 12),
+                                            items: tarifasDisponibles.map((tarifa) {
+                                              return DropdownMenuItem<Tarifa>(
+                                                value: tarifa,
+                                                child: Row(
+                                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                  children: [
+                                                    Text(tarifa.categoria),
+                                                    Text(
+                                                      '\$${tarifa.valor.toStringAsFixed(0)}',
+                                                      style: TextStyle(
+                                                        fontWeight: FontWeight.bold,
+                                                        color: Colors.blue.shade700,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              );
+                                            }).toList(),
+                                            onChanged: (tarifa) {
+                                              setState(() {
+                                                tarifaSeleccionada = tarifa;
+                                                if (tarifa != null) {
+                                                  valorBoleto = tarifa.valor.toStringAsFixed(0);
+                                                }
+                                              });
+                                            },
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                );
+                              } else {
+                                // Administradores: mostrar teclado numérico
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _buildLabel('Valor del Boleto'),
+                                    NumericInputField(
+                                      label: '',
+                                      value: valorBoleto == '0' ? '' : valorBoleto,
+                                      hintText: 'Ingrese valor',
+                                      prefix: '\$',
+                                      validator: _validarValor,
+                                      focusNode: _valorFocusNode,
+                                      onChanged: (value) => setState(() => valorBoleto = value),
+                                      onEnterPressed: _confirmarVenta,
+                                      showKeyboard: true,
+                                    ),
+                                  ],
+                                );
+                              }
+                            },
+                          ),
+
                           SizedBox(height: 32),
 
-                          // Mapa de asientos del bus
-                          _buildLabel('Mapa de Asientos'),
-                          BusSeatMap(
-                            selectedSeat: asientoSeleccionado != null && asientoSeleccionado!.isNotEmpty
-                                ? int.tryParse(asientoSeleccionado!)
-                                : null,
-                            occupiedSeats: asientosOcupados,
-                            onSeatTap: _onAsientoSeleccionado,
-                            tipoDia: tipoDia,
+                          // Botón de generar
+                          SizedBox(
+                            width: double.infinity,
+                            height: 48,
+                            child: ElevatedButton.icon(
+                              onPressed: _isLoading ? null : _confirmarVenta,
+                              icon: Icon(Icons.print),
+                              label: Text('GENERAR TICKET (F1)', style: TextStyle(fontSize: 16)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blue.shade600,
+                                foregroundColor: Colors.white,
+                              ),
+                            ),
                           ),
                         ],
                       ),
-                    ),
-                  ),
-                ),
-              ),
-
-              // Panel derecho - Datos del boleto
-              Expanded(
-                flex: 3,
-                child: Container(
-                  color: Colors.white,
-                  child: SingleChildScrollView(
-                    controller: _scrollController,
-                    padding: EdgeInsets.all(24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildSectionTitle('Datos del Boleto'),
-                        SizedBox(height: 16),
-
-                        // Recuadro guía del boleto
-                        _buildTicketPreview(),
-                        SizedBox(height: 24),
-
-                        // Teclados a la misma altura (Horario y Asiento)
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Horario
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  _buildLabel('Horario de Salida'),
-                                  HorarioInputField(
-                                    value: horarioSeleccionado,
-                                    destino: destino,
-                                    origenIntermedio: origenIntermedio,
-                                    fechaSeleccionada: fechaSeleccionada,
-                                    validator: _validarHorario,
-                                    focusNode: _horarioFocusNode,
-                                    onChanged: (value) {
-                                      setState(() => horarioSeleccionado = value);
-                                      _cargarAsientosOcupados();
-                                    },
-                                    onEnterPressed: () => _asientoFocusNode.requestFocus(),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            SizedBox(width: 16),
-                            // Asiento
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  _buildLabel('Número de Asiento'),
-                                  NumericInputField(
-                                    label: '',
-                                    value: asientoSeleccionado,
-                                    hintText: '01-45',
-                                    validator: _validarAsiento,
-                                    focusNode: _asientoFocusNode,
-                                    onChanged: (value) => setState(() => asientoSeleccionado = value),
-                                    onEnterPressed: () {
-                                      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-                                      if (authProvider.isSecretaria) {
-                                        _confirmarVenta();
-                                      } else {
-                                        _valorFocusNode.requestFocus();
-                                      }
-                                    },
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-
-                        // Valor del boleto - SOLO para administradores
-                        Builder(
-                          builder: (context) {
-                            final authProvider = Provider.of<AuthProvider>(context);
-                            if (authProvider.isSecretaria) {
-                              return const SizedBox.shrink(); // No mostrar nada para secretarias
-                            }
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                SizedBox(height: 24),
-                                _buildLabel('Valor del Boleto'),
-                                NumericInputField(
-                                  label: '',
-                                  value: valorBoleto == '0' ? '' : valorBoleto,
-                                  hintText: 'Ingrese valor',
-                                  prefix: '\$',
-                                  validator: _validarValor,
-                                  focusNode: _valorFocusNode,
-                                  onChanged: (value) => setState(() => valorBoleto = value),
-                                  onEnterPressed: _confirmarVenta,
-                                  showKeyboard: true,
-                                ),
-                              ],
-                            );
-                          },
-                        ),
-
-                        SizedBox(height: 32),
-
-                        // Botón de generar
-                        SizedBox(
-                          width: double.infinity,
-                          height: 48,
-                          child: ElevatedButton.icon(
-                            onPressed: _isLoading ? null : _confirmarVenta,
-                            icon: Icon(Icons.print),
-                            label: Text('GENERAR TICKET (F1)', style: TextStyle(fontSize: 16)),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blue.shade600,
-                              foregroundColor: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ],
                     ),
                   ),
                 ),
@@ -802,7 +922,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
               ),
               Expanded(
                 child: _buildPreviewItemCompact(
-                  'A${asientoSeleccionado ?? '--'}',
+                  asientoSeleccionado ?? '--',
                   Icons.event_seat,
                   isDomingoFeriado,
                 ),

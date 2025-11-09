@@ -437,6 +437,19 @@ class AppDatabase {
     );
   }
 
+  // Limpiar todas las tablas (excepto usuarios y configuración básica)
+  Future<void> limpiarTodasLasTablas() async {
+    final db = await database;
+
+    // Eliminar datos de ventas y operaciones
+    await db.delete('asientos_reservados');
+    await db.delete('salidas');
+
+    // Si existen otras tablas de transacciones, eliminarlas también
+    // await db.delete('comprobantes'); // Descomentar si existe
+    // await db.delete('cierres_caja'); // Descomentar si existe
+  }
+
   // Cerrar la base de datos
   Future close() async {
     final db = await database;
