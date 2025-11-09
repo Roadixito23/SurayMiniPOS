@@ -48,7 +48,7 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> with SingleTick
 
     try {
       // Cargar estadísticas de usuarios
-      final usuarios = await AppDatabase.instance.obtenerUsuarios();
+      final usuarios = await AppDatabase.instance.getAllUsuarios();
       _totalUsuarios = usuarios.length;
       _usuariosActivos = usuarios.where((u) => u['activo'] == 1).length;
 
@@ -356,7 +356,7 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> with SingleTick
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             gradient: LinearGradient(
-              colors: [color.shade50, Colors.white],
+              colors: [color.withOpacity(0.1), Colors.white],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
