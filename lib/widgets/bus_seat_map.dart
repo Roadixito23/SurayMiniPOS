@@ -114,15 +114,15 @@ class BusSeatMap extends StatelessWidget {
   }
 
   Widget _buildLastRow() {
-    // Última fila especial: 5 asientos (41, 42, 43, 44, 45)
+    // Última fila especial: 5 asientos (41, 42, 45 en el medio, 43, 44)
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         _buildSeat(41, isWindowSeat: true),
         _buildSeat(42),
+        _buildSeat(45), // Asiento 45 en el medio
         _buildSeat(43),
-        _buildSeat(44),
-        _buildSeat(45, isWindowSeat: true),
+        _buildSeat(44, isWindowSeat: true),
       ],
     );
   }

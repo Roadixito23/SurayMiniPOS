@@ -3,63 +3,82 @@ import 'package:intl/intl.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'dart:convert';
-import '../database/app_database.dart';
 import '../database/caja_database.dart';
+import '../widgets/pie_chart_widget.dart';
+
+enum FiltroTemporal { hoy, semanal, mensual }
+enum FiltroTipo { ambos, puntoAPunto, intermedio }
+enum VistaEstadisticas { pasajeros, mixto, monetario }
 
 class EstadisticasScreen extends StatefulWidget {
   @override
   _EstadisticasScreenState createState() => _EstadisticasScreenState();
 }
 
-class _EstadisticasScreenState extends State<EstadisticasScreen> with SingleTickerProviderStateMixin {
+class _EstadisticasScreenState extends State<EstadisticasScreen> {
   bool _isLoading = true;
-  int _totalUsuarios = 0;
-  int _usuariosActivos = 0;
-  int _ventasHoy = 0;
-  double _totalVentasHoy = 0;
-  int _cargasHoy = 0;
-  double _totalCargasHoy = 0;
-  String _origenActual = 'AYS';
-  late AnimationController _animationController;
-  late Animation<double> _fadeAnimation;
+  FiltroTemporal _filtroTemporal = FiltroTemporal.hoy;
+  FiltroTipo _filtroTipo = FiltroTipo.ambos;
+  VistaEstadisticas _vistaActual = VistaEstadisticas.mixto;
+
+  List<Map<String, dynamic>> _ventasFiltradas = [];
+  Map<String, Map<String, dynamic>> _estadisticasPorHorario = {};
+  Map<String, int> _pasajerosPorTipo = {};
+  double _totalVentas = 0;
+  int _totalPasajeros = 0;
 
   @override
   void initState() {
     super.initState();
-    _animationController = AnimationController(
-      duration: Duration(milliseconds: 800),
-      vsync: this,
-    );
-    _fadeAnimation = CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeIn,
-    );
     _cargarEstadisticas();
-  }
-
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
   }
 
   Future<void> _cargarEstadisticas() async {
     setState(() => _isLoading = true);
 
     try {
-      // Cargar estadísticas de usuarios
-      final usuarios = await AppDatabase.instance.getAllUsuarios();
-      _totalUsuarios = usuarios.length;
-      _usuariosActivos = usuarios.where((u) => u['activo'] == 1).length;
+      // Cargar todas las ventas desde el archivo JSON
+      final directory = await getApplicationDocumentsDirectory();
+      final ventasFile = File('${directory.path}/ventas_diarias.json');
 
-      // Cargar origen actual
-      final origen = await AppDatabase.instance.getConfiguracion('origen');
-      _origenActual = origen ?? 'AYS';
+      List<Map<String, dynamic>> todasLasVentas = [];
 
-      // Cargar estadísticas de ventas de hoy
-      await _cargarVentasHoy();
+      if (await ventasFile.exists()) {
+        String content = await ventasFile.readAsString();
+        var decoded = json.decode(content);
 
-      _animationController.forward();
+        if (decoded is List) {
+          todasLasVentas = decoded.map((v) => Map<String, dynamic>.from(v as Map)).toList();
+        }
+      }
+
+      // Cargar también ventas de cierres de caja anteriores
+      final cierresFile = File('${directory.path}/cierres_caja.json');
+      if (await cierresFile.exists()) {
+        String content = await cierresFile.readAsString();
+        var decoded = json.decode(content);
+
+        if (decoded is List) {
+          for (var cierre in decoded) {
+            if (cierre is Map && cierre.containsKey('ventas')) {
+              List<dynamic> ventasCierre = cierre['ventas'] as List;
+              todasLasVentas.addAll(
+                ventasCierre.map((v) => Map<String, dynamic>.from(v as Map)).toList()
+              );
+            }
+          }
+        }
+      }
+
+      // Filtrar ventas por tipo (bus solamente)
+      todasLasVentas = todasLasVentas.where((v) => v['tipo'] == 'bus').toList();
+
+      // Aplicar filtros
+      _ventasFiltradas = _aplicarFiltros(todasLasVentas);
+
+      // Calcular estadísticas
+      _calcularEstadisticas();
+
     } catch (e) {
       print('Error cargando estadísticas: $e');
     } finally {
@@ -67,41 +86,121 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> with SingleTick
     }
   }
 
-  Future<void> _cargarVentasHoy() async {
-    try {
-      final directory = await getApplicationDocumentsDirectory();
-      final ventasFile = File('${directory.path}/ventas_diarias.json');
+  List<Map<String, dynamic>> _aplicarFiltros(List<Map<String, dynamic>> ventas) {
+    DateTime ahora = DateTime.now();
+    DateTime fechaInicio;
 
-      if (await ventasFile.exists()) {
-        String content = await ventasFile.readAsString();
-        Map<String, dynamic> data = json.decode(content);
-        List<dynamic> ventas = data['ventas'] ?? [];
-
-        String hoy = DateFormat('yyyy-MM-dd').format(DateTime.now());
-
-        // Filtrar ventas de hoy
-        var ventasHoy = ventas.where((v) => v['fecha'] == hoy).toList();
-
-        _ventasHoy = ventasHoy.where((v) => v['tipo'] == 'bus').length;
-        _totalVentasHoy = ventasHoy
-            .where((v) => v['tipo'] == 'bus')
-            .fold(0.0, (sum, v) => sum + (v['valor'] ?? 0));
-
-        _cargasHoy = ventasHoy.where((v) => v['tipo'] == 'cargo').length;
-        _totalCargasHoy = ventasHoy
-            .where((v) => v['tipo'] == 'cargo')
-            .fold(0.0, (sum, v) => sum + (v['valor'] ?? 0));
-      }
-    } catch (e) {
-      print('Error cargando ventas: $e');
+    // Filtro temporal
+    switch (_filtroTemporal) {
+      case FiltroTemporal.hoy:
+        fechaInicio = DateTime(ahora.year, ahora.month, ahora.day);
+        break;
+      case FiltroTemporal.semanal:
+        fechaInicio = ahora.subtract(Duration(days: 7));
+        break;
+      case FiltroTemporal.mensual:
+        fechaInicio = ahora.subtract(Duration(days: 30));
+        break;
     }
+
+    ventas = ventas.where((v) {
+      try {
+        DateTime fechaVenta = DateTime.parse(v['fecha']);
+        return fechaVenta.isAfter(fechaInicio) || fechaVenta.isAtSameMomentAs(fechaInicio);
+      } catch (e) {
+        return false;
+      }
+    }).toList();
+
+    // Filtro por tipo (Punto a Punto vs Intermedio)
+    if (_filtroTipo != FiltroTipo.ambos) {
+      ventas = ventas.where((v) {
+        String destino = v['destino']?.toString() ?? '';
+        bool esIntermedio = destino.contains('Intermedio');
+
+        if (_filtroTipo == FiltroTipo.intermedio) {
+          return esIntermedio;
+        } else {
+          return !esIntermedio;
+        }
+      }).toList();
+    }
+
+    return ventas;
+  }
+
+  void _calcularEstadisticas() {
+    _estadisticasPorHorario = {};
+    _pasajerosPorTipo = {};
+    _totalVentas = 0;
+    _totalPasajeros = _ventasFiltradas.length;
+
+    for (var venta in _ventasFiltradas) {
+      String horario = venta['horario']?.toString() ?? 'Sin horario';
+      double valor = (venta['valor'] ?? 0).toDouble();
+      String tipoBoleto = venta['tipoBoleto']?.toString() ?? 'PUBLICO GENERAL';
+
+      _totalVentas += valor;
+
+      // Estadísticas por horario
+      if (!_estadisticasPorHorario.containsKey(horario)) {
+        _estadisticasPorHorario[horario] = {
+          'pasajeros': 0,
+          'total': 0.0,
+        };
+      }
+      _estadisticasPorHorario[horario]!['pasajeros'] =
+        (_estadisticasPorHorario[horario]!['pasajeros'] as int) + 1;
+      _estadisticasPorHorario[horario]!['total'] =
+        (_estadisticasPorHorario[horario]!['total'] as double) + valor;
+
+      // Conteo por tipo de boleto
+      _pasajerosPorTipo[tipoBoleto] = (_pasajerosPorTipo[tipoBoleto] ?? 0) + 1;
+    }
+
+    setState(() {});
+  }
+
+  String _obtenerHorarioMayorDemanda() {
+    if (_estadisticasPorHorario.isEmpty) return 'N/A';
+
+    var entrada = _estadisticasPorHorario.entries.reduce((a, b) {
+      int pasajerosA = a.value['pasajeros'] as int;
+      int pasajerosB = b.value['pasajeros'] as int;
+      return pasajerosA > pasajerosB ? a : b;
+    });
+
+    return '${entrada.key} (${entrada.value['pasajeros']} pasajeros)';
+  }
+
+  String _obtenerHorarioMenorDemanda() {
+    if (_estadisticasPorHorario.isEmpty) return 'N/A';
+
+    var entrada = _estadisticasPorHorario.entries.reduce((a, b) {
+      int pasajerosA = a.value['pasajeros'] as int;
+      int pasajerosB = b.value['pasajeros'] as int;
+      return pasajerosA < pasajerosB ? a : b;
+    });
+
+    return '${entrada.key} (${entrada.value['pasajeros']} pasajeros)';
+  }
+
+  double _obtenerPromedioPasajerosPorSalida() {
+    if (_estadisticasPorHorario.isEmpty) return 0;
+
+    int totalPasajeros = 0;
+    for (var stat in _estadisticasPorHorario.values) {
+      totalPasajeros += stat['pasajeros'] as int;
+    }
+
+    return totalPasajeros / _estadisticasPorHorario.length;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Estadísticas del Sistema'),
+        title: Text('Estadísticas de Pasajeros'),
         centerTitle: true,
         actions: [
           IconButton(
@@ -113,289 +212,572 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> with SingleTick
       ),
       body: _isLoading
           ? Center(child: CircularProgressIndicator())
-          : FadeTransition(
-              opacity: _fadeAnimation,
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.blue.shade50,
-                      Colors.white,
+          : Column(
+              children: [
+                // Controles de filtros y vista
+                Container(
+                  padding: EdgeInsets.all(16),
+                  color: Colors.grey.shade100,
+                  child: Column(
+                    children: [
+                      // Pestañas de vista
+                      _buildVistaTabs(),
+                      SizedBox(height: 16),
+                      // Filtros
+                      Row(
+                        children: [
+                          Expanded(child: _buildFiltroTemporal()),
+                          SizedBox(width: 16),
+                          Expanded(child: _buildFiltroTipo()),
+                        ],
+                      ),
                     ],
                   ),
                 ),
-                child: Scrollbar(
-                  thumbVisibility: true,
-                  thickness: 8,
-                  radius: Radius.circular(4),
+
+                // Contenido
+                Expanded(
                   child: SingleChildScrollView(
-                    padding: EdgeInsets.all(24),
+                    padding: EdgeInsets.all(16),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Encabezado
-                        _buildHeader(),
-                        SizedBox(height: 24),
-
-                        // Resumen general
-                        Text(
-                          'Resumen General',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey.shade800,
-                          ),
-                        ),
-                        SizedBox(height: 16),
-
-                        // Tarjetas de estadísticas
-                        _buildStatsGrid(),
-
-                        SizedBox(height: 32),
-
-                        // Ventas de hoy
-                        Text(
-                          'Ventas de Hoy',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey.shade800,
-                          ),
-                        ),
-                        SizedBox(height: 16),
-
-                        _buildVentasHoyGrid(),
+                        _buildContenidoSegunVista(),
                       ],
                     ),
                   ),
                 ),
-              ),
-            ),
-    );
-  }
-
-  Widget _buildHeader() {
-    return Container(
-      padding: EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF1976D2), Color(0xFF0D47A1)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.blue.withOpacity(0.3),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              Icons.analytics,
-              size: 40,
-              color: Colors.white,
-            ),
-          ),
-          SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Panel de Estadísticas',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'Origen: ${_origenActual == "AYS" ? "Aysén" : "Coyhaique"}',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.white70,
-                  ),
-                ),
-                Text(
-                  DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now()),
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.white70,
-                  ),
-                ),
               ],
             ),
-          ),
-        ],
-      ),
     );
   }
 
-  Widget _buildStatsGrid() {
+  Widget _buildVistaTabs() {
     return Row(
       children: [
         Expanded(
-          child: _buildStatCard(
-            icon: Icons.people,
-            title: 'Total Usuarios',
-            value: _totalUsuarios.toString(),
-            color: Colors.blue,
-            delay: 0,
+          child: _buildVistaTab(
+            'Pasajeros',
+            Icons.people,
+            VistaEstadisticas.pasajeros,
           ),
+        ),
+        SizedBox(width: 8),
+        Expanded(
+          child: _buildVistaTab(
+            'Mixto',
+            Icons.analytics,
+            VistaEstadisticas.mixto,
+          ),
+        ),
+        SizedBox(width: 8),
+        Expanded(
+          child: _buildVistaTab(
+            'Monetario',
+            Icons.attach_money,
+            VistaEstadisticas.monetario,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildVistaTab(String label, IconData icon, VistaEstadisticas vista) {
+    bool isSelected = _vistaActual == vista;
+
+    return InkWell(
+      onTap: () => setState(() => _vistaActual = vista),
+      child: Container(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.blue.shade600 : Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? Colors.blue.shade600 : Colors.grey.shade300,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? Colors.white : Colors.grey.shade700,
+              size: 24,
+            ),
+            SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                color: isSelected ? Colors.white : Colors.grey.shade700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFiltroTemporal() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Período',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: Colors.grey.shade700,
+          ),
+        ),
+        SizedBox(height: 8),
+        Container(
+          padding: EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<FiltroTemporal>(
+              isExpanded: true,
+              value: _filtroTemporal,
+              items: [
+                DropdownMenuItem(
+                  value: FiltroTemporal.hoy,
+                  child: Text('Hoy'),
+                ),
+                DropdownMenuItem(
+                  value: FiltroTemporal.semanal,
+                  child: Text('Última Semana'),
+                ),
+                DropdownMenuItem(
+                  value: FiltroTemporal.mensual,
+                  child: Text('Último Mes'),
+                ),
+              ],
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() => _filtroTemporal = value);
+                  _cargarEstadisticas();
+                }
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFiltroTipo() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Tipo de Pasaje',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: Colors.grey.shade700,
+          ),
+        ),
+        SizedBox(height: 8),
+        Container(
+          padding: EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<FiltroTipo>(
+              isExpanded: true,
+              value: _filtroTipo,
+              items: [
+                DropdownMenuItem(
+                  value: FiltroTipo.ambos,
+                  child: Text('Todos'),
+                ),
+                DropdownMenuItem(
+                  value: FiltroTipo.puntoAPunto,
+                  child: Text('Punto a Punto'),
+                ),
+                DropdownMenuItem(
+                  value: FiltroTipo.intermedio,
+                  child: Text('Intermedio'),
+                ),
+              ],
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() => _filtroTipo = value);
+                  _cargarEstadisticas();
+                }
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildContenidoSegunVista() {
+    switch (_vistaActual) {
+      case VistaEstadisticas.pasajeros:
+        return _buildVistaPasajeros();
+      case VistaEstadisticas.mixto:
+        return _buildVistaMixta();
+      case VistaEstadisticas.monetario:
+        return _buildVistaMonetaria();
+    }
+  }
+
+  Widget _buildVistaPasajeros() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildResumenGeneral(mostrarMonetario: false),
+        SizedBox(height: 24),
+        _buildGraficoPastel(),
+        SizedBox(height: 24),
+        _buildEstadisticasPorHorario(mostrarMonetario: false),
+      ],
+    );
+  }
+
+  Widget _buildVistaMixta() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildResumenGeneral(mostrarMonetario: true),
+        SizedBox(height: 24),
+        _buildGraficoPastel(),
+        SizedBox(height: 24),
+        _buildEstadisticasPorHorario(mostrarMonetario: true),
+      ],
+    );
+  }
+
+  Widget _buildVistaMonetaria() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildResumenMonetario(),
+        SizedBox(height: 24),
+        _buildEstadisticasPorHorario(mostrarMonetario: true),
+      ],
+    );
+  }
+
+  Widget _buildResumenGeneral({required bool mostrarMonetario}) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Resumen General',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.blue.shade700,
+              ),
+            ),
+            SizedBox(height: 16),
+            _buildResumenItem(
+              Icons.people,
+              'Total de Pasajeros',
+              _totalPasajeros.toString(),
+              Colors.blue,
+            ),
+            if (mostrarMonetario) ...[
+              SizedBox(height: 12),
+              _buildResumenItem(
+                Icons.attach_money,
+                'Total Recaudado',
+                NumberFormat.currency(symbol: '\$', decimalDigits: 0).format(_totalVentas),
+                Colors.green,
+              ),
+              SizedBox(height: 12),
+              _buildResumenItem(
+                Icons.trending_up,
+                'Promedio por Pasajero',
+                NumberFormat.currency(symbol: '\$', decimalDigits: 0)
+                    .format(_totalPasajeros > 0 ? _totalVentas / _totalPasajeros : 0),
+                Colors.orange,
+              ),
+            ],
+            SizedBox(height: 12),
+            _buildResumenItem(
+              Icons.schedule,
+              'Promedio por Salida',
+              _obtenerPromedioPasajerosPorSalida().toStringAsFixed(1) + ' pasajeros',
+              Colors.purple,
+            ),
+            SizedBox(height: 12),
+            _buildResumenItem(
+              Icons.arrow_upward,
+              'Mayor Demanda',
+              _obtenerHorarioMayorDemanda(),
+              Colors.red,
+            ),
+            SizedBox(height: 12),
+            _buildResumenItem(
+              Icons.arrow_downward,
+              'Menor Demanda',
+              _obtenerHorarioMenorDemanda(),
+              Colors.teal,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildResumenMonetario() {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Resumen Monetario',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.green.shade700,
+              ),
+            ),
+            SizedBox(height: 16),
+            _buildResumenItem(
+              Icons.attach_money,
+              'Total Recaudado',
+              NumberFormat.currency(symbol: '\$', decimalDigits: 0).format(_totalVentas),
+              Colors.green,
+            ),
+            SizedBox(height: 12),
+            _buildResumenItem(
+              Icons.people,
+              'Número de Pasajeros',
+              _totalPasajeros.toString(),
+              Colors.blue,
+            ),
+            SizedBox(height: 12),
+            _buildResumenItem(
+              Icons.trending_up,
+              'Valor Promedio',
+              NumberFormat.currency(symbol: '\$', decimalDigits: 0)
+                  .format(_totalPasajeros > 0 ? _totalVentas / _totalPasajeros : 0),
+              Colors.orange,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildResumenItem(IconData icon, String label, String value, Color color) {
+    return Row(
+      children: [
+        Container(
+          padding: EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: color, size: 24),
         ),
         SizedBox(width: 16),
         Expanded(
-          child: _buildStatCard(
-            icon: Icons.person_outline,
-            title: 'Usuarios Activos',
-            value: _usuariosActivos.toString(),
-            color: Colors.green,
-            delay: 100,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildVentasHoyGrid() {
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: _buildStatCard(
-                icon: Icons.airline_seat_recline_normal,
-                title: 'Pasajes Vendidos',
-                value: _ventasHoy.toString(),
-                color: Colors.purple,
-                delay: 200,
-              ),
-            ),
-            SizedBox(width: 16),
-            Expanded(
-              child: _buildStatCard(
-                icon: Icons.attach_money,
-                title: 'Total Pasajes',
-                value: NumberFormat.currency(symbol: '\$', decimalDigits: 0)
-                    .format(_totalVentasHoy),
-                color: Colors.teal,
-                delay: 300,
-              ),
-            ),
-          ],
-        ),
-        SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: _buildStatCard(
-                icon: Icons.inventory,
-                title: 'Cargas Registradas',
-                value: _cargasHoy.toString(),
-                color: Colors.orange,
-                delay: 400,
-              ),
-            ),
-            SizedBox(width: 16),
-            Expanded(
-              child: _buildStatCard(
-                icon: Icons.attach_money,
-                title: 'Total Cargas',
-                value: NumberFormat.currency(symbol: '\$', decimalDigits: 0)
-                    .format(_totalCargasHoy),
-                color: Colors.indigo,
-                delay: 500,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStatCard({
-    required IconData icon,
-    required String title,
-    required String value,
-    required Color color,
-    required int delay,
-  }) {
-    return TweenAnimationBuilder(
-      duration: Duration(milliseconds: 600),
-      tween: Tween<double>(begin: 0, end: 1),
-      curve: Curves.easeOutCubic,
-      builder: (context, double opacity, child) {
-        return Opacity(
-          opacity: opacity,
-          child: Transform.translate(
-            offset: Offset(0, 20 * (1 - opacity)),
-            child: child,
-          ),
-        );
-      },
-      child: Card(
-        elevation: 4,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Container(
-          padding: EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            gradient: LinearGradient(
-              colors: [color.withOpacity(0.1), Colors.white],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  icon,
-                  size: 30,
-                  color: color,
-                ),
-              ),
-              SizedBox(height: 16),
               Text(
-                title,
+                label,
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: 12,
                   color: Colors.grey.shade600,
-                  fontWeight: FontWeight.w500,
                 ),
               ),
-              SizedBox(height: 8),
+              SizedBox(height: 4),
               Text(
                 value,
                 style: TextStyle(
-                  fontSize: 28,
+                  fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: color,
+                  color: Colors.grey.shade800,
                 ),
               ),
             ],
           ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGraficoPastel() {
+    if (_pasajerosPorTipo.isEmpty) {
+      return Card(
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Padding(
+          padding: EdgeInsets.all(20),
+          child: Center(
+            child: Text(
+              'No hay datos para mostrar',
+              style: TextStyle(color: Colors.grey.shade600),
+            ),
+          ),
+        ),
+      );
+    }
+
+    List<Color> colores = [
+      Colors.blue.shade400,
+      Colors.green.shade400,
+      Colors.orange.shade400,
+      Colors.purple.shade400,
+      Colors.red.shade400,
+      Colors.teal.shade400,
+      Colors.pink.shade400,
+      Colors.indigo.shade400,
+    ];
+
+    List<PieChartData> chartData = [];
+    int colorIndex = 0;
+
+    _pasajerosPorTipo.forEach((tipo, cantidad) {
+      chartData.add(PieChartData(
+        label: tipo,
+        value: cantidad.toDouble(),
+        color: colores[colorIndex % colores.length],
+      ));
+      colorIndex++;
+    });
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Distribución por Tipo de Pasajero',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.blue.shade700,
+              ),
+            ),
+            SizedBox(height: 24),
+            PieChartWidget(data: chartData, size: 180),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEstadisticasPorHorario({required bool mostrarMonetario}) {
+    if (_estadisticasPorHorario.isEmpty) {
+      return Card(
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Padding(
+          padding: EdgeInsets.all(20),
+          child: Center(
+            child: Text(
+              'No hay datos de horarios',
+              style: TextStyle(color: Colors.grey.shade600),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Ordenar horarios
+    var horariosOrdenados = _estadisticasPorHorario.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Estadísticas por Horario',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.blue.shade700,
+              ),
+            ),
+            SizedBox(height: 16),
+            ...horariosOrdenados.map((entry) {
+              String horario = entry.key;
+              int pasajeros = entry.value['pasajeros'] as int;
+              double total = entry.value['total'] as double;
+
+              return Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Container(
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.access_time, color: Colors.blue.shade700, size: 20),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              horario,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blue.shade700,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              '$pasajeros pasajero${pasajeros != 1 ? 's' : ''}',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey.shade700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (mostrarMonetario)
+                        Text(
+                          NumberFormat.currency(symbol: '\$', decimalDigits: 0).format(total),
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green.shade700,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+          ],
         ),
       ),
     );
