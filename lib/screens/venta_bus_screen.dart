@@ -494,6 +494,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                                 : null,
                             occupiedSeats: asientosOcupados,
                             onSeatTap: _onAsientoSeleccionado,
+                            tipoDia: tipoDia,
                           ),
                         ],
                       ),
@@ -514,42 +515,65 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _buildSectionTitle('Datos del Boleto'),
+                        SizedBox(height: 16),
+
+                        // Recuadro guía del boleto
+                        _buildTicketPreview(),
                         SizedBox(height: 24),
 
-                        // Horario
-                        _buildLabel('Horario de Salida'),
-                        HorarioInputField(
-                          value: horarioSeleccionado,
-                          destino: destino,
-                          origenIntermedio: origenIntermedio,
-                          validator: _validarHorario,
-                          focusNode: _horarioFocusNode,
-                          onChanged: (value) {
-                            setState(() => horarioSeleccionado = value);
-                            _cargarAsientosOcupados();
-                          },
-                          onEnterPressed: _autoScrollToAsiento,
-                        ),
-
-                        SizedBox(height: 24),
-
-                        // Campo de Asiento (solo este para secretarias)
-                        _buildLabel('Número de Asiento'),
-                        NumericInputField(
-                          label: '',
-                          value: asientoSeleccionado,
-                          hintText: '01-45',
-                          validator: _validarAsiento,
-                          focusNode: _asientoFocusNode,
-                          onChanged: (value) => setState(() => asientoSeleccionado = value),
-                          onEnterPressed: () {
-                            final authProvider = Provider.of<AuthProvider>(context, listen: false);
-                            if (authProvider.isSecretaria) {
-                              _confirmarVenta();
-                            } else {
-                              _valorFocusNode.requestFocus();
-                            }
-                          },
+                        // Teclados a la misma altura (Horario y Asiento)
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Horario
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildLabel('Horario de Salida'),
+                                  HorarioInputField(
+                                    value: horarioSeleccionado,
+                                    destino: destino,
+                                    origenIntermedio: origenIntermedio,
+                                    fechaSeleccionada: fechaSeleccionada,
+                                    validator: _validarHorario,
+                                    focusNode: _horarioFocusNode,
+                                    onChanged: (value) {
+                                      setState(() => horarioSeleccionado = value);
+                                      _cargarAsientosOcupados();
+                                    },
+                                    onEnterPressed: () => _asientoFocusNode.requestFocus(),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            SizedBox(width: 16),
+                            // Asiento
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildLabel('Número de Asiento'),
+                                  NumericInputField(
+                                    label: '',
+                                    value: asientoSeleccionado,
+                                    hintText: '01-45',
+                                    validator: _validarAsiento,
+                                    focusNode: _asientoFocusNode,
+                                    onChanged: (value) => setState(() => asientoSeleccionado = value),
+                                    onEnterPressed: () {
+                                      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+                                      if (authProvider.isSecretaria) {
+                                        _confirmarVenta();
+                                      } else {
+                                        _valorFocusNode.requestFocus();
+                                      }
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
 
                         // Valor del boleto - SOLO para administradores
@@ -628,6 +652,201 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
             ),
         ],
       ),
+    );
+  }
+
+  Widget _buildTicketPreview() {
+    final ahora = DateTime.now();
+    final esHoy = fechaSeleccionada == DateTime(ahora.year, ahora.month, ahora.day)
+        .toString().split(' ')[0];
+    final isDomingoFeriado = tipoDia == 'DOMINGO / FERIADO';
+
+    String origenTexto = destino == 'Coyhaique' ? 'Aysén' : 'Coyhaique';
+    String destinoTexto = destino;
+
+    if (destino == 'Intermedio' && kilometroIntermedio != null && kilometroIntermedio!.isNotEmpty) {
+      origenTexto = origenIntermedio;
+      destinoTexto = 'Intermedio Km $kilometroIntermedio';
+    }
+
+    return Container(
+      padding: EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: isDomingoFeriado
+            ? [Colors.red.shade50, Colors.red.shade100]
+            : [Colors.blue.shade50, Colors.blue.shade100],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDomingoFeriado ? Colors.red.shade300 : Colors.blue.shade300,
+          width: 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: (isDomingoFeriado ? Colors.red : Colors.blue).withOpacity(0.2),
+            blurRadius: 8,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.confirmation_number,
+                color: isDomingoFeriado ? Colors.red.shade700 : Colors.blue.shade700,
+                size: 24,
+              ),
+              SizedBox(width: 8),
+              Text(
+                'VISTA PREVIA DEL BOLETO',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: isDomingoFeriado ? Colors.red.shade700 : Colors.blue.shade700,
+                ),
+              ),
+              if (esHoy) ...[
+                Spacer(),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isDomingoFeriado ? Colors.red.shade600 : Colors.blue.shade600,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    'HOY',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          SizedBox(height: 16),
+
+          // Origen → Destino
+          Row(
+            children: [
+              Expanded(
+                child: _buildPreviewItem(
+                  'Origen',
+                  origenTexto,
+                  Icons.location_on,
+                  isDomingoFeriado,
+                ),
+              ),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8),
+                child: Icon(
+                  Icons.arrow_forward,
+                  color: isDomingoFeriado ? Colors.red.shade600 : Colors.blue.shade600,
+                  size: 28,
+                ),
+              ),
+              Expanded(
+                child: _buildPreviewItem(
+                  'Destino',
+                  destinoTexto,
+                  Icons.flag,
+                  isDomingoFeriado,
+                ),
+              ),
+            ],
+          ),
+
+          SizedBox(height: 12),
+          Divider(color: isDomingoFeriado ? Colors.red.shade300 : Colors.blue.shade300),
+          SizedBox(height: 12),
+
+          // Detalles del viaje
+          Row(
+            children: [
+              Expanded(
+                child: _buildPreviewItem(
+                  'Fecha',
+                  DateFormat('dd/MM/yyyy', 'es_ES').format(DateTime.parse(fechaSeleccionada)),
+                  Icons.calendar_today,
+                  isDomingoFeriado,
+                ),
+              ),
+              Expanded(
+                child: _buildPreviewItem(
+                  'Horario',
+                  horarioSeleccionado ?? '--:--',
+                  Icons.access_time,
+                  isDomingoFeriado,
+                ),
+              ),
+            ],
+          ),
+
+          SizedBox(height: 12),
+
+          Row(
+            children: [
+              Expanded(
+                child: _buildPreviewItem(
+                  'Asiento',
+                  asientoSeleccionado ?? '--',
+                  Icons.event_seat,
+                  isDomingoFeriado,
+                ),
+              ),
+              Expanded(
+                child: _buildPreviewItem(
+                  'Valor',
+                  '\$${valorBoleto != '0' ? valorBoleto : '--'}',
+                  Icons.attach_money,
+                  isDomingoFeriado,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPreviewItem(String label, String value, IconData icon, bool isDomingoFeriado) {
+    return Row(
+      children: [
+        Icon(
+          icon,
+          size: 16,
+          color: isDomingoFeriado ? Colors.red.shade600 : Colors.blue.shade600,
+        ),
+        SizedBox(width: 6),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                color: Colors.grey.shade600,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: isDomingoFeriado ? Colors.red.shade800 : Colors.blue.shade800,
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 

@@ -10,6 +10,7 @@ class HorarioInputField extends StatefulWidget {
   final FocusNode? focusNode;
   final String destino; // Destino seleccionado (Aysen, Intermedio o Coyhaique)
   final String origenIntermedio; // Nuevo parámetro para el origen en caso intermedio
+  final String? fechaSeleccionada; // Fecha seleccionada para filtrar horarios pasados
 
   const HorarioInputField({
     Key? key,
@@ -20,6 +21,7 @@ class HorarioInputField extends StatefulWidget {
     this.focusNode,
     required this.destino,
     this.origenIntermedio = 'Aysen', // Valor predeterminado
+    this.fechaSeleccionada,
   }) : super(key: key);
 
   @override
@@ -99,13 +101,39 @@ class _HorarioInputFieldState extends State<HorarioInputField> {
 
   // Filtra las sugerencias basadas en la entrada actual
   void _filtrarSugerencias() {
+    final ahora = DateTime.now();
+    final esHoy = widget.fechaSeleccionada != null &&
+                  widget.fechaSeleccionada == DateTime(ahora.year, ahora.month, ahora.day)
+                      .toString().split(' ')[0];
+    final horaActual = TimeOfDay.now();
+
     setState(() {
+      List<String> sugerenciasDisponibles = _todasLasSugerencias;
+
+      // Si es hoy, filtrar horarios que ya pasaron
+      if (esHoy) {
+        sugerenciasDisponibles = _todasLasSugerencias.where((horario) {
+          final partes = horario.split(':');
+          if (partes.length == 2) {
+            final hora = int.tryParse(partes[0]);
+            final minuto = int.tryParse(partes[1]);
+            if (hora != null && minuto != null) {
+              // Comparar si el horario es mayor a la hora actual
+              if (hora > horaActual.hour) return true;
+              if (hora == horaActual.hour && minuto > horaActual.minute) return true;
+              return false;
+            }
+          }
+          return true;
+        }).toList();
+      }
+
       if (_currentInput.isEmpty) {
-        // Mostrar todas las sugerencias si no hay entrada
-        _sugerenciasFiltradas = List<String>.from(_todasLasSugerencias);
+        // Mostrar todas las sugerencias disponibles si no hay entrada
+        _sugerenciasFiltradas = List<String>.from(sugerenciasDisponibles);
       } else {
         // Filtrar por lo que haya escrito el usuario
-        _sugerenciasFiltradas = _todasLasSugerencias
+        _sugerenciasFiltradas = sugerenciasDisponibles
             .where((horario) => horario.startsWith(_currentInput))
             .toList();
       }
@@ -128,12 +156,23 @@ class _HorarioInputFieldState extends State<HorarioInputField> {
   // Mostrar un texto descriptivo sobre la fuente de los horarios
   String _getDescripcionFuente() {
     String fuenteHorarios = _obtenerFuenteHorarios();
+    final ahora = DateTime.now();
+    final esHoy = widget.fechaSeleccionada != null &&
+                  widget.fechaSeleccionada == DateTime(ahora.year, ahora.month, ahora.day)
+                      .toString().split(' ')[0];
 
+    String descripcion;
     if (widget.destino == 'Intermedio') {
-      return "(horarios de salida desde $fuenteHorarios)";
+      descripcion = "(horarios de salida desde $fuenteHorarios)";
     } else {
-      return "(sugerencias de $fuenteHorarios)";
+      descripcion = "(sugerencias de $fuenteHorarios)";
     }
+
+    if (esHoy) {
+      descripcion += " - HOY";
+    }
+
+    return descripcion;
   }
 
   // Construir el widget de sugerencias que irá encima del teclado
