@@ -513,34 +513,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                       ),
                     ),
-                    if (isAdmin) ...[
-                      SizedBox(height: 12),
-                      // Botón de Usuarios (solo para admin)
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: () {
-                            // TODO: Implementar pantalla de gestión de usuarios
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Función en desarrollo'),
-                                backgroundColor: Colors.orange,
-                              ),
-                            );
-                          },
-                          icon: Icon(Icons.people),
-                          label: Text('Gestionar Usuarios'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.deepPurple,
-                            foregroundColor: Colors.white,
-                            padding: EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
                   ],
                 ),
               ),

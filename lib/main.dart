@@ -17,6 +17,7 @@ import 'screens/horario_screen.dart'; // Nueva importación para la pantalla de 
 import 'screens/settings_screen.dart'; // Nueva importación para la pantalla de configuración
 import 'screens/tarifas_screen.dart'; // Nueva importación para la pantalla de tarifas
 import 'screens/usuarios_screen.dart'; // Nueva importación para la pantalla de usuarios
+import 'screens/estadisticas_screen.dart'; // Nueva importación para la pantalla de estadísticas
 import 'models/comprobante.dart';
 import 'models/auth_provider.dart';
 import 'database/caja_database.dart';
@@ -79,7 +80,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Suray Mini POS - Sistema Empresarial',
+      title: 'Suray POS OFICINA - Sistema Empresarial',
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
@@ -168,6 +169,7 @@ class MyApp extends StatelessWidget {
         '/settings': (_) => SettingsScreen(), // Nueva ruta para la pantalla de configuración
         '/tarifas': (_) => const TarifasScreen(), // Nueva ruta para la pantalla de tarifas
         '/usuarios': (_) => UsuariosScreen(), // Nueva ruta para la pantalla de usuarios
+        '/estadisticas': (_) => EstadisticasScreen(), // Nueva ruta para la pantalla de estadísticas
       },
     );
   }
