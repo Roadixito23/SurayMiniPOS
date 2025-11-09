@@ -94,7 +94,7 @@ Se ha implementado un sistema completo de gestión de asientos de bus con las si
 Future<void> generateAndPrintTicket(...)
 
 // Ahora
-Future<String> generateAndPrintTicket(...)
+//Future<String> generateAndPrintTicket(...)
 ```
 
 **Retorna**: Número de comprobante generado (ej: "AYS-01-000123")
