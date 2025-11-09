@@ -61,11 +61,31 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
   Future<void> _cargarTarifas() async {
     try {
       final tarifas = await AppDatabase.instance.getTarifasByTipoDia(tipoDia);
+      List<Tarifa> todasTarifas = tarifas.map((map) => Tarifa.fromMap(map)).toList();
+
       setState(() {
-        tarifasDisponibles = tarifas.map((map) => Tarifa.fromMap(map)).toList();
-        if (tarifasDisponibles.isNotEmpty && tarifaSeleccionada == null) {
-          tarifaSeleccionada = tarifasDisponibles.first;
-          valorBoleto = tarifaSeleccionada!.valor.toStringAsFixed(0);
+        // Filtrar tarifas según el destino seleccionado
+        if (destino == 'Intermedio') {
+          // Si el destino es Intermedio, mostrar SOLO las tarifas que contengan "INTERMEDIO" en el nombre
+          tarifasDisponibles = todasTarifas
+              .where((t) => t.categoria.toUpperCase().contains('INTERMEDIO'))
+              .toList();
+        } else {
+          // Si el destino NO es Intermedio, NO mostrar las tarifas de Intermedio
+          tarifasDisponibles = todasTarifas
+              .where((t) => !t.categoria.toUpperCase().contains('INTERMEDIO'))
+              .toList();
+        }
+
+        // Reseleccionar tarifa si la anterior ya no está disponible
+        if (tarifasDisponibles.isNotEmpty) {
+          if (tarifaSeleccionada == null || !tarifasDisponibles.contains(tarifaSeleccionada)) {
+            tarifaSeleccionada = tarifasDisponibles.first;
+            valorBoleto = tarifaSeleccionada!.valor.toStringAsFixed(0);
+          }
+        } else {
+          tarifaSeleccionada = null;
+          valorBoleto = '0';
         }
       });
     } catch (e) {
@@ -308,6 +328,8 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                                 destino = value;
                                 if (value != 'Intermedio') kilometroIntermedio = null;
                               });
+                              // Recargar tarifas cuando cambie el destino
+                              _cargarTarifas();
                             },
                           ),
 
@@ -666,11 +688,11 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
 
     if (destino == 'Intermedio' && kilometroIntermedio != null && kilometroIntermedio!.isNotEmpty) {
       origenTexto = origenIntermedio;
-      destinoTexto = 'Intermedio Km $kilometroIntermedio';
+      destinoTexto = 'Int. Km $kilometroIntermedio';
     }
 
     return Container(
-      padding: EdgeInsets.all(20),
+      padding: EdgeInsets.all(12),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: isDomingoFeriado
@@ -679,18 +701,11 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: isDomingoFeriado ? Colors.red.shade300 : Colors.blue.shade300,
-          width: 2,
+          width: 1.5,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: (isDomingoFeriado ? Colors.red : Colors.blue).withOpacity(0.2),
-            blurRadius: 8,
-            offset: Offset(0, 4),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -700,13 +715,13 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
               Icon(
                 Icons.confirmation_number,
                 color: isDomingoFeriado ? Colors.red.shade700 : Colors.blue.shade700,
-                size: 24,
+                size: 16,
               ),
-              SizedBox(width: 8),
+              SizedBox(width: 6),
               Text(
-                'VISTA PREVIA DEL BOLETO',
+                'RESUMEN',
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: 11,
                   fontWeight: FontWeight.bold,
                   color: isDomingoFeriado ? Colors.red.shade700 : Colors.blue.shade700,
                 ),
@@ -714,16 +729,16 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
               if (esHoy) ...[
                 Spacer(),
                 Container(
-                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: isDomingoFeriado ? Colors.red.shade600 : Colors.blue.shade600,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
                     'HOY',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 10,
+                      fontSize: 8,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -731,79 +746,69 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
               ],
             ],
           ),
-          SizedBox(height: 16),
+          SizedBox(height: 8),
 
-          // Origen → Destino
+          // Origen → Destino en una línea
           Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Expanded(
-                child: _buildPreviewItem(
-                  'Origen',
-                  origenTexto,
-                  Icons.location_on,
-                  isDomingoFeriado,
+              Text(
+                origenTexto,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: isDomingoFeriado ? Colors.red.shade800 : Colors.blue.shade800,
                 ),
               ),
               Padding(
-                padding: EdgeInsets.symmetric(horizontal: 8),
+                padding: EdgeInsets.symmetric(horizontal: 6),
                 child: Icon(
                   Icons.arrow_forward,
                   color: isDomingoFeriado ? Colors.red.shade600 : Colors.blue.shade600,
-                  size: 28,
+                  size: 14,
                 ),
               ),
-              Expanded(
-                child: _buildPreviewItem(
-                  'Destino',
-                  destinoTexto,
-                  Icons.flag,
-                  isDomingoFeriado,
+              Text(
+                destinoTexto,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: isDomingoFeriado ? Colors.red.shade800 : Colors.blue.shade800,
                 ),
               ),
             ],
           ),
 
-          SizedBox(height: 12),
-          Divider(color: isDomingoFeriado ? Colors.red.shade300 : Colors.blue.shade300),
-          SizedBox(height: 12),
+          SizedBox(height: 8),
+          Divider(color: isDomingoFeriado ? Colors.red.shade300 : Colors.blue.shade300, height: 1),
+          SizedBox(height: 8),
 
-          // Detalles del viaje
+          // Detalles en grid compacto
           Row(
             children: [
               Expanded(
-                child: _buildPreviewItem(
-                  'Fecha',
-                  DateFormat('dd/MM/yyyy', 'es_ES').format(DateTime.parse(fechaSeleccionada)),
+                child: _buildPreviewItemCompact(
+                  DateFormat('dd/MM', 'es_ES').format(DateTime.parse(fechaSeleccionada)),
                   Icons.calendar_today,
                   isDomingoFeriado,
                 ),
               ),
               Expanded(
-                child: _buildPreviewItem(
-                  'Horario',
+                child: _buildPreviewItemCompact(
                   horarioSeleccionado ?? '--:--',
                   Icons.access_time,
                   isDomingoFeriado,
                 ),
               ),
-            ],
-          ),
-
-          SizedBox(height: 12),
-
-          Row(
-            children: [
               Expanded(
-                child: _buildPreviewItem(
-                  'Asiento',
-                  asientoSeleccionado ?? '--',
+                child: _buildPreviewItemCompact(
+                  'A${asientoSeleccionado ?? '--'}',
                   Icons.event_seat,
                   isDomingoFeriado,
                 ),
               ),
               Expanded(
-                child: _buildPreviewItem(
-                  'Valor',
+                child: _buildPreviewItemCompact(
                   '\$${valorBoleto != '0' ? valorBoleto : '--'}',
                   Icons.attach_money,
                   isDomingoFeriado,
@@ -816,35 +821,23 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
     );
   }
 
-  Widget _buildPreviewItem(String label, String value, IconData icon, bool isDomingoFeriado) {
+  Widget _buildPreviewItemCompact(String value, IconData icon, bool isDomingoFeriado) {
     return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Icon(
           icon,
-          size: 16,
+          size: 12,
           color: isDomingoFeriado ? Colors.red.shade600 : Colors.blue.shade600,
         ),
-        SizedBox(width: 6),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 10,
-                color: Colors.grey.shade600,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-                color: isDomingoFeriado ? Colors.red.shade800 : Colors.blue.shade800,
-              ),
-            ),
-          ],
+        SizedBox(width: 4),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+            color: isDomingoFeriado ? Colors.red.shade800 : Colors.blue.shade800,
+          ),
         ),
       ],
     );

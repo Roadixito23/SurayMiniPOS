@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'numeric_keyboard.dart';
 
 class NumericInputField extends StatefulWidget {
@@ -172,45 +173,58 @@ class _NumericInputFieldState extends State<NumericInputField> {
         if (widget.label.isNotEmpty)
           SizedBox(height: 8),
 
-        // Campo de entrada
-        GestureDetector(
-          onTap: () {
-            _focusNode.requestFocus();
-          },
-          child: Container(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              border: Border.all(
-                color: _errorText != null ? Colors.red : Colors.grey.shade400,
-                width: 1.5,
-              ),
-              borderRadius: BorderRadius.circular(8),
-              color: Colors.grey.shade50,
+        // Campo de entrada con TextField real para permitir entrada desde teclado físico
+        Container(
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: _errorText != null ? Colors.red : Colors.grey.shade400,
+              width: 1.5,
             ),
-            child: Row(
-              children: [
-                if (widget.prefix.isNotEmpty)
-                  Text(
+            borderRadius: BorderRadius.circular(8),
+            color: Colors.grey.shade50,
+          ),
+          child: Row(
+            children: [
+              if (widget.prefix.isNotEmpty)
+                Padding(
+                  padding: EdgeInsets.only(left: 16),
+                  child: Text(
                     widget.prefix,
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
-                Expanded(
-                  child: Text(
-                    _controller.text.isEmpty ? widget.hintText : _controller.text,
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: _controller.text.isEmpty ? Colors.grey : Colors.black,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
                 ),
-                if (widget.suffix.isNotEmpty)
-                  Text(
+              Expanded(
+                child: TextField(
+                  controller: _controller,
+                  focusNode: _focusNode,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 18),
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9:]')),
+                  ],
+                  decoration: InputDecoration(
+                    hintText: widget.hintText,
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  ),
+                  onChanged: _handleValueChanged,
+                  onSubmitted: (_) {
+                    if (widget.onEnterPressed != null) {
+                      _handleEnter();
+                    }
+                  },
+                ),
+              ),
+              if (widget.suffix.isNotEmpty)
+                Padding(
+                  padding: EdgeInsets.only(right: 16),
+                  child: Text(
                     widget.suffix,
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
-              ],
-            ),
+                ),
+            ],
           ),
         ),
 
