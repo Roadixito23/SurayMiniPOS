@@ -210,6 +210,25 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             _secretCode = _secretCode.substring(_secretCode.length - 13);
           }
 
+          // Verificar si se escribió "administrador" para ir a settings
+          if (_secretCode.contains('administrador')) {
+            Navigator.pushNamed(context, '/settings');
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    Icon(Icons.admin_panel_settings, color: Colors.white),
+                    SizedBox(width: 12),
+                    Text('Acceso a configuración'),
+                  ],
+                ),
+                backgroundColor: Colors.green.shade600,
+                duration: Duration(seconds: 2),
+              ),
+            );
+            _secretCode = '';
+          }
+
           // Verificar si se escribió "debug" para mostrar botones de base de datos
           if (_secretCode.contains('debug')) {
             setState(() {
