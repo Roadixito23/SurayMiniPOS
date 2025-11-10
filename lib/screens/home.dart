@@ -95,12 +95,6 @@ class _Sidebar extends StatelessWidget {
                   label: 'Horarios',
                   onTap: () => Navigator.pushNamed(context, '/horarios'),
                 ),
-                Divider(color: Colors.white24, height: 24, indent: 16, endIndent: 16),
-                _SidebarMenuItem(
-                  icon: Icons.settings,
-                  label: 'Configuración',
-                  onTap: () => Navigator.pushNamed(context, '/settings'),
-                ),
               ],
             ),
           ),
@@ -174,13 +168,11 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   late AnimationController _animationController;
-  late AnimationController _settingsButtonController;
   late AnimationController _floatingAnimationController;
   final ScrollController _scrollController = ScrollController();
   final FocusNode _focusNode = FocusNode();
 
   String _secretCode = '';
-  bool _showSettingsButton = false;
   bool _showDebugButtons = false;
   bool _isLoading = false; // Variable de estado para la carga de la DB
 
@@ -189,10 +181,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     super.initState();
     _animationController = AnimationController(
       duration: Duration(milliseconds: 1000),
-      vsync: this,
-    );
-    _settingsButtonController = AnimationController(
-      duration: Duration(milliseconds: 600),
       vsync: this,
     );
     _floatingAnimationController = AnimationController(
@@ -205,7 +193,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   @override
   void dispose() {
     _animationController.dispose();
-    _settingsButtonController.dispose();
     _floatingAnimationController.dispose();
     _scrollController.dispose();
     _focusNode.dispose();
@@ -221,28 +208,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           // Mantener solo los últimos 13 caracteres (longitud de "administrador")
           if (_secretCode.length > 13) {
             _secretCode = _secretCode.substring(_secretCode.length - 13);
-          }
-
-          // Verificar si se escribió "administrador"
-          if (_secretCode.contains('administrador')) {
-            if (!_showSettingsButton) {
-              _showSettingsButton = true;
-              _settingsButtonController.forward();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Row(
-                    children: [
-                      Icon(Icons.admin_panel_settings, color: Colors.white),
-                      SizedBox(width: 12),
-                      Text('¡Modo administrador activado!'),
-                    ],
-                  ),
-                  backgroundColor: Colors.green.shade600,
-                  duration: Duration(seconds: 2),
-                ),
-              );
-            }
-            _secretCode = ''; // Reiniciar el código secreto
           }
 
           // Verificar si se escribió "debug" para mostrar botones de base de datos
@@ -799,29 +764,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 ),
               ],
             ),
-
-            // Botón de ajustes animado (aparece al escribir "administrador")
-            if (_showSettingsButton)
-              Positioned(
-                top: 80,
-                right: 20,
-                child: ScaleTransition(
-                  scale: CurvedAnimation(
-                    parent: _settingsButtonController,
-                    curve: Curves.elasticOut,
-                  ),
-                  child: FloatingActionButton.extended(
-                    onPressed: () => Navigator.pushNamed(context, '/settings'),
-                    backgroundColor: Colors.orange.shade600,
-                    icon: Icon(Icons.settings, color: Colors.white),
-                    label: Text(
-                      'Configuración',
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                    ),
-                    heroTag: 'settings_button',
-                  ),
-                ),
-              ),
 
             // Botones de debug (aparecen al escribir "debug")
             if (_showDebugButtons)
