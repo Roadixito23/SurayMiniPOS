@@ -47,12 +47,23 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
   final FocusNode _valorFocusNode = FocusNode();
   final FocusNode _kmIntermedioFocusNode = FocusNode();
 
+  final TextEditingController _fechaController = TextEditingController();
+  final TextEditingController _horarioController = TextEditingController();
+  final TextEditingController _asientoController = TextEditingController();
+  final TextEditingController _valorController = TextEditingController();
+  final TextEditingController _kmController = TextEditingController();
+
   String? fechaEscrita; // Fecha en formato DD/MM/AA
 
   @override
   void initState() {
     super.initState();
     _cargarTarifas();
+
+    // Inicializar fecha actual en formato DD/MM/AA
+    final ahora = DateTime.now();
+    fechaEscrita = DateFormat('ddMMyy').format(ahora);
+    _fechaController.text = DateFormat('dd/MM/yy').format(ahora);
 
     // Atajos de teclado - iniciar en fecha
     ServicesBinding.instance.addPostFrameCallback((_) {
@@ -70,12 +81,10 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
       setState(() {
         // Filtrar tarifas según el destino seleccionado
         if (destino == 'Intermedio') {
-          // Si el destino es Intermedio, mostrar SOLO las tarifas que contengan "INTERMEDIO" en el nombre
           tarifasDisponibles = todasTarifas
               .where((t) => t.categoria.toUpperCase().contains('INTERMEDIO'))
               .toList();
         } else {
-          // Si el destino NO es Intermedio, NO mostrar las tarifas de Intermedio
           tarifasDisponibles = todasTarifas
               .where((t) => !t.categoria.toUpperCase().contains('INTERMEDIO'))
               .toList();
@@ -86,10 +95,12 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
           if (tarifaSeleccionada == null || !tarifasDisponibles.contains(tarifaSeleccionada)) {
             tarifaSeleccionada = tarifasDisponibles.first;
             valorBoleto = tarifaSeleccionada!.valor.toStringAsFixed(0);
+            _valorController.text = valorBoleto;
           }
         } else {
           tarifaSeleccionada = null;
           valorBoleto = '0';
+          _valorController.clear();
         }
       });
     } catch (e) {
@@ -103,16 +114,16 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
     );
   }
 
-  String? _validarHorario(String value) {
-    if (value.isEmpty) return 'Ingrese un horario';
+  String? _validarHorario(String? value) {
+    if (value == null || value.isEmpty) return 'Ingrese un horario';
     if (!RegExp(r'^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$').hasMatch(value)) {
       return 'Formato inválido (HH:MM)';
     }
     return null;
   }
 
-  String? _validarAsiento(String value) {
-    if (value.isEmpty) return 'Ingrese un asiento';
+  String? _validarAsiento(String? value) {
+    if (value==null || value.isEmpty) return 'Ingrese un asiento';
     int? asiento = int.tryParse(value);
     if (asiento == null || asiento < 1 || asiento > 45) {
       return 'Asiento inválido (1-45)';
@@ -120,8 +131,8 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
     return null;
   }
 
-  String? _validarValor(String value) {
-    if (value.isEmpty) return 'Ingrese un valor';
+  String? _validarValor(String? value) {
+    if (value == null || value.isEmpty) return 'Ingrese un valor';
     int? valor = int.tryParse(value);
     if (valor == null || valor <= 0) {
       return 'Valor debe ser mayor a 0';
@@ -220,9 +231,13 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
           horarioSeleccionado = null;
           asientoSeleccionado = null;
           valorBoleto = tarifaSeleccionada?.valor.toStringAsFixed(0) ?? '0';
+          _horarioController.clear();
+          _asientoController.clear();
+          _valorController.text = valorBoleto;
         });
 
         _horarioFocusNode.requestFocus();
+        _autoScrollToField(_horarioFocusNode);
       } catch (e) {
         _mostrarError('Error al generar el ticket: $e');
       } finally {
@@ -257,22 +272,35 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
   void _onAsientoSeleccionado(int asiento) {
     setState(() {
       asientoSeleccionado = asiento.toString().padLeft(2, '0');
+      _asientoController.text = asiento.toString().padLeft(2, '0');
     });
     _asientoFocusNode.requestFocus();
   }
 
-  void _autoScrollToAsiento() {
-    // Hacer scroll hacia el campo de asiento
-    Future.delayed(const Duration(milliseconds: 100), () {
+  void _autoScrollToField(FocusNode focusNode) {
+    Future.delayed(const Duration(milliseconds: 150), () {
       if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-        );
+        final renderObject = focusNode.context?.findRenderObject();
+        if (renderObject != null && renderObject is RenderBox) {
+          final position = renderObject.localToGlobal(Offset.zero);
+          final scrollOffset = position.dy - 200; // Ajustar para centrar mejor
+          
+          _scrollController.animateTo(
+            _scrollController.offset + scrollOffset,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          );
+        }
       }
-      _asientoFocusNode.requestFocus();
     });
+  }
+
+  Color _getColorPrimario() {
+    return tipoDia == 'DOMINGO / FERIADO' ? Colors.red.shade600 : Colors.blue.shade600;
+  }
+
+  Color _getColorSecundario() {
+    return tipoDia == 'DOMINGO / FERIADO' ? Colors.red.shade50 : Colors.blue.shade50;
   }
 
   @override
@@ -282,17 +310,115 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
     _asientoFocusNode.dispose();
     _valorFocusNode.dispose();
     _kmIntermedioFocusNode.dispose();
+    _fechaController.dispose();
+    _horarioController.dispose();
+    _asientoController.dispose();
+    _valorController.dispose();
+    _kmController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final isDomingoFeriado = tipoDia == 'DOMINGO / FERIADO';
+
     return Scaffold(
       appBar: AppBar(
         title: Text('Venta de Boletos de Bus'),
         centerTitle: false,
+        backgroundColor: _getColorPrimario(),
         actions: [
+          // Selector de fecha en AppBar
+          InkWell(
+            onTap: () async {
+              final fechaLimite = DateTime.now().add(Duration(days: 35));
+              final fechaPick = await showDatePicker(
+                context: context,
+                initialDate: DateTime.parse(fechaSeleccionada),
+                firstDate: DateTime.now(),
+                lastDate: fechaLimite,
+                locale: const Locale('es', 'ES'),
+              );
+              if (fechaPick != null) {
+                setState(() {
+                  fechaSeleccionada = DateFormat('yyyy-MM-dd').format(fechaPick);
+                  horarioSeleccionado = null;
+                  asientoSeleccionado = null;
+                  salidaId = null;
+                  asientosOcupados.clear();
+                });
+              }
+            },
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              margin: EdgeInsets.symmetric(vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.calendar_today, size: 16, color: Colors.white),
+                  SizedBox(width: 8),
+                  Text(
+                    DateFormat('dd/MM/yy', 'es_ES').format(DateTime.parse(fechaSeleccionada)),
+                    style: TextStyle(fontSize: 14, color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          SizedBox(width: 12),
+
+          // Switch de tipo de día
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            margin: EdgeInsets.symmetric(vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Text(
+                  'LUN-SÁB',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white,
+                    fontWeight: isDomingoFeriado ? FontWeight.normal : FontWeight.bold,
+                  ),
+                ),
+                SizedBox(width: 8),
+                Switch(
+                  value: isDomingoFeriado,
+                  onChanged: (value) {
+                    setState(() {
+                      tipoDia = value ? 'DOMINGO / FERIADO' : 'LUNES A SÁBADO';
+                      tarifaSeleccionada = null;
+                    });
+                    _cargarTarifas();
+                  },
+                  activeColor: Colors.white,
+                  activeTrackColor: Colors.red.shade300,
+                  inactiveThumbColor: Colors.white,
+                  inactiveTrackColor: Colors.blue.shade300,
+                ),
+                SizedBox(width: 8),
+                Text(
+                  'DOM/FER',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white,
+                    fontWeight: isDomingoFeriado ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(width: 16),
+
+          // Ayuda de teclas
           Padding(
             padding: EdgeInsets.only(right: 16),
             child: Center(
@@ -308,27 +434,49 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
         children: [
           Row(
             children: [
-              // Panel izquierdo - Mapa de asientos ESTÁTICO
+              // Panel izquierdo - Mapa de asientos COMPACTO
               Expanded(
                 flex: 2,
                 child: Container(
-                  color: Colors.grey.shade100,
-                  padding: EdgeInsets.all(24),
+                  color: _getColorSecundario(),
+                  padding: EdgeInsets.all(16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildSectionTitle('Mapa de Asientos'),
-                      SizedBox(height: 16),
+                      // Resumen compacto arriba
+                      _buildTicketPreviewCompact(),
+                      SizedBox(height: 12),
+                      Divider(),
+                      SizedBox(height: 8),
+                      
+                      _buildSectionTitle('Mapa de Asientos', isDomingoFeriado),
+                      SizedBox(height: 12),
+                      
+                      // Mapa de asientos con tamaño controlado
                       Expanded(
-                        child: Center(
-                          child: BusSeatMap(
-                            selectedSeat: asientoSeleccionado != null && asientoSeleccionado!.isNotEmpty
-                                ? int.tryParse(asientoSeleccionado!)
-                                : null,
-                            occupiedSeats: asientosOcupados,
-                            onSeatTap: _onAsientoSeleccionado,
-                            tipoDia: tipoDia,
-                          ),
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            return SingleChildScrollView(
+                              child: Center(
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                    maxHeight: constraints.maxHeight * 0.95,
+                                  ),
+                                  child: FittedBox(
+                                    fit: BoxFit.contain,
+                                    child: BusSeatMap(
+                                      selectedSeat: asientoSeleccionado != null && asientoSeleccionado!.isNotEmpty
+                                          ? int.tryParse(asientoSeleccionado!)
+                                          : null,
+                                      occupiedSeats: asientosOcupados,
+                                      onSeatTap: _onAsientoSeleccionado,
+                                      tipoDia: tipoDia,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       ),
                     ],
@@ -336,7 +484,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                 ),
               ),
 
-              // Panel derecho - TODOS los controles
+              // Panel derecho - Controles
               Expanded(
                 flex: 3,
                 child: Container(
@@ -349,7 +497,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildSectionTitle('Configuración del Viaje'),
+                          _buildSectionTitle('Configuración del Viaje', isDomingoFeriado),
                           SizedBox(height: 16),
 
                           // Destino
@@ -357,14 +505,14 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                           _buildSegmentedButton(
                             destinos,
                             destino,
-                                (value) {
+                            (value) {
                               setState(() {
                                 destino = value;
                                 if (value != 'Intermedio') kilometroIntermedio = null;
                               });
-                              // Recargar tarifas cuando cambie el destino
                               _cargarTarifas();
                             },
+                            isDomingoFeriado,
                           ),
 
                           // Origen para intermedio
@@ -373,35 +521,47 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                             Container(
                               padding: EdgeInsets.all(16),
                               decoration: BoxDecoration(
-                                color: Colors.blue.shade50,
+                                color: _getColorSecundario(),
                                 borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.blue.shade200),
+                                border: Border.all(color: _getColorPrimario().withOpacity(0.3)),
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  _buildLabel('Origen del Viaje', color: Colors.blue.shade700),
+                                  _buildLabel('Origen del Viaje', color: _getColorPrimario()),
                                   SizedBox(height: 8),
                                   _buildSegmentedButton(
                                     ['Aysen', 'Coyhaique'],
                                     origenIntermedio,
-                                        (value) {
+                                    (value) {
                                       setState(() {
                                         origenIntermedio = value;
                                         horarioSeleccionado = null;
                                       });
                                     },
+                                    isDomingoFeriado,
                                     compact: true,
                                   ),
                                   SizedBox(height: 12),
-                                  _buildLabel('Kilómetro Intermedio', color: Colors.blue.shade700),
+                                  _buildLabel('Kilómetro Intermedio', color: _getColorPrimario()),
                                   SizedBox(height: 8),
-                                  NumericInputField(
-                                    value: kilometroIntermedio,
-                                    hintText: 'Ej: 20 (máx. 64)',
+                                  TextFormField(
+                                    controller: _kmController,
                                     focusNode: _kmIntermedioFocusNode,
+                                    keyboardType: TextInputType.number,
+                                    inputFormatters: [
+                                      FilteringTextInputFormatter.digitsOnly,
+                                      LengthLimitingTextInputFormatter(2),
+                                    ],
+                                    decoration: InputDecoration(
+                                      hintText: 'Ej: 20 (máx. 64)',
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                    ),
                                     validator: (value) {
-                                      if (value.isEmpty) return 'Ingrese el kilómetro';
+                                      if (value == null || value.isEmpty) return 'Ingrese el kilómetro';
                                       int? km = int.tryParse(value);
                                       if (km == null || km <= 0 || km > 64) {
                                         return 'Debe estar entre 1 y 64';
@@ -409,12 +569,17 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                                       return null;
                                     },
                                     onChanged: (value) {
-                                      if (value.length <= 2 && int.tryParse(value) != null) {
-                                        int km = int.parse(value);
-                                        if (km <= 64) setState(() => kilometroIntermedio = value);
+                                      if (value.isNotEmpty) {
+                                        int? km = int.tryParse(value);
+                                        if (km != null && km <= 64) {
+                                          setState(() => kilometroIntermedio = value);
+                                        }
                                       }
                                     },
-                                    onEnterPressed: () => _horarioFocusNode.requestFocus(),
+                                    onFieldSubmitted: (_) {
+                                      _horarioFocusNode.requestFocus();
+                                      _autoScrollToField(_horarioFocusNode);
+                                    },
                                   ),
                                 ],
                               ),
@@ -422,193 +587,46 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                           ],
 
                           SizedBox(height: 24),
-
-                          // Fecha de salida
-                          _buildLabel('Fecha de Salida'),
-                          InkWell(
-                            onTap: () async {
-                              final fechaLimite = DateTime.now().add(Duration(days: 35)); // 5 semanas
-                              final fechaPick = await showDatePicker(
-                                context: context,
-                                initialDate: DateTime.parse(fechaSeleccionada),
-                                firstDate: DateTime.now(),
-                                lastDate: fechaLimite,
-                                locale: const Locale('es', 'ES'),
-                              );
-                              if (fechaPick != null) {
-                                setState(() {
-                                  fechaSeleccionada = DateFormat('yyyy-MM-dd').format(fechaPick);
-                                  horarioSeleccionado = null;
-                                  asientoSeleccionado = null;
-                                  salidaId = null;
-                                  asientosOcupados.clear();
-                                });
-                              }
-                            },
-                            child: Container(
-                              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.grey.shade300),
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    DateFormat('EEEE, dd MMMM yyyy', 'es_ES').format(DateTime.parse(fechaSeleccionada)),
-                                    style: TextStyle(fontSize: 14),
-                                  ),
-                                  Icon(Icons.calendar_today, size: 20, color: Colors.blue.shade700),
-                                ],
-                              ),
-                            ),
-                          ),
-
-                          SizedBox(height: 24),
-
-                          // Tipo de día
-                          _buildLabel('Tipo de Día'),
-                          _buildSegmentedButton(
-                            tiposDia,
-                            tipoDia,
-                                (value) {
-                              setState(() {
-                                tipoDia = value;
-                                tarifaSeleccionada = null;
-                              });
-                              _cargarTarifas();
-                            },
-                          ),
-
-                          SizedBox(height: 24),
-
-                          // Categoría de tarifa
-                          _buildLabel('Categoría de Tarifa'),
-                          if (tarifasDisponibles.isEmpty)
-                            Container(
-                              padding: EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.orange.shade50,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.orange.shade200),
-                              ),
-                              child: Text(
-                                'No hay tarifas disponibles',
-                                style: TextStyle(color: Colors.orange.shade700),
-                              ),
-                            )
-                          else
-                            Container(
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.grey.shade300),
-                              ),
-                              child: DropdownButtonHideUnderline(
-                                child: DropdownButton<Tarifa>(
-                                  isExpanded: true,
-                                  value: tarifaSeleccionada,
-                                  padding: EdgeInsets.symmetric(horizontal: 12),
-                                  items: tarifasDisponibles.map((tarifa) {
-                                    return DropdownMenuItem<Tarifa>(
-                                      value: tarifa,
-                                      child: Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Text(tarifa.categoria),
-                                          Text(
-                                            '\$${tarifa.valor.toStringAsFixed(0)}',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.blue.shade700,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                  }).toList(),
-                                  onChanged: (tarifa) {
-                                    setState(() {
-                                      tarifaSeleccionada = tarifa;
-                                      if (tarifa != null) {
-                                        valorBoleto = tarifa.valor.toStringAsFixed(0);
-                                      }
-                                    });
-                                  },
-                                ),
-                              ),
-                            ),
-
-                          SizedBox(height: 24),
-
-                          // Fecha de salida (selector visual)
-                          _buildLabel('Fecha de Salida (Selector)'),
-                          InkWell(
-                            onTap: () async {
-                              final fechaLimite = DateTime.now().add(Duration(days: 35)); // 5 semanas
-                              final fechaPick = await showDatePicker(
-                                context: context,
-                                initialDate: DateTime.parse(fechaSeleccionada),
-                                firstDate: DateTime.now(),
-                                lastDate: fechaLimite,
-                                locale: const Locale('es', 'ES'),
-                              );
-                              if (fechaPick != null) {
-                                setState(() {
-                                  fechaSeleccionada = DateFormat('yyyy-MM-dd').format(fechaPick);
-                                  horarioSeleccionado = null;
-                                  asientoSeleccionado = null;
-                                  salidaId = null;
-                                  asientosOcupados.clear();
-                                });
-                              }
-                            },
-                            child: Container(
-                              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.grey.shade300),
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    DateFormat('EEEE, dd MMMM yyyy', 'es_ES').format(DateTime.parse(fechaSeleccionada)),
-                                    style: TextStyle(fontSize: 14),
-                                  ),
-                                  Icon(Icons.calendar_today, size: 20, color: Colors.blue.shade700),
-                                ],
-                              ),
-                            ),
-                          ),
-
-                          SizedBox(height: 32),
-                          _buildSectionTitle('Datos del Boleto'),
+                          _buildSectionTitle('Datos del Boleto', isDomingoFeriado),
                           SizedBox(height: 16),
-
-                          // Recuadro guía del boleto
-                          _buildTicketPreview(),
-                          SizedBox(height: 24),
 
                           // CAMPO DE FECHA ESCRITA (050825 -> 05/08/25)
                           _buildLabel('Fecha (Escribir)'),
-                          DateInputField(
-                            value: fechaEscrita,
+                          TextFormField(
+                            controller: _fechaController,
                             focusNode: _fechaFocusNode,
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                              LengthLimitingTextInputFormatter(6),
+                              _DateInputFormatter(),
+                            ],
+                            decoration: InputDecoration(
+                              hintText: 'DD/MM/AA',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            ),
+                            onTap: () {
+                              // Seleccionar todo el texto al hacer click
+                              _fechaController.selection = TextSelection(
+                                baseOffset: 0,
+                                extentOffset: _fechaController.text.length,
+                              );
+                            },
                             validator: (value) {
-                              if (value.isEmpty) return null; // Opcional
-                              if (value.length != 8) return 'Formato: DD/MM/AA';
+                              if (value == null || value.isEmpty) return null; // Opcional
+                              String cleaned = value.replaceAll('/', '');
+                              if (cleaned.length != 6) return 'Formato: DD/MM/AA';
                               return null;
                             },
                             onChanged: (value) {
-                              setState(() => fechaEscrita = value);
+                              setState(() => fechaEscrita = value.replaceAll('/', ''));
                             },
-                            onEnterPressed: () {
-                              // Auto-scroll al horario
-                              _autoScrollToAsiento();
+                            onFieldSubmitted: (_) {
                               _horarioFocusNode.requestFocus();
+                              _autoScrollToField(_horarioFocusNode);
                             },
                           ),
 
@@ -616,47 +634,84 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
 
                           // HORARIO (vertical)
                           _buildLabel('Horario de Salida'),
-                          HorarioInputField(
-                            value: horarioSeleccionado,
-                            destino: destino,
-                            origenIntermedio: origenIntermedio,
-                            fechaSeleccionada: fechaSeleccionada,
-                            validator: _validarHorario,
+                          TextFormField(
+                            controller: _horarioController,
                             focusNode: _horarioFocusNode,
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(RegExp(r'[0-9:]')),
+                              LengthLimitingTextInputFormatter(5),
+                              _TimeInputFormatter(),
+                            ],
+                            decoration: InputDecoration(
+                              hintText: 'HH:MM',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            ),
+                            onTap: () {
+                              _horarioController.selection = TextSelection(
+                                baseOffset: 0,
+                                extentOffset: _horarioController.text.length,
+                              );
+                            },
+                            validator: _validarHorario,
                             onChanged: (value) {
                               setState(() => horarioSeleccionado = value);
-                              _cargarAsientosOcupados();
+                              if (value.length == 5) {
+                                _cargarAsientosOcupados();
+                              }
                             },
-                            onEnterPressed: () {
-                              _autoScrollToAsiento();
+                            onFieldSubmitted: (_) {
                               _asientoFocusNode.requestFocus();
+                              _autoScrollToField(_asientoFocusNode);
                             },
                           ),
 
                           SizedBox(height: 24),
 
-                          // ASIENTO (vertical)
+                          // ASIENTO (vertical) - MODIFICADO PARA NO AUTO-SELECCIONAR
                           _buildLabel('Número de Asiento'),
-                          NumericInputField(
-                            label: '',
-                            value: asientoSeleccionado,
-                            hintText: '01-45',
-                            validator: _validarAsiento,
+                          TextFormField(
+                            controller: _asientoController,
                             focusNode: _asientoFocusNode,
-                            onChanged: (value) => setState(() => asientoSeleccionado = value),
-                            onEnterPressed: () {
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                              LengthLimitingTextInputFormatter(2),
+                            ],
+                            decoration: InputDecoration(
+                              hintText: '01-45',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            ),
+                            onTap: () {
+                              _asientoController.selection = TextSelection(
+                                baseOffset: 0,
+                                extentOffset: _asientoController.text.length,
+                              );
+                            },
+                            validator: _validarAsiento,
+                            onChanged: (value) {
+                              setState(() => asientoSeleccionado = value);
+                            },
+                            onFieldSubmitted: (_) {
                               final authProvider = Provider.of<AuthProvider>(context, listen: false);
                               if (authProvider.isSecretaria) {
                                 _confirmarVenta();
                               } else {
                                 _valorFocusNode.requestFocus();
+                                _autoScrollToField(_valorFocusNode);
                               }
                             },
                           ),
 
                           SizedBox(height: 24),
 
-                          // Valor del boleto - Para administradores con teclado, para secretarias panel de tarifas
+                          // Valor del boleto
                           Builder(
                             builder: (context) {
                               final authProvider = Provider.of<AuthProvider>(context);
@@ -702,7 +757,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                                                       '\$${tarifa.valor.toStringAsFixed(0)}',
                                                       style: TextStyle(
                                                         fontWeight: FontWeight.bold,
-                                                        color: Colors.blue.shade700,
+                                                        color: _getColorPrimario(),
                                                       ),
                                                     ),
                                                   ],
@@ -714,6 +769,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                                                 tarifaSeleccionada = tarifa;
                                                 if (tarifa != null) {
                                                   valorBoleto = tarifa.valor.toStringAsFixed(0);
+                                                  _valorController.text = valorBoleto;
                                                 }
                                               });
                                             },
@@ -728,16 +784,30 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     _buildLabel('Valor del Boleto'),
-                                    NumericInputField(
-                                      label: '',
-                                      value: valorBoleto == '0' ? '' : valorBoleto,
-                                      hintText: 'Ingrese valor',
-                                      prefix: '\$',
-                                      validator: _validarValor,
+                                    TextFormField(
+                                      controller: _valorController,
                                       focusNode: _valorFocusNode,
+                                      keyboardType: TextInputType.number,
+                                      inputFormatters: [
+                                        FilteringTextInputFormatter.digitsOnly,
+                                      ],
+                                      decoration: InputDecoration(
+                                        hintText: 'Ingrese valor',
+                                        prefixText: '\$ ',
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                      ),
+                                      onTap: () {
+                                        _valorController.selection = TextSelection(
+                                          baseOffset: 0,
+                                          extentOffset: _valorController.text.length,
+                                        );
+                                      },
+                                      validator: _validarValor,
                                       onChanged: (value) => setState(() => valorBoleto = value),
-                                      onEnterPressed: _confirmarVenta,
-                                      showKeyboard: true,
+                                      onFieldSubmitted: (_) => _confirmarVenta(),
                                     ),
                                   ],
                                 );
@@ -756,7 +826,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                               icon: Icon(Icons.print),
                               label: Text('GENERAR TICKET (F1)', style: TextStyle(fontSize: 16)),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.blue.shade600,
+                                backgroundColor: _getColorPrimario(),
                                 foregroundColor: Colors.white,
                               ),
                             ),
@@ -797,10 +867,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
     );
   }
 
-  Widget _buildTicketPreview() {
-    final ahora = DateTime.now();
-    final esHoy = fechaSeleccionada == DateTime(ahora.year, ahora.month, ahora.day)
-        .toString().split(' ')[0];
+  Widget _buildTicketPreviewCompact() {
     final isDomingoFeriado = tipoDia == 'DOMINGO / FERIADO';
 
     String origenTexto = destino == 'Coyhaique' ? 'Aysén' : 'Coyhaique';
@@ -814,84 +881,39 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
     return Container(
       padding: EdgeInsets.all(12),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: isDomingoFeriado
-            ? [Colors.red.shade50, Colors.red.shade100]
-            : [Colors.blue.shade50, Colors.blue.shade100],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: isDomingoFeriado ? Colors.red.shade300 : Colors.blue.shade300,
-          width: 1.5,
+          width: 2,
         ),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(
-                Icons.confirmation_number,
-                color: isDomingoFeriado ? Colors.red.shade700 : Colors.blue.shade700,
-                size: 16,
-              ),
-              SizedBox(width: 6),
-              Text(
-                'RESUMEN',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  color: isDomingoFeriado ? Colors.red.shade700 : Colors.blue.shade700,
-                ),
-              ),
-              if (esHoy) ...[
-                Spacer(),
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: isDomingoFeriado ? Colors.red.shade600 : Colors.blue.shade600,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    'HOY',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 8,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-          SizedBox(height: 8),
-
-          // Origen → Destino en una línea
+          // Origen → Destino
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
                 origenTexto,
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: 14,
                   fontWeight: FontWeight.bold,
                   color: isDomingoFeriado ? Colors.red.shade800 : Colors.blue.shade800,
                 ),
               ),
               Padding(
-                padding: EdgeInsets.symmetric(horizontal: 6),
+                padding: EdgeInsets.symmetric(horizontal: 8),
                 child: Icon(
                   Icons.arrow_forward,
                   color: isDomingoFeriado ? Colors.red.shade600 : Colors.blue.shade600,
-                  size: 14,
+                  size: 16,
                 ),
               ),
               Text(
                 destinoTexto,
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: 14,
                   fontWeight: FontWeight.bold,
                   color: isDomingoFeriado ? Colors.red.shade800 : Colors.blue.shade800,
                 ),
@@ -900,39 +922,25 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
           ),
 
           SizedBox(height: 8),
-          Divider(color: isDomingoFeriado ? Colors.red.shade300 : Colors.blue.shade300, height: 1),
-          SizedBox(height: 8),
 
-          // Detalles en grid compacto
+          // Detalles compactos
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              Expanded(
-                child: _buildPreviewItemCompact(
-                  DateFormat('dd/MM', 'es_ES').format(DateTime.parse(fechaSeleccionada)),
-                  Icons.calendar_today,
-                  isDomingoFeriado,
-                ),
+              _buildInfoChip(
+                horarioSeleccionado ?? '--:--',
+                Icons.access_time,
+                isDomingoFeriado,
               ),
-              Expanded(
-                child: _buildPreviewItemCompact(
-                  horarioSeleccionado ?? '--:--',
-                  Icons.access_time,
-                  isDomingoFeriado,
-                ),
+              _buildInfoChip(
+                'A-${asientoSeleccionado ?? '--'}',
+                Icons.event_seat,
+                isDomingoFeriado,
               ),
-              Expanded(
-                child: _buildPreviewItemCompact(
-                  asientoSeleccionado ?? '--',
-                  Icons.event_seat,
-                  isDomingoFeriado,
-                ),
-              ),
-              Expanded(
-                child: _buildPreviewItemCompact(
-                  '\$${valorBoleto != '0' ? valorBoleto : '--'}',
-                  Icons.attach_money,
-                  isDomingoFeriado,
-                ),
+              _buildInfoChip(
+                '\$${valorBoleto != '0' ? valorBoleto : '--'}',
+                Icons.attach_money,
+                isDomingoFeriado,
               ),
             ],
           ),
@@ -941,32 +949,43 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
     );
   }
 
-  Widget _buildPreviewItemCompact(String value, IconData icon, bool isDomingoFeriado) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(
-          icon,
-          size: 12,
-          color: isDomingoFeriado ? Colors.red.shade600 : Colors.blue.shade600,
-        ),
-        SizedBox(width: 4),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.bold,
-            color: isDomingoFeriado ? Colors.red.shade800 : Colors.blue.shade800,
+  Widget _buildInfoChip(String text, IconData icon, bool isDomingoFeriado) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: isDomingoFeriado ? Colors.red.shade50 : Colors.blue.shade50,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 14,
+            color: isDomingoFeriado ? Colors.red.shade700 : Colors.blue.shade700,
           ),
-        ),
-      ],
+          SizedBox(width: 4),
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: isDomingoFeriado ? Colors.red.shade800 : Colors.blue.shade800,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildSectionTitle(String title) {
+  Widget _buildSectionTitle(String title, bool isDomingoFeriado) {
     return Text(
       title,
-      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.grey.shade800),
+      style: TextStyle(
+        fontSize: 18,
+        fontWeight: FontWeight.bold,
+        color: isDomingoFeriado ? Colors.red.shade800 : Colors.blue.shade800,
+      ),
     );
   }
 
@@ -984,7 +1003,16 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
     );
   }
 
-  Widget _buildSegmentedButton(List<String> options, String selected, Function(String) onSelect, {bool compact = false}) {
+  Widget _buildSegmentedButton(
+    List<String> options,
+    String selected,
+    Function(String) onSelect,
+    bool isDomingoFeriado,
+    {bool compact = false}
+  ) {
+    final colorPrimario = isDomingoFeriado ? Colors.red.shade100 : Colors.blue.shade100;
+    final colorTexto = isDomingoFeriado ? Colors.red.shade700 : Colors.blue.shade700;
+
     return Container(
       height: compact ? 40 : 44,
       decoration: BoxDecoration(
@@ -1002,7 +1030,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
               child: Container(
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: isSelected ? Colors.blue.shade100 : Colors.transparent,
+                  color: isSelected ? colorPrimario : Colors.transparent,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
@@ -1011,7 +1039,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                   style: TextStyle(
                     fontSize: compact ? 12 : 13,
                     fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                    color: isSelected ? Colors.blue.shade700 : Colors.black87,
+                    color: isSelected ? colorTexto : Colors.black87,
                   ),
                 ),
               ),
@@ -1019,6 +1047,60 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
           );
         }).toList(),
       ),
+    );
+  }
+}
+
+class _DateInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue,
+      TextEditingValue newValue,
+      ) {
+    final text = newValue.text.replaceAll('/', '');
+
+    if (text.length > 6) {
+      return oldValue;
+    }
+
+    String formatted = '';
+    for (int i = 0; i < text.length; i++) {
+      if (i == 2 || i == 4) {
+        formatted += '/';
+      }
+      formatted += text[i];
+    }
+
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+}
+
+class _TimeInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue,
+      TextEditingValue newValue,
+      ) {
+    final text = newValue.text.replaceAll(':', '');
+
+    if (text.length > 4) {
+      return oldValue;
+    }
+
+    String formatted = '';
+    for (int i = 0; i < text.length; i++) {
+      if (i == 2) {
+        formatted += ':';
+      }
+      formatted += text[i];
+    }
+
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
     );
   }
 }

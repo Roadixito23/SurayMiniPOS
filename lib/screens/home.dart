@@ -5,6 +5,13 @@ import '../models/auth_provider.dart';
 import '../database/app_database.dart';
 import 'dart:math' as math;
 
+// Imports añadidos para la simulación de datos
+import 'dart:math';
+import 'package:intl/intl.dart';
+import '../database/caja_database.dart';
+import '../models/comprobante.dart';
+import '../models/tarifa.dart';
+
 class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -175,6 +182,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   String _secretCode = '';
   bool _showSettingsButton = false;
   bool _showDebugButtons = false;
+  bool _isLoading = false; // Variable de estado para la carga de la DB
 
   @override
   void initState() {
@@ -249,10 +257,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
   }
 
+  /// REEMPLAZADO: Método para poblar la base de datos con datos de simulación
   Future<void> _poblarBaseDatos() async {
     try {
-      final db = AppDatabase.instance;
-
       // Mostrar diálogo de confirmación
       final confirmar = await showDialog<bool>(
         context: context,
@@ -264,7 +271,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               Text('Poblar Base de Datos'),
             ],
           ),
-          content: Text('¿Está seguro de agregar datos de prueba? Esto creará múltiples registros en la base de datos.'),
+          content: Text('¿Está seguro de agregar datos de simulación? Esto generará ~100 ventas y gastos ficticios para el día de hoy.'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -281,21 +288,135 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
       if (confirmar != true) return;
 
-      // Aquí agregar lógica para poblar con datos de prueba
-      // Por ahora solo mostrar mensaje de éxito
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Base de datos poblada con datos de prueba'),
-          backgroundColor: Colors.green,
-        ),
+      setState(() => _isLoading = true);
+
+      final cajaDb = CajaDatabase();
+      final appDb = AppDatabase.instance;
+      final comprobanteManager = ComprobanteManager();
+      await comprobanteManager.initialize(); // Asegurar que esté inicializado
+      final random = Random();
+
+      final String fechaHoy = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      final String tipoDiaHoy = DateTime.now().weekday >= 6 ? 'DOMINGO / FERIADO' : 'LUNES A SÁBADO';
+
+      // Obtener tarifas disponibles para hoy
+      final tarifasMap = await appDb.getTarifasByTipoDia(tipoDiaHoy);
+      final tarifas = tarifasMap.map((t) => Tarifa.fromMap(t)).toList();
+
+      if (tarifas.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('No hay tarifas configuradas para poblar datos.'), backgroundColor: Colors.orange),
+          );
+        }
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      final List<String> horariosSalida = ['08:30', '09:45', '11:00', '12:00', '14:10', '15:40', '17:00', '19:50'];
+      final List<String> destinos = ['Aysen', 'Coyhaique'];
+      final List<String> nombres = ['Ana', 'Bruno', 'Carla', 'David', 'Elena', 'Felipe', 'Gala', 'Hugo', 'Ines', 'Juan'];
+
+      // 1. Poblar Ventas de Bus (Simulamos 80 ventas)
+      int ventasBusGeneradas = 0;
+      for (int i = 0; i < 80; i++) {
+        // Seleccionar una tarifa al azar (omitir intermedios para este bucle simple)
+        final tarifa = tarifas[random.nextInt(tarifas.length)];
+        if (tarifa.categoria.toUpperCase().contains('INTERMEDIO')) continue;
+
+        final horario = horariosSalida[random.nextInt(horariosSalida.length)];
+        final destino = destinos[random.nextInt(destinos.length)];
+        final asiento = random.nextInt(45) + 1; // Asiento aleatorio 1-45
+        final esEfectivo = random.nextBool();
+        final valor = tarifa.valor;
+
+        // Generar comprobante real
+        final String numeroComprobante = await comprobanteManager.getNextBusComprobante(tarifa.categoria);
+
+        // Registrar en CajaDatabase
+        await cajaDb.registrarVentaBus(
+          destino: destino,
+          horario: horario,
+          asiento: asiento.toString().padLeft(2, '0'),
+          valor: valor,
+          comprobante: numeroComprobante,
+          tipoBoleto: tarifa.categoria,
+          metodoPago: esEfectivo ? 'Efectivo' : 'Tarjeta',
+          montoEfectivo: esEfectivo ? valor : 0,
+          montoTarjeta: esEfectivo ? 0 : valor,
+        );
+
+        // Registrar en AppDatabase (mapa de asientos)
+        final salidaId = await appDb.crearObtenerSalida(
+          fecha: fechaHoy,
+          horario: horario,
+          destino: destino,
+          tipoDia: tipoDiaHoy,
+        );
+
+        try {
+          // Intentar reservar el asiento
+          await appDb.reservarAsiento(
+            salidaId: salidaId,
+            numeroAsiento: asiento,
+            comprobante: numeroComprobante,
+          );
+        } catch (e) {
+          // Ignorar error de asiento duplicado (UNIQUE constraint)
+          // Esto es normal y esperado en una simulación aleatoria
+        }
+        ventasBusGeneradas++;
+      }
+
+      // 2. Poblar Ventas de Carga (Simulamos 15 ventas)
+      for (int i = 0; i < 15; i++) {
+        final String numeroComprobante = await comprobanteManager.getNextCargoComprobante();
+        final valor = (random.nextInt(20) + 5) * 1000.0; // 5000 a 25000
+        await cajaDb.registrarVentaCargo(
+          remitente: '${nombres[random.nextInt(nombres.length)]} ${nombres[random.nextInt(nombres.length)]}',
+          destinatario: '${nombres[random.nextInt(nombres.length)]} ${nombres[random.nextInt(nombres.length)]}',
+          destino: destinos[random.nextInt(destinos.length)],
+          articulo: 'Caja N°${random.nextInt(100)}',
+          valor: valor,
+          comprobante: numeroComprobante,
+          metodoPago: 'Efectivo',
+          montoEfectivo: valor,
+          montoTarjeta: 0,
+        );
+      }
+
+      // 3. Poblar Gastos (Simulamos 2 gastos)
+      await cajaDb.registrarGasto(
+        tipoGasto: 'Combustible',
+        monto: 75000.0,
+        numeroMaquina: 'AB-123',
+        chofer: 'Juan Perez',
       );
+      await cajaDb.registrarGasto(
+        tipoGasto: 'Otros',
+        monto: 15000.0,
+        descripcion: 'Insumos oficina',
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Base de datos poblada con $ventasBusGeneradas ventas de bus, 15 de carga y 2 gastos.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error al poblar base de datos: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al poblar base de datos: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      setState(() => _isLoading = false);
     }
   }
 
@@ -335,6 +456,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       final db = AppDatabase.instance;
       await db.limpiarTodasLasTablas();
 
+      // Adicionalmente, limpiar los archivos JSON de caja
+      final cajaDb = CajaDatabase();
+      await cajaDb.limpiarDatos();
+
+      // Reiniciar comprobantes
+      await ComprobanteManager().resetCounter();
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Base de datos limpiada exitosamente'),
@@ -372,305 +500,305 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           children: [
             Column(
               children: [
-          // Barra superior moderna
-          Container(
-            height: 70,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
-                  blurRadius: 10,
-                  offset: Offset(0, 2),
-                ),
-              ],
-            ),
-            padding: EdgeInsets.symmetric(horizontal: 32),
-            child: Row(
-              children: [
+                // Barra superior moderna
                 Container(
-                  padding: EdgeInsets.all(8),
+                  height: 70,
                   decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(
-                    Icons.dashboard,
-                    color: Colors.blue.shade700,
-                    size: 24,
-                  ),
-                ),
-                SizedBox(width: 16),
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Panel Principal',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey.shade800,
+                    color: Colors.white,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.08),
+                        blurRadius: 10,
+                        offset: Offset(0, 2),
                       ),
-                    ),
-                    Text(
-                      'Bienvenido al sistema',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                  ],
-                ),
-                Spacer(),
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(20),
+                    ],
                   ),
+                  padding: EdgeInsets.symmetric(horizontal: 32),
                   child: Row(
                     children: [
-                      Icon(
-                        Icons.access_time,
-                        size: 16,
-                        color: Colors.blue.shade700,
-                      ),
-                      SizedBox(width: 8),
-                      Text(
-                        DateTime.now().toString().substring(0, 16),
-                        style: TextStyle(
+                      Container(
+                        padding: EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          Icons.dashboard,
                           color: Colors.blue.shade700,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
+                          size: 24,
+                        ),
+                      ),
+                      SizedBox(width: 16),
+                      Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Panel Principal',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey.shade800,
+                            ),
+                          ),
+                          Text(
+                            'Bienvenido al sistema',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Spacer(),
+                      Container(
+                        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.access_time,
+                              size: 16,
+                              color: Colors.blue.shade700,
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              DateTime.now().toString().substring(0, 16),
+                              style: TextStyle(
+                                color: Colors.blue.shade700,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
                 ),
-              ],
-            ),
-          ),
-          // Contenido principal con scrollbar fijo
-          Expanded(
-            child: Scrollbar(
-              controller: _scrollController,
-              thumbVisibility: true,
-              thickness: 8,
-              radius: Radius.circular(4),
-              child: SingleChildScrollView(
-                controller: _scrollController,
-                padding: EdgeInsets.all(32),
-                child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Sección de ventas
-                  _SectionHeader(
-                    title: 'Ventas',
-                    icon: Icons.shopping_cart,
-                  ),
-                  SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _ActionCard(
-                          icon: Icons.airline_seat_recline_normal,
-                          title: 'Venta de Pasajes',
-                          description: 'Registrar venta de boletos de bus',
-                          color: Colors.blue,
-                          shortcut: 'F1',
-                          onTap: () => Navigator.pushNamed(context, '/venta_bus'),
-                        ),
-                      ),
-                      SizedBox(width: 16),
-                      Expanded(
-                        child: _ActionCard(
-                          icon: Icons.inventory,
-                          title: 'Venta de Carga',
-                          description: 'Registrar envío de encomiendas',
-                          color: Colors.purple,
-                          shortcut: 'F2',
-                          onTap: () => Navigator.pushNamed(context, '/venta_cargo'),
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 24),
-
-                  // Sección de consultas
-                  _SectionHeader(
-                    title: 'Consultas y Análisis',
-                    icon: Icons.search,
-                  ),
-                  SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _ActionCard(
-                          icon: Icons.history,
-                          title: 'Historial de Carga',
-                          description: 'Consultar envíos registrados',
-                          color: Colors.orange,
-                          shortcut: 'F3',
-                          onTap: () => Navigator.pushNamed(context, '/cargo_history'),
-                        ),
-                      ),
-                      SizedBox(width: 16),
-                      Expanded(
-                        child: _ActionCard(
-                          icon: Icons.analytics,
-                          title: 'Estadísticas',
-                          description: 'Ver análisis y reportes del sistema',
-                          color: Colors.teal,
-                          shortcut: 'F7',
-                          onTap: () => Navigator.pushNamed(context, '/estadisticas'),
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 24),
-
-                  // Sección de administración
-                  _SectionHeader(
-                    title: 'Administración',
-                    icon: Icons.admin_panel_settings,
-                  ),
-                  SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _ActionCard(
-                          icon: Icons.calculate,
-                          title: 'Cierre de Caja',
-                          description: 'Realizar cuadre de caja diario',
-                          color: Colors.green.shade600,
-                          shortcut: 'F4',
-                          onTap: () => Navigator.pushNamed(context, '/cierre_caja'),
-                        ),
-                      ),
-                      SizedBox(width: 16),
-                      Expanded(
-                        child: _ActionCard(
-                          icon: Icons.storage,
-                          title: 'Gestión de Datos',
-                          description: 'Administrar información del sistema',
-                          color: Colors.indigo,
-                          shortcut: 'F5',
-                          onTap: () => Navigator.pushNamed(context, '/data_management'),
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Builder(
-                          builder: (context) {
-                            final authProvider = Provider.of<AuthProvider>(context);
-                            return _ActionCard(
-                              icon: Icons.people,
-                              title: 'Gestión de Usuarios',
-                              description: authProvider.isAdmin
-                                  ? 'Administrar usuarios y permisos'
-                                  : 'Solo administradores',
-                              color: authProvider.isAdmin ? Colors.deepPurple : Colors.grey,
-                              shortcut: 'F6',
-                              onTap: authProvider.isAdmin
-                                  ? () => Navigator.pushNamed(context, '/usuarios')
-                                  : () {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(
-                                          content: Text('Solo los administradores pueden acceder a esta sección'),
-                                          backgroundColor: Colors.red,
-                                        ),
-                                      );
-                                    },
-                            );
-                          },
-                        ),
-                      ),
-                      SizedBox(width: 16),
-                      Expanded(child: SizedBox()),
-                    ],
-                  ),
-                  SizedBox(height: 24),
-
-                  // Información del sistema con animación
-                  FadeTransition(
-                    opacity: _animationController,
-                    child: Container(
-                      padding: EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [Colors.blue.shade50, Colors.blue.shade100],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.blue.shade200),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.blue.withOpacity(0.1),
-                            blurRadius: 10,
-                            offset: Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Row(
+                // Contenido principal con scrollbar fijo
+                Expanded(
+                  child: Scrollbar(
+                    controller: _scrollController,
+                    thumbVisibility: true,
+                    thickness: 8,
+                    radius: Radius.circular(4),
+                    child: SingleChildScrollView(
+                      controller: _scrollController,
+                      padding: EdgeInsets.all(32),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Container(
-                            padding: EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.blue.shade700,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Icon(
-                              Icons.cloud_done,
-                              color: Colors.white,
-                              size: 28,
-                            ),
+                          // Sección de ventas
+                          _SectionHeader(
+                            title: 'Ventas',
+                            icon: Icons.shopping_cart,
                           ),
-                          SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Sistema de Respaldo Activo',
-                                  style: TextStyle(
-                                    color: Colors.blue.shade900,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 15,
-                                  ),
+                          SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _ActionCard(
+                                  icon: Icons.airline_seat_recline_normal,
+                                  title: 'Venta de Pasajes',
+                                  description: 'Registrar venta de boletos de bus',
+                                  color: Colors.blue,
+                                  shortcut: 'F1',
+                                  onTap: () => Navigator.pushNamed(context, '/venta_bus'),
                                 ),
-                                SizedBox(height: 4),
-                                Text(
-                                  'Tus datos están protegidos automáticamente',
-                                  style: TextStyle(
-                                    color: Colors.blue.shade700,
-                                    fontSize: 13,
-                                  ),
+                              ),
+                              SizedBox(width: 16),
+                              Expanded(
+                                child: _ActionCard(
+                                  icon: Icons.inventory,
+                                  title: 'Venta de Carga',
+                                  description: 'Registrar envío de encomiendas',
+                                  color: Colors.purple,
+                                  shortcut: 'F2',
+                                  onTap: () => Navigator.pushNamed(context, '/venta_cargo'),
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
-                          Icon(
-                            Icons.check_circle,
-                            color: Colors.green,
-                            size: 24,
+                          SizedBox(height: 24),
+
+                          // Sección de consultas
+                          _SectionHeader(
+                            title: 'Consultas y Análisis',
+                            icon: Icons.search,
+                          ),
+                          SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _ActionCard(
+                                  icon: Icons.history,
+                                  title: 'Historial de Carga',
+                                  description: 'Consultar envíos registrados',
+                                  color: Colors.orange,
+                                  shortcut: 'F3',
+                                  onTap: () => Navigator.pushNamed(context, '/cargo_history'),
+                                ),
+                              ),
+                              SizedBox(width: 16),
+                              Expanded(
+                                child: _ActionCard(
+                                  icon: Icons.analytics,
+                                  title: 'Estadísticas',
+                                  description: 'Ver análisis y reportes del sistema',
+                                  color: Colors.teal,
+                                  shortcut: 'F7',
+                                  onTap: () => Navigator.pushNamed(context, '/estadisticas'),
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: 24),
+
+                          // Sección de administración
+                          _SectionHeader(
+                            title: 'Administración',
+                            icon: Icons.admin_panel_settings,
+                          ),
+                          SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _ActionCard(
+                                  icon: Icons.calculate,
+                                  title: 'Cierre de Caja',
+                                  description: 'Realizar cuadre de caja diario',
+                                  color: Colors.green.shade600,
+                                  shortcut: 'F4',
+                                  onTap: () => Navigator.pushNamed(context, '/cierre_caja'),
+                                ),
+                              ),
+                              SizedBox(width: 16),
+                              Expanded(
+                                child: _ActionCard(
+                                  icon: Icons.storage,
+                                  title: 'Gestión de Datos',
+                                  description: 'Administrar información del sistema',
+                                  color: Colors.indigo,
+                                  shortcut: 'F5',
+                                  onTap: () => Navigator.pushNamed(context, '/data_management'),
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Builder(
+                                  builder: (context) {
+                                    final authProvider = Provider.of<AuthProvider>(context);
+                                    return _ActionCard(
+                                      icon: Icons.people,
+                                      title: 'Gestión de Usuarios',
+                                      description: authProvider.isAdmin
+                                          ? 'Administrar usuarios y permisos'
+                                          : 'Solo administradores',
+                                      color: authProvider.isAdmin ? Colors.deepPurple : Colors.grey,
+                                      shortcut: 'F6',
+                                      onTap: authProvider.isAdmin
+                                          ? () => Navigator.pushNamed(context, '/usuarios')
+                                          : () {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text('Solo los administradores pueden acceder a esta sección'),
+                                            backgroundColor: Colors.red,
+                                          ),
+                                        );
+                                      },
+                                    );
+                                  },
+                                ),
+                              ),
+                              SizedBox(width: 16),
+                              Expanded(child: SizedBox()),
+                            ],
+                          ),
+                          SizedBox(height: 24),
+
+                          // Información del sistema con animación
+                          FadeTransition(
+                            opacity: _animationController,
+                            child: Container(
+                              padding: EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [Colors.blue.shade50, Colors.blue.shade100],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.blue.shade200),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.blue.withOpacity(0.1),
+                                    blurRadius: 10,
+                                    offset: Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.blue.shade700,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Icon(
+                                      Icons.cloud_done,
+                                      color: Colors.white,
+                                      size: 28,
+                                    ),
+                                  ),
+                                  SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Sistema de Respaldo Activo',
+                                          style: TextStyle(
+                                            color: Colors.blue.shade900,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 15,
+                                          ),
+                                        ),
+                                        SizedBox(height: 4),
+                                        Text(
+                                          'Tus datos están protegidos automáticamente',
+                                          style: TextStyle(
+                                            color: Colors.blue.shade700,
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Icon(
+                                    Icons.check_circle,
+                                    color: Colors.green,
+                                    size: 24,
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         ],
                       ),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ),
-        ),
-      ],
-    ),
 
             // Botón de ajustes animado (aparece al escribir "administrador")
             if (_showSettingsButton)
@@ -704,10 +832,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     FloatingActionButton.extended(
-                      onPressed: _poblarBaseDatos,
+                      onPressed: _isLoading ? null : _poblarBaseDatos, // MODIFICADO
                       backgroundColor: Colors.green.shade600,
                       icon: Icon(Icons.add_circle, color: Colors.white),
-                      label: Text(
+                      label: _isLoading // MODIFICADO
+                          ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                          : Text(
                         'Poblar DB',
                         style: TextStyle(color: Colors.white),
                       ),
@@ -715,7 +845,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     ),
                     SizedBox(height: 12),
                     FloatingActionButton.extended(
-                      onPressed: _limpiarBaseDatos,
+                      onPressed: _isLoading ? null : _limpiarBaseDatos, // MODIFICADO
                       backgroundColor: Colors.red.shade600,
                       icon: Icon(Icons.delete_forever, color: Colors.white),
                       label: Text(
