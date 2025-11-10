@@ -26,6 +26,9 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
   String? kilometroIntermedio;
   String origenIntermedio = 'Aysen';
 
+  // Origen del viaje para todos los destinos (no solo intermedio)
+  String origenViaje = 'Coyhaique'; // Por defecto desde Coyhaique
+
   String? horarioSeleccionado;
   String? asientoSeleccionado;
   String valorBoleto = '0';
@@ -277,7 +280,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
         tipoDia: tipoDia,
         tarifa: tarifaSeleccionada!.categoria,
         destino: destino,
-        origen: origenIntermedio,
+        origen: destino == 'Intermedio' ? origenIntermedio : origenViaje,
         kilometro: kilometroIntermedio,
         horario: horarioSeleccionado!,
         asiento: asientoSeleccionado!,
@@ -300,8 +303,14 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
 
       try {
         String destinoFormateado = destino;
+        String? origenParaTicket;
+
         if (destino == 'Intermedio' && kilometroIntermedio != null) {
           destinoFormateado = '$origenIntermedio - Intermedio Km $kilometroIntermedio';
+          origenParaTicket = origenIntermedio;
+        } else {
+          // Para destinos regulares, usar el origen seleccionado
+          origenParaTicket = origenViaje;
         }
 
         final comprobante = await BusTicketGenerator.generateAndPrintTicket(
@@ -311,7 +320,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
           valor: valorBoleto,
           tipoDia: tipoDia,
           tituloTarifa: tarifaSeleccionada?.categoria ?? 'PUBLICO GENERAL',
-          origen: destino == 'Intermedio' ? origenIntermedio : null,
+          origen: origenParaTicket,
           kilometros: destino == 'Intermedio' ? kilometroIntermedio : null,
           metodoPago: paymentResult['metodo'],
           montoEfectivo: paymentResult['montoEfectivo'],
@@ -619,11 +628,65 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                               setState(() {
                                 destino = value;
                                 if (value != 'Intermedio') kilometroIntermedio = null;
+
+                                // Ajustar origen automáticamente según destino
+                                if (value == 'Aysen') {
+                                  origenViaje = 'Coyhaique';
+                                } else if (value == 'Coyhaique') {
+                                  origenViaje = 'Aysen';
+                                }
                               });
                               _cargarTarifas();
                             },
                             isDomingoFeriado,
                           ),
+
+                          // Selector de origen para todos los destinos (excepto Intermedio que usa su propio selector)
+                          if (destino != 'Intermedio') ...[
+                            SizedBox(height: 16),
+                            Container(
+                              padding: EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: _getColorSecundario(),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: _getColorPrimario().withOpacity(0.3)),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(Icons.trip_origin, color: _getColorPrimario(), size: 20),
+                                      SizedBox(width: 8),
+                                      _buildLabel('Origen del Viaje', color: _getColorPrimario()),
+                                    ],
+                                  ),
+                                  SizedBox(height: 8),
+                                  _buildSegmentedButton(
+                                    ['Coyhaique', 'Aysen'],
+                                    origenViaje,
+                                    (value) {
+                                      setState(() {
+                                        origenViaje = value;
+                                        horarioSeleccionado = null;
+                                      });
+                                    },
+                                    isDomingoFeriado,
+                                    compact: true,
+                                  ),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    'Viaje: $origenViaje → $destino',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                      color: _getColorPrimario(),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
 
                           // Origen para intermedio
                           if (destino == 'Intermedio') ...[
@@ -1245,7 +1308,7 @@ class _ConfirmDialog extends StatelessWidget {
           _buildRow('Tipo de día:', tipoDia),
           _buildRow('Tarifa:', tarifa),
           Divider(),
-          if (destino == 'Intermedio') _buildRow('Origen:', origen),
+          _buildRow('Origen:', origen),
           _buildRow('Destino:', destino == 'Intermedio' ? '$destino (Km ${kilometro ?? "?"})' : destino),
           _buildRow('Salida:', horario),
           _buildRow('Asiento:', asiento),
