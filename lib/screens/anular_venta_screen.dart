@@ -22,6 +22,11 @@ class _AnularVentaScreenState extends State<AnularVentaScreen> {
   bool _buscando = false;
   bool _procesando = false;
 
+  // Historial de ventas del día
+  List<Map<String, dynamic>> _ventasDelDia = [];
+  List<Map<String, dynamic>> _anulacionesDelDia = [];
+  bool _cargandoHistorial = true;
+
   @override
   void initState() {
     super.initState();
@@ -29,6 +34,47 @@ class _AnularVentaScreenState extends State<AnularVentaScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _comprobanteFocusNode.requestFocus();
     });
+    // Cargar historial de ventas del día
+    _cargarHistorialVentas();
+  }
+
+  Future<void> _cargarHistorialVentas() async {
+    setState(() {
+      _cargandoHistorial = true;
+    });
+
+    try {
+      final cajaDb = CajaDatabase();
+      final ventas = await cajaDb.getVentasDiarias();
+
+      // Separar ventas activas y anuladas del día de hoy
+      List<Map<String, dynamic>> ventasActivas = [];
+      List<Map<String, dynamic>> ventasAnuladas = [];
+
+      final hoy = DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+      for (var venta in ventas) {
+        // Filtrar solo las ventas de hoy
+        if (venta['fecha'] == hoy) {
+          if (venta['anulada'] == true) {
+            ventasAnuladas.add(venta);
+          } else {
+            ventasActivas.add(venta);
+          }
+        }
+      }
+
+      setState(() {
+        _ventasDelDia = ventasActivas;
+        _anulacionesDelDia = ventasAnuladas;
+        _cargandoHistorial = false;
+      });
+    } catch (e) {
+      setState(() {
+        _cargandoHistorial = false;
+      });
+      _mostrarMensaje('Error al cargar historial: $e', error: true);
+    }
   }
 
   @override
@@ -186,6 +232,9 @@ class _AnularVentaScreenState extends State<AnularVentaScreen> {
 
       if (resultado) {
         _mostrarMensaje('Venta anulada exitosamente', success: true);
+
+        // Recargar historial
+        await _cargarHistorialVentas();
 
         // Limpiar formulario
         setState(() {
@@ -561,12 +610,269 @@ class _AnularVentaScreenState extends State<AnularVentaScreen> {
                     ),
                   ],
 
+                  SizedBox(height: 32),
+
+                  // Historial de ventas del día
+                  _buildHistorialSection(),
+
                   SizedBox(height: 16),
                 ],
               ),
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildHistorialSection() {
+    if (_cargandoHistorial) {
+      return Center(
+        child: Padding(
+          padding: EdgeInsets.all(20),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Ventas del día
+        Container(
+          padding: EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.green.shade200, width: 2),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.green.withOpacity(0.1),
+                blurRadius: 10,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.green.shade700, size: 28),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Ventas Activas del Día',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey.shade800,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade100,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '${_ventasDelDia.length}',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green.shade700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 16),
+              if (_ventasDelDia.isEmpty)
+                Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(20),
+                    child: Text(
+                      'No hay ventas activas hoy',
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ),
+                )
+              else
+                ListView.builder(
+                  shrinkWrap: true,
+                  physics: NeverScrollableScrollPhysics(),
+                  itemCount: _ventasDelDia.length > 5 ? 5 : _ventasDelDia.length,
+                  itemBuilder: (context, index) {
+                    return _buildVentaCard(_ventasDelDia[index], false);
+                  },
+                ),
+              if (_ventasDelDia.length > 5)
+                Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: Text(
+                    'Mostrando 5 de ${_ventasDelDia.length} ventas',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
+                      fontStyle: FontStyle.italic,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+            ],
+          ),
+        ),
+
+        SizedBox(height: 24),
+
+        // Anulaciones del día
+        Container(
+          padding: EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.red.shade200, width: 2),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.red.withOpacity(0.1),
+                blurRadius: 10,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.cancel, color: Colors.red.shade700, size: 28),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Anulaciones del Día',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey.shade800,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade100,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '${_anulacionesDelDia.length}',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.red.shade700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 16),
+              if (_anulacionesDelDia.isEmpty)
+                Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(20),
+                    child: Text(
+                      'No hay anulaciones hoy',
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ),
+                )
+              else
+                ListView.builder(
+                  shrinkWrap: true,
+                  physics: NeverScrollableScrollPhysics(),
+                  itemCount: _anulacionesDelDia.length,
+                  itemBuilder: (context, index) {
+                    return _buildVentaCard(_anulacionesDelDia[index], true);
+                  },
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildVentaCard(Map<String, dynamic> venta, bool esAnulada) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 12),
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: esAnulada ? Colors.red.shade50 : Colors.green.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: esAnulada ? Colors.red.shade200 : Colors.green.shade200,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    venta['tipo'] == 'bus' ? Icons.directions_bus : Icons.inventory,
+                    color: esAnulada ? Colors.red.shade700 : Colors.green.shade700,
+                    size: 20,
+                  ),
+                  SizedBox(width: 8),
+                  Text(
+                    venta['comprobante'] ?? '',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+              Text(
+                '\$${venta['valor'].toStringAsFixed(0)}',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  color: esAnulada ? Colors.red.shade700 : Colors.green.shade700,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 8),
+          Text(
+            'Hora: ${venta['hora']} | ${venta['tipo'] == 'bus' ? 'Destino: ${venta['destino']}' : 'Cargo: ${venta['articulo']}'}',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+          ),
+          if (esAnulada) ...[
+            SizedBox(height: 8),
+            Text(
+              'Anulada: ${venta['fechaAnulacion']} ${venta['horaAnulacion']}',
+              style: TextStyle(fontSize: 11, color: Colors.red.shade600, fontStyle: FontStyle.italic),
+            ),
+            Text(
+              'Usuario: ${venta['usuarioAnulacion']}',
+              style: TextStyle(fontSize: 11, color: Colors.red.shade600),
+            ),
+            Text(
+              'Motivo: ${venta['motivoAnulacion']}',
+              style: TextStyle(fontSize: 11, color: Colors.red.shade600),
+            ),
+          ],
+        ],
       ),
     );
   }

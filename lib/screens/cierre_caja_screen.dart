@@ -73,6 +73,11 @@ class _CierreCajaScreenState extends State<CierreCajaScreen> {
       Map<String, Map<String, dynamic>> controlCaja = {};
 
       for (var venta in ventas) {
+        // Excluir ventas anuladas del cálculo de totales
+        if (venta['anulada'] == true) {
+          continue;
+        }
+
         // Sumar métodos de pago
         totalEfectivo += (venta['montoEfectivo'] ?? 0.0);
         totalTarjeta += (venta['montoTarjeta'] ?? 0.0);

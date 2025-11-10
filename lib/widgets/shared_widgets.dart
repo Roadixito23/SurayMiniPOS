@@ -1,5 +1,31 @@
 import 'package:flutter/material.dart';
 
+/// Clase helper para obtener los colores según el tipo de día
+class DayThemeHelper {
+  static Map<String, Color> getThemeColors(String tipoDia) {
+    bool isDomingoFeriado = tipoDia.toUpperCase().contains('DOMINGO') ||
+                           tipoDia.toUpperCase().contains('FERIADO');
+
+    if (isDomingoFeriado) {
+      return {
+        'primary': Colors.orange.shade700,
+        'secondary': Colors.orange.shade100,
+        'accent': Colors.deepOrange.shade800,
+        'gradient1': Colors.orange.shade50,
+        'gradient2': Colors.deepOrange.shade100,
+      };
+    } else {
+      return {
+        'primary': Colors.blue.shade700,
+        'secondary': Colors.blue.shade100,
+        'accent': Colors.blue.shade900,
+        'gradient1': Colors.blue.shade50,
+        'gradient2': Colors.lightBlue.shade100,
+      };
+    }
+  }
+}
+
 class PrimaryButton extends StatelessWidget {
   final String label;
   final VoidCallback onPressed;
@@ -437,6 +463,575 @@ class _ExpenseDialogState extends State<ExpenseDialog> {
           child: Text('Registrar'),
         ),
       ],
+    );
+  }
+}
+
+/// Widget para confirmar venta con animación y colores según tipo de día
+class AnimatedConfirmDialog extends StatefulWidget {
+  final String tipoDia;
+  final String tarifa;
+  final String destino;
+  final String? origen;
+  final String horario;
+  final String asiento;
+  final String valor;
+  final String? kilometro;
+
+  const AnimatedConfirmDialog({
+    required this.tipoDia,
+    required this.tarifa,
+    required this.destino,
+    required this.horario,
+    required this.asiento,
+    required this.valor,
+    this.origen,
+    this.kilometro,
+  });
+
+  @override
+  _AnimatedConfirmDialogState createState() => _AnimatedConfirmDialogState();
+}
+
+class _AnimatedConfirmDialogState extends State<AnimatedConfirmDialog>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _fadeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _scaleAnimation = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutBack,
+    );
+    _fadeAnimation = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeIn,
+    );
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onClose(bool result) {
+    _controller.reverse().then((_) => Navigator.pop(context, result));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = DayThemeHelper.getThemeColors(widget.tipoDia);
+
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: ScaleTransition(
+        scale: _scaleAnimation,
+        child: AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Container(
+            padding: EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [colors['gradient1']!, colors['gradient2']!],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.confirmation_number, color: colors['primary'], size: 32),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Confirmar Venta',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: colors['accent'],
+                        ),
+                      ),
+                      Text(
+                        widget.tipoDia,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: colors['primary'],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildInfoCard('Tarifa', widget.tarifa, colors),
+                SizedBox(height: 8),
+                if (widget.destino == 'Intermedio' && widget.origen != null)
+                  _buildInfoCard('Origen', widget.origen!, colors),
+                _buildInfoCard(
+                  'Destino',
+                  widget.destino == 'Intermedio' ? '${widget.destino} (Km ${widget.kilometro ?? "?"})' : widget.destino,
+                  colors,
+                ),
+                SizedBox(height: 8),
+                _buildInfoCard('Salida', widget.horario, colors),
+                SizedBox(height: 8),
+                _buildInfoCard('Asiento', widget.asiento, colors),
+                SizedBox(height: 16),
+                Container(
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: colors['secondary'],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: colors['primary']!, width: 2),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'VALOR TOTAL:',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: colors['accent'],
+                        ),
+                      ),
+                      Text(
+                        '\$${widget.valor}',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: colors['primary'],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => _onClose(false),
+              child: Text('CANCELAR', style: TextStyle(color: Colors.grey.shade600)),
+            ),
+            ElevatedButton.icon(
+              onPressed: () => _onClose(true),
+              icon: Icon(Icons.check_circle),
+              label: Text('CONFIRMAR'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colors['primary'],
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoCard(String label, String value, Map<String, Color> colors) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: colors['gradient1'],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colors['secondary']!),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.grey.shade700,
+              fontSize: 14,
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+              color: colors['accent'],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Widget para seleccionar método de pago con animación y colores según tipo de día
+class AnimatedPaymentMethodDialog extends StatefulWidget {
+  final double totalAmount;
+  final double? efectivoDisponible;
+  final String tipoDia;
+
+  const AnimatedPaymentMethodDialog({
+    required this.totalAmount,
+    required this.tipoDia,
+    this.efectivoDisponible,
+  });
+
+  @override
+  _AnimatedPaymentMethodDialogState createState() => _AnimatedPaymentMethodDialogState();
+}
+
+class _AnimatedPaymentMethodDialogState extends State<AnimatedPaymentMethodDialog>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _fadeAnimation;
+
+  String metodoPago = 'Efectivo';
+  final TextEditingController _efectivoController = TextEditingController();
+  final TextEditingController _tarjetaController = TextEditingController();
+  String? errorMessage;
+  double montoFaltante = 0.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _scaleAnimation = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutBack,
+    );
+    _fadeAnimation = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeIn,
+    );
+    _controller.forward();
+
+    _efectivoController.text = widget.totalAmount.toStringAsFixed(0);
+    _tarjetaController.text = '0';
+
+    _efectivoController.addListener(_onAmountChanged);
+    _tarjetaController.addListener(_onAmountChanged);
+  }
+
+  void _onAmountChanged() {
+    if (metodoPago != 'Personalizar') return;
+
+    double efectivo = double.tryParse(_efectivoController.text) ?? 0;
+    double tarjeta = double.tryParse(_tarjetaController.text) ?? 0;
+    double total = efectivo + tarjeta;
+
+    setState(() {
+      montoFaltante = widget.totalAmount - total;
+
+      if (montoFaltante.abs() < 0.01) {
+        errorMessage = null;
+        montoFaltante = 0.0;
+      } else if (montoFaltante > 0) {
+        errorMessage = 'Falta: \$${montoFaltante.toStringAsFixed(0)}';
+      } else {
+        errorMessage = 'Exceso: \$${(-montoFaltante).toStringAsFixed(0)}';
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _efectivoController.dispose();
+    _tarjetaController.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onMetodoChanged(String? value) {
+    if (value == null) return;
+
+    setState(() {
+      metodoPago = value;
+      errorMessage = null;
+      montoFaltante = 0.0;
+
+      if (metodoPago == 'Efectivo') {
+        _efectivoController.text = widget.totalAmount.toStringAsFixed(0);
+        _tarjetaController.text = '0';
+      } else if (metodoPago == 'Tarjeta') {
+        _efectivoController.text = '0';
+        _tarjetaController.text = widget.totalAmount.toStringAsFixed(0);
+      }
+    });
+  }
+
+  void _confirmar() {
+    double efectivo = double.tryParse(_efectivoController.text) ?? 0;
+    double tarjeta = double.tryParse(_tarjetaController.text) ?? 0;
+
+    if (metodoPago == 'Personalizar' && (efectivo + tarjeta).abs() > 0.01 && (efectivo + tarjeta - widget.totalAmount).abs() > 0.01) {
+      setState(() {
+        errorMessage = 'La suma debe ser igual al total';
+      });
+      return;
+    }
+
+    // Validar si hay efectivo disponible suficiente (solo para gastos)
+    if (widget.efectivoDisponible != null && efectivo > widget.efectivoDisponible!) {
+      // Mostrar advertencia pero permitir continuar
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Advertencia'),
+          content: Text(
+            'El monto en efectivo (\$${efectivo.toStringAsFixed(0)}) supera el disponible (\$${widget.efectivoDisponible!.toStringAsFixed(0)}). ¿Desea continuar?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context); // Cerrar advertencia
+                _onClose({
+                  'metodo': metodoPago,
+                  'montoEfectivo': efectivo,
+                  'montoTarjeta': tarjeta,
+                }); // Cerrar diálogo principal
+              },
+              child: Text('Continuar'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    _onClose({
+      'metodo': metodoPago,
+      'montoEfectivo': efectivo,
+      'montoTarjeta': tarjeta,
+    });
+  }
+
+  void _onClose(dynamic result) {
+    _controller.reverse().then((_) => Navigator.pop(context, result));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = DayThemeHelper.getThemeColors(widget.tipoDia);
+
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: ScaleTransition(
+        scale: _scaleAnimation,
+        child: AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Container(
+            padding: EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [colors['gradient1']!, colors['gradient2']!],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.payment, color: colors['primary'], size: 32),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Método de Pago',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: colors['accent'],
+                        ),
+                      ),
+                      Text(
+                        'Total: \$${widget.totalAmount.toStringAsFixed(0)}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: colors['primary'],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildPaymentOption('Efectivo', colors),
+                _buildPaymentOption('Tarjeta', colors),
+                _buildPaymentOption('Personalizar', colors),
+                if (metodoPago == 'Personalizar') ...[
+                  SizedBox(height: 16),
+                  TextField(
+                    controller: _efectivoController,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: 'Efectivo',
+                      prefixText: '\$',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: colors['primary']!, width: 2),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 12),
+                  TextField(
+                    controller: _tarjetaController,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: 'Tarjeta',
+                      prefixText: '\$',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: colors['primary']!, width: 2),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 12),
+                  // Mostrar dinero faltante en tiempo real
+                  Container(
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: montoFaltante == 0 ? Colors.green.shade50 : Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: montoFaltante == 0 ? Colors.green : Colors.orange,
+                        width: 2,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              montoFaltante == 0 ? Icons.check_circle : Icons.info,
+                              color: montoFaltante == 0 ? Colors.green : Colors.orange,
+                              size: 20,
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              montoFaltante == 0 ? 'Completo' : (montoFaltante > 0 ? 'Falta' : 'Exceso'),
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: montoFaltante == 0 ? Colors.green.shade700 : Colors.orange.shade700,
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (montoFaltante != 0)
+                          Text(
+                            '\$${montoFaltante.abs().toStringAsFixed(0)}',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.orange.shade700,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  if (errorMessage != null) ...[
+                    SizedBox(height: 8),
+                    Text(
+                      errorMessage!,
+                      style: TextStyle(color: Colors.red, fontSize: 12),
+                    ),
+                  ],
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => _onClose(null),
+              child: Text('CANCELAR', style: TextStyle(color: Colors.grey.shade600)),
+            ),
+            ElevatedButton(
+              onPressed: errorMessage == null && montoFaltante == 0 ? _confirmar : null,
+              child: Text('CONFIRMAR'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colors['primary'],
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPaymentOption(String option, Map<String, Color> colors) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: metodoPago == option ? colors['secondary'] : Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: metodoPago == option ? colors['primary']! : Colors.grey.shade300,
+          width: 2,
+        ),
+      ),
+      child: RadioListTile<String>(
+        title: Text(
+          option,
+          style: TextStyle(
+            fontWeight: metodoPago == option ? FontWeight.bold : FontWeight.normal,
+            color: metodoPago == option ? colors['accent'] : Colors.grey.shade800,
+          ),
+        ),
+        value: option,
+        groupValue: metodoPago,
+        onChanged: _onMetodoChanged,
+        activeColor: colors['primary'],
+      ),
     );
   }
 }
