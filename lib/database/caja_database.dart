@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:crypto/crypto.dart';
+import 'app_database.dart';
 
 /// Clase para manejar la base de datos de ventas para el cierre de caja
 /// Con soporte mejorado para persistencia de archivos locales
@@ -140,6 +141,99 @@ class CajaDatabase {
     };
 
     await _guardarGasto(gasto);
+  }
+
+  /// Anula una venta por su número de comprobante
+  /// Retorna true si se anuló exitosamente, false si no se encontró la venta
+  Future<bool> anularVenta({
+    required String comprobante,
+    required String usuario,
+    String? motivo,
+  }) async {
+    try {
+      await _ensureInitialized();
+
+      // Obtener ventas existentes
+      List<Map<String, dynamic>> ventas = await getVentasDiarias();
+
+      // Buscar la venta por comprobante
+      int indiceVenta = -1;
+      Map<String, dynamic>? ventaEncontrada;
+
+      for (int i = 0; i < ventas.length; i++) {
+        if (ventas[i]['comprobante'] == comprobante) {
+          // Verificar si ya está anulada
+          if (ventas[i]['anulada'] == true) {
+            debugPrint('La venta con comprobante $comprobante ya está anulada');
+            return false;
+          }
+          indiceVenta = i;
+          ventaEncontrada = Map<String, dynamic>.from(ventas[i]);
+          break;
+        }
+      }
+
+      if (indiceVenta == -1 || ventaEncontrada == null) {
+        debugPrint('No se encontró venta con comprobante $comprobante');
+        return false;
+      }
+
+      // Marcar la venta como anulada
+      ventas[indiceVenta]['anulada'] = true;
+      ventas[indiceVenta]['fechaAnulacion'] = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      ventas[indiceVenta]['horaAnulacion'] = DateFormat('HH:mm:ss').format(DateTime.now());
+      ventas[indiceVenta]['usuarioAnulacion'] = usuario;
+      ventas[indiceVenta]['motivoAnulacion'] = motivo ?? 'Sin motivo especificado';
+
+      // Si es una venta de bus, liberar el asiento en la base de datos
+      if (ventaEncontrada['tipo'] == 'bus') {
+        try {
+          // Obtener AppDatabase
+          final appDb = AppDatabase.instance;
+          final db = await appDb.database;
+
+          // Obtener información de la venta
+          final fecha = ventaEncontrada['fecha'];
+          final horario = ventaEncontrada['horario'];
+          final destino = ventaEncontrada['destino'];
+          final asiento = int.tryParse(ventaEncontrada['asiento'].toString()) ?? 0;
+
+          // Obtener el ID de la salida
+          final salidaId = await db.rawQuery(
+            '''
+            SELECT id FROM salidas
+            WHERE fecha = ? AND horario = ? AND destino = ? AND activo = 1
+            ''',
+            [fecha, horario, destino],
+          );
+
+          if (salidaId.isNotEmpty) {
+            final id = salidaId.first['id'] as int;
+
+            // Liberar el asiento
+            await db.delete(
+              'asientos_reservados',
+              where: 'salida_id = ? AND numero_asiento = ?',
+              whereArgs: [id, asiento],
+            );
+
+            debugPrint('Asiento $asiento liberado para salida $id');
+          }
+        } catch (e) {
+          debugPrint('Error al liberar asiento: $e');
+          // Continuar con la anulación aunque falle la liberación del asiento
+        }
+      }
+
+      // Guardar la lista actualizada
+      await _saveJsonToFile(_ventasFileName, ventas);
+
+      debugPrint('Venta $comprobante anulada exitosamente');
+      return true;
+    } catch (e) {
+      debugPrint('Error al anular venta: $e');
+      return false;
+    }
   }
 
   /// Guarda un gasto en la base de datos

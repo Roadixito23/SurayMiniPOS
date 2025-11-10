@@ -9,6 +9,7 @@ import '../widgets/shared_widgets.dart';
 import '../widgets/bus_seat_map.dart';
 import '../models/tarifa.dart';
 import '../models/auth_provider.dart';
+import '../models/horario.dart';
 import '../database/app_database.dart';
 import 'package:intl/intl.dart';
 
@@ -18,6 +19,8 @@ class VentaBusScreen extends StatefulWidget {
 }
 
 class _VentaBusScreenState extends State<VentaBusScreen> {
+  final HorarioManager _horarioManager = HorarioManager();
+
   String destino = 'Aysen';
   final List<String> destinos = ['Aysen', 'Intermedio', 'Coyhaique'];
   String? kilometroIntermedio;
@@ -46,6 +49,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
   final FocusNode _asientoFocusNode = FocusNode();
   final FocusNode _valorFocusNode = FocusNode();
   final FocusNode _kmIntermedioFocusNode = FocusNode();
+  final FocusNode _scrollFocusNode = FocusNode();
 
   final TextEditingController _fechaController = TextEditingController();
   final TextEditingController _horarioController = TextEditingController();
@@ -129,6 +133,108 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
       return 'Asiento inválido (1-45)';
     }
     return null;
+  }
+
+  // Método para mostrar selector de horarios
+  Future<void> _mostrarSelectorHorarios() async {
+    await _horarioManager.cargarHorarios();
+
+    // Determinar qué horarios mostrar según el destino y tipo de día
+    String destinoReal = destino == 'Intermedio' ? origenIntermedio : destino;
+    String categoria = tipoDia == 'DOMINGO / FERIADO' ? 'DomingosFeriados' :
+                       (DateTime.now().weekday == 6 ? 'Sabados' : 'LunesViernes');
+
+    List<String> horariosDisponibles = [];
+    if (destinoReal == 'Aysen') {
+      horariosDisponibles = _horarioManager.horariosAysen[categoria] ?? [];
+    } else {
+      horariosDisponibles = _horarioManager.horariosCoyhaique[categoria] ?? [];
+    }
+
+    if (horariosDisponibles.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No hay horarios configurados para este destino y tipo de día'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    // Mostrar diálogo con lista de horarios
+    String? horarioSeleccionado = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.schedule, color: Colors.blue),
+            SizedBox(width: 12),
+            Text('Seleccionar Horario'),
+          ],
+        ),
+        content: Container(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: horariosDisponibles.length,
+            itemBuilder: (context, index) {
+              final horario = horariosDisponibles[index];
+              return ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: Colors.blue.shade100,
+                  child: Icon(Icons.access_time, color: Colors.blue.shade700),
+                ),
+                title: Text(
+                  horario,
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                onTap: () => Navigator.pop(context, horario),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                hoverColor: Colors.blue.shade50,
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('CANCELAR'),
+          ),
+        ],
+      ),
+    );
+
+    if (horarioSeleccionado != null) {
+      setState(() {
+        _horarioController.text = horarioSeleccionado;
+        this.horarioSeleccionado = horarioSeleccionado;
+      });
+      _cargarAsientosOcupados();
+      _asientoFocusNode.requestFocus();
+    }
+  }
+
+  // Manejar eventos de teclado para scroll con flechas
+  void _handleKeyEvent(RawKeyEvent event) {
+    if (event is RawKeyDownEvent) {
+      const scrollAmount = 50.0;
+
+      if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+        _scrollController.animateTo(
+          _scrollController.offset + scrollAmount,
+          duration: Duration(milliseconds: 200),
+          curve: Curves.easeInOut,
+        );
+      } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+        _scrollController.animateTo(
+          _scrollController.offset - scrollAmount,
+          duration: Duration(milliseconds: 200),
+          curve: Curves.easeInOut,
+        );
+      }
+    }
   }
 
   String? _validarValor(String? value) {
@@ -310,6 +416,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
     _asientoFocusNode.dispose();
     _valorFocusNode.dispose();
     _kmIntermedioFocusNode.dispose();
+    _scrollFocusNode.dispose();
     _fechaController.dispose();
     _horarioController.dispose();
     _asientoController.dispose();
@@ -430,8 +537,11 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
           ),
         ],
       ),
-      body: Stack(
-        children: [
+      body: RawKeyboardListener(
+        focusNode: _scrollFocusNode,
+        onKey: _handleKeyEvent,
+        child: Stack(
+          children: [
           Row(
             children: [
               // Panel izquierdo - Mapa de asientos COMPACTO
@@ -632,41 +742,38 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
 
                           SizedBox(height: 24),
 
-                          // HORARIO (vertical)
+                          // HORARIO (vertical) - Ahora usa selector de dropdown
                           _buildLabel('Horario de Salida'),
+                          InkWell(
+                            onTap: _mostrarSelectorHorarios,
+                            child: InputDecorator(
+                              decoration: InputDecoration(
+                                hintText: 'Seleccionar horario',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                suffixIcon: Icon(Icons.arrow_drop_down),
+                              ),
+                              child: Text(
+                                _horarioController.text.isEmpty ? 'Seleccionar horario' : _horarioController.text,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: _horarioController.text.isEmpty ? Colors.grey.shade600 : Colors.black,
+                                ),
+                              ),
+                            ),
+                          ),
+                          // Campo oculto para validación
                           TextFormField(
                             controller: _horarioController,
-                            focusNode: _horarioFocusNode,
-                            keyboardType: TextInputType.number,
-                            inputFormatters: [
-                              FilteringTextInputFormatter.allow(RegExp(r'[0-9:]')),
-                              LengthLimitingTextInputFormatter(5),
-                              _TimeInputFormatter(),
-                            ],
                             decoration: InputDecoration(
-                              hintText: 'HH:MM',
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.zero,
+                              constraints: BoxConstraints(maxHeight: 0),
                             ),
-                            onTap: () {
-                              _horarioController.selection = TextSelection(
-                                baseOffset: 0,
-                                extentOffset: _horarioController.text.length,
-                              );
-                            },
+                            style: TextStyle(height: 0),
                             validator: _validarHorario,
-                            onChanged: (value) {
-                              setState(() => horarioSeleccionado = value);
-                              if (value.length == 5) {
-                                _cargarAsientosOcupados();
-                              }
-                            },
-                            onFieldSubmitted: (_) {
-                              _asientoFocusNode.requestFocus();
-                              _autoScrollToField(_asientoFocusNode);
-                            },
                           ),
 
                           SizedBox(height: 24),
@@ -862,7 +969,8 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                 ),
               ),
             ),
-        ],
+          ],
+        ),
       ),
     );
   }
