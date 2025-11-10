@@ -210,6 +210,25 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             _secretCode = _secretCode.substring(_secretCode.length - 13);
           }
 
+          // Verificar si se escribió "administrador" para ir a settings
+          if (_secretCode.contains('administrador')) {
+            Navigator.pushNamed(context, '/settings');
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    Icon(Icons.admin_panel_settings, color: Colors.white),
+                    SizedBox(width: 12),
+                    Text('Acceso a configuración'),
+                  ],
+                ),
+                backgroundColor: Colors.green.shade600,
+                duration: Duration(seconds: 2),
+              ),
+            );
+            _secretCode = '';
+          }
+
           // Verificar si se escribió "debug" para mostrar botones de base de datos
           if (_secretCode.contains('debug')) {
             setState(() {
@@ -684,7 +703,32 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                 ),
                               ),
                               SizedBox(width: 16),
-                              Expanded(child: SizedBox()),
+                              Expanded(
+                                child: Builder(
+                                  builder: (context) {
+                                    final authProvider = Provider.of<AuthProvider>(context);
+                                    return _ActionCard(
+                                      icon: Icons.cancel,
+                                      title: 'Anular Venta',
+                                      description: authProvider.isAdmin
+                                          ? 'Anular ventas registradas'
+                                          : 'Solo administradores',
+                                      color: authProvider.isAdmin ? Colors.red.shade600 : Colors.grey,
+                                      shortcut: 'F8',
+                                      onTap: authProvider.isAdmin
+                                          ? () => Navigator.pushNamed(context, '/anular_venta')
+                                          : () {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text('Solo los administradores pueden anular ventas'),
+                                            backgroundColor: Colors.red,
+                                          ),
+                                        );
+                                      },
+                                    );
+                                  },
+                                ),
+                              ),
                             ],
                           ),
                           SizedBox(height: 24),

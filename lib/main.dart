@@ -18,6 +18,7 @@ import 'screens/settings_screen.dart'; // Nueva importación para la pantalla de
 import 'screens/tarifas_screen.dart'; // Nueva importación para la pantalla de tarifas
 import 'screens/usuarios_screen.dart'; // Nueva importación para la pantalla de usuarios
 import 'screens/estadisticas_screen.dart'; // Nueva importación para la pantalla de estadísticas
+import 'screens/anular_venta_screen.dart'; // Nueva importación para anular ventas
 import 'models/comprobante.dart';
 import 'models/auth_provider.dart';
 import 'database/caja_database.dart';
@@ -170,6 +171,7 @@ class MyApp extends StatelessWidget {
         '/tarifas': (_) => const TarifasScreen(), // Nueva ruta para la pantalla de tarifas
         '/usuarios': (_) => UsuariosScreen(), // Nueva ruta para la pantalla de usuarios
         '/estadisticas': (_) => EstadisticasScreen(), // Nueva ruta para la pantalla de estadísticas
+        '/anular_venta': (_) => AnularVentaScreen(), // Nueva ruta para anular ventas
       },
     );
   }
