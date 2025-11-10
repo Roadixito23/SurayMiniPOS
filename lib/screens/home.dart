@@ -684,7 +684,32 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                 ),
                               ),
                               SizedBox(width: 16),
-                              Expanded(child: SizedBox()),
+                              Expanded(
+                                child: Builder(
+                                  builder: (context) {
+                                    final authProvider = Provider.of<AuthProvider>(context);
+                                    return _ActionCard(
+                                      icon: Icons.cancel,
+                                      title: 'Anular Venta',
+                                      description: authProvider.isAdmin
+                                          ? 'Anular ventas registradas'
+                                          : 'Solo administradores',
+                                      color: authProvider.isAdmin ? Colors.red.shade600 : Colors.grey,
+                                      shortcut: 'F8',
+                                      onTap: authProvider.isAdmin
+                                          ? () => Navigator.pushNamed(context, '/anular_venta')
+                                          : () {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text('Solo los administradores pueden anular ventas'),
+                                            backgroundColor: Colors.red,
+                                          ),
+                                        );
+                                      },
+                                    );
+                                  },
+                                ),
+                              ),
                             ],
                           ),
                           SizedBox(height: 24),
