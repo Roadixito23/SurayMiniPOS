@@ -138,6 +138,31 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
     return null;
   }
 
+  // Método para verificar si un horario ya pasó
+  bool _horarioPasado(String horario) {
+    // Solo deshabilitar si la fecha seleccionada es hoy
+    final fechaSeleccionadaDate = DateTime.parse(fechaSeleccionada);
+    final hoy = DateTime.now();
+
+    if (fechaSeleccionadaDate.year != hoy.year ||
+        fechaSeleccionadaDate.month != hoy.month ||
+        fechaSeleccionadaDate.day != hoy.day) {
+      return false; // No es hoy, todos los horarios están disponibles
+    }
+
+    // Es hoy, verificar si el horario ya pasó
+    final partes = horario.split(':');
+    if (partes.length != 2) return false;
+
+    final hora = int.tryParse(partes[0]);
+    final minuto = int.tryParse(partes[1]);
+
+    if (hora == null || minuto == null) return false;
+
+    final horarioDateTime = DateTime(hoy.year, hoy.month, hoy.day, hora, minuto);
+    return horarioDateTime.isBefore(hoy);
+  }
+
   // Método para mostrar selector de horarios embellecido con separación mañana/tarde
   Future<void> _mostrarSelectorHorarios() async {
     await _horarioManager.cargarHorarios();
@@ -263,27 +288,33 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                                       itemCount: horariosManana.length,
                                       itemBuilder: (context, index) {
                                         final horario = horariosManana[index];
+                                        final pasado = _horarioPasado(horario);
                                         return Padding(
                                           padding: EdgeInsets.symmetric(vertical: 4),
                                           child: Material(
-                                            color: Colors.white,
+                                            color: pasado ? Colors.grey.shade300 : Colors.white,
                                             borderRadius: BorderRadius.circular(8),
-                                            elevation: 2,
+                                            elevation: pasado ? 0 : 2,
                                             child: InkWell(
-                                              onTap: () => Navigator.pop(context, horario),
+                                              onTap: pasado ? null : () => Navigator.pop(context, horario),
                                               borderRadius: BorderRadius.circular(8),
                                               child: Container(
                                                 padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                                                 child: Row(
                                                   children: [
-                                                    Icon(Icons.access_time, color: Colors.orange.shade600, size: 20),
+                                                    Icon(
+                                                      Icons.access_time,
+                                                      color: pasado ? Colors.grey.shade500 : Colors.orange.shade600,
+                                                      size: 20,
+                                                    ),
                                                     SizedBox(width: 12),
                                                     Text(
                                                       horario,
                                                       style: TextStyle(
                                                         fontSize: 18,
                                                         fontWeight: FontWeight.bold,
-                                                        color: Colors.orange.shade800,
+                                                        color: pasado ? Colors.grey.shade500 : Colors.orange.shade800,
+                                                        decoration: pasado ? TextDecoration.lineThrough : null,
                                                       ),
                                                     ),
                                                   ],
@@ -316,7 +347,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.nights_stay, color: Colors.indigo.shade600, size: 28),
+                                Icon(Icons.wb_twilight, color: Colors.indigo.shade600, size: 28),
                                 SizedBox(width: 8),
                                 Text(
                                   'TARDE',
@@ -348,27 +379,33 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                                       itemCount: horariosTarde.length,
                                       itemBuilder: (context, index) {
                                         final horario = horariosTarde[index];
+                                        final pasado = _horarioPasado(horario);
                                         return Padding(
                                           padding: EdgeInsets.symmetric(vertical: 4),
                                           child: Material(
-                                            color: Colors.white,
+                                            color: pasado ? Colors.grey.shade300 : Colors.white,
                                             borderRadius: BorderRadius.circular(8),
-                                            elevation: 2,
+                                            elevation: pasado ? 0 : 2,
                                             child: InkWell(
-                                              onTap: () => Navigator.pop(context, horario),
+                                              onTap: pasado ? null : () => Navigator.pop(context, horario),
                                               borderRadius: BorderRadius.circular(8),
                                               child: Container(
                                                 padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                                                 child: Row(
                                                   children: [
-                                                    Icon(Icons.access_time, color: Colors.indigo.shade600, size: 20),
+                                                    Icon(
+                                                      Icons.access_time,
+                                                      color: pasado ? Colors.grey.shade500 : Colors.indigo.shade600,
+                                                      size: 20,
+                                                    ),
                                                     SizedBox(width: 12),
                                                     Text(
                                                       horario,
                                                       style: TextStyle(
                                                         fontSize: 18,
                                                         fontWeight: FontWeight.bold,
-                                                        color: Colors.indigo.shade800,
+                                                        color: pasado ? Colors.grey.shade500 : Colors.indigo.shade800,
+                                                        decoration: pasado ? TextDecoration.lineThrough : null,
                                                       ),
                                                     ),
                                                   ],
@@ -749,7 +786,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
           children: [
           Row(
             children: [
-              // Panel izquierdo - Mapa de asientos COMPACTO
+              // Panel izquierdo - Mapa de asientos COMPLETO
               Expanded(
                 flex: 2,
                 child: Container(
@@ -758,15 +795,9 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Resumen compacto arriba
-                      _buildTicketPreviewCompact(),
-                      SizedBox(height: 12),
-                      Divider(),
-                      SizedBox(height: 8),
-                      
                       _buildSectionTitle('Mapa de Asientos', isDomingoFeriado),
                       SizedBox(height: 12),
-                      
+
                       // Mapa de asientos con tamaño controlado
                       Expanded(
                         child: SingleChildScrollView(
