@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import '../models/auth_provider.dart';
 import '../services/cargo_ticket_generator.dart';
 import '../widgets/numeric_input_field.dart';
 import '../widgets/shared_widgets.dart';

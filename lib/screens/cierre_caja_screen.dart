@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../database/caja_database.dart';
+import '../models/auth_provider.dart';
 import '../services/cierre_caja_report_generator.dart';
 import '../widgets/shared_widgets.dart';
 import '../widgets/cierre_caja_widgets.dart';
