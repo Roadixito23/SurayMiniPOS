@@ -53,13 +53,13 @@ class _Sidebar extends StatelessWidget {
             child: Column(
               children: [
                 Image.asset(
-                  'assets/logocolorminipos.png',
+                  'assets/logocolorposoffice.png',
                   height: 60,
                   width: 60,
                 ),
                 SizedBox(height: 12),
                 Text(
-                  'POSBUS',
+                  'POS OFFICE',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 24,

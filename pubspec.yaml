@@ -1,5 +1,5 @@
-name: suray_minipos
-description: "Sistema POS Oficina para servicio de carga y transporte de pasajeros"
+name: suray_pos_office
+description: "Sistema POS Office para servicio de carga y transporte de pasajeros"
 publish_to: 'none'
 
 version: 1.0.0+1
@@ -28,10 +28,10 @@ dependencies:
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
-  image_path: "assets/logocolorminipos.png"  # Usamos la imagen existente
+  image_path: "assets/logocolorposoffice.png"  # Usamos la imagen existente
   min_sdk_android: 21  # Nivel de API mínimo para Android
   adaptive_icon_background: "#FFFFFF"  # Color de fondo para íconos adaptativos (Android)
-  adaptive_icon_foreground: "assets/logocolorminipos.png"  # Usamos la misma imagen como foreground
+  adaptive_icon_foreground: "assets/logocolorposoffice.png"  # Usamos la misma imagen como foreground
 
 dev_dependencies:
   flutter_test:
@@ -47,4 +47,4 @@ flutter:
     - assets/logobkwt.png
     - assets/tijera.png
     - assets/logocolor.png
-    - assets/logocolorminipos.png
+    - assets/logocolorposoffice.png

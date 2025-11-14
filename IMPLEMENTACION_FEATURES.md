@@ -1,6 +1,6 @@
 # Implementación de Funcionalidades en Desarrollo
 
-Este documento describe las funcionalidades implementadas para SurayMiniPOS.
+Este documento describe las funcionalidades implementadas para Suray POS Office.
 
 ## Funcionalidades Implementadas ✅
 

@@ -121,7 +121,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                 ],
                               ),
                               child: Image.asset(
-                                'assets/logocolorminipos.png',
+                                'assets/logocolorposoffice.png',
                                 width: isDesktop ? 120 : 100,
                                 height: isDesktop ? 120 : 100,
                               ),
@@ -130,7 +130,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
                             // Título
                             Text(
-                              'SURAY MINIPOS',
+                              'SURAY POS OFFICE',
                               style: TextStyle(
                                 fontSize: isDesktop ? 28 : 24,
                                 fontWeight: FontWeight.bold,
