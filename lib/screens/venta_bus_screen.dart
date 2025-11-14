@@ -165,7 +165,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
     }
 
     // Separar horarios en mañana (< 12:00) y tarde (>= 12:00)
-    List<String> horariosMañana = [];
+    List<String> horariosManana = [];
     List<String> horariosTarde = [];
 
     for (String horario in horariosDisponibles) {
@@ -174,7 +174,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
         final hora = int.tryParse(partes[0]);
         if (hora != null) {
           if (hora < 12) {
-            horariosMañana.add(horario);
+            horariosManana.add(horario);
           } else {
             horariosTarde.add(horario);
           }
@@ -250,7 +250,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                             ),
                             SizedBox(height: 12),
                             Flexible(
-                              child: horariosMañana.isEmpty
+                              child: horariosManana.isEmpty
                                   ? Padding(
                                       padding: EdgeInsets.all(16),
                                       child: Text(
@@ -260,9 +260,9 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                                     )
                                   : ListView.builder(
                                       shrinkWrap: true,
-                                      itemCount: horariosMañana.length,
+                                      itemCount: horariosManana.length,
                                       itemBuilder: (context, index) {
-                                        final horario = horariosMañana[index];
+                                        final horario = horariosManana[index];
                                         return Padding(
                                           padding: EdgeInsets.symmetric(vertical: 4),
                                           child: Material(
