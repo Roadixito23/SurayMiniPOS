@@ -32,7 +32,7 @@ class CierreCajaReportGenerator {
     final doc = pw.Document();
 
     // Cargar logo
-    pw.ImageProvider? logoImage = await _loadImageAsset('assets/logocolorminipos.png');
+    pw.ImageProvider? logoImage = await _loadImageAsset('assets/logocolorposoffice.png');
     pw.ImageProvider? endImage = await _loadImageAsset('assets/endTicket.png');
 
     // Obtener datos del cierre
