@@ -535,6 +535,9 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
       setState(() => _isLoading = true);
 
       try {
+        // Obtener authProvider
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
         String destinoFormateado = destino;
         String? origenParaTicket;
 
