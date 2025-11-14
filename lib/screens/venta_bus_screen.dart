@@ -138,7 +138,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
     return null;
   }
 
-  // Método para mostrar selector de horarios
+  // Método para mostrar selector de horarios embellecido con separación mañana/tarde
   Future<void> _mostrarSelectorHorarios() async {
     await _horarioManager.cargarHorarios();
 
@@ -164,48 +164,238 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
       return;
     }
 
-    // Mostrar diálogo con lista de horarios
+    // Separar horarios en mañana (< 12:00) y tarde (>= 12:00)
+    List<String> horariosMañana = [];
+    List<String> horariosTarde = [];
+
+    for (String horario in horariosDisponibles) {
+      final partes = horario.split(':');
+      if (partes.length == 2) {
+        final hora = int.tryParse(partes[0]);
+        if (hora != null) {
+          if (hora < 12) {
+            horariosMañana.add(horario);
+          } else {
+            horariosTarde.add(horario);
+          }
+        }
+      }
+    }
+
+    final isDomingoFeriado = tipoDia == 'DOMINGO / FERIADO';
+
+    // Mostrar diálogo embellecido con dos columnas
     String? horarioSeleccionado = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.schedule, color: Colors.blue),
-            SizedBox(width: 12),
-            Text('Seleccionar Horario'),
-          ],
-        ),
-        content: Container(
-          width: double.maxFinite,
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: horariosDisponibles.length,
-            itemBuilder: (context, index) {
-              final horario = horariosDisponibles[index];
-              return ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: Colors.blue.shade100,
-                  child: Icon(Icons.access_time, color: Colors.blue.shade700),
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Container(
+          width: 700,
+          padding: EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Título
+              Text(
+                'SELECCIONAR HORARIO',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: isDomingoFeriado ? Colors.red.shade700 : Colors.blue.shade700,
                 ),
-                title: Text(
-                  horario,
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 8),
+              Text(
+                'Seleccione el horario de salida',
+                style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+              ),
+              SizedBox(height: 24),
+
+              // Dos columnas con horarios
+              Flexible(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Columna Mañana
+                    Expanded(
+                      child: Container(
+                        padding: EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.amber.shade200, width: 2),
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.wb_sunny, color: Colors.orange.shade600, size: 28),
+                                SizedBox(width: 8),
+                                Text(
+                                  'MAÑANA',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.orange.shade700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              'Antes de 12:00',
+                              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                            ),
+                            SizedBox(height: 12),
+                            Flexible(
+                              child: horariosMañana.isEmpty
+                                  ? Padding(
+                                      padding: EdgeInsets.all(16),
+                                      child: Text(
+                                        'Sin horarios',
+                                        style: TextStyle(color: Colors.grey.shade500),
+                                      ),
+                                    )
+                                  : ListView.builder(
+                                      shrinkWrap: true,
+                                      itemCount: horariosMañana.length,
+                                      itemBuilder: (context, index) {
+                                        final horario = horariosMañana[index];
+                                        return Padding(
+                                          padding: EdgeInsets.symmetric(vertical: 4),
+                                          child: Material(
+                                            color: Colors.white,
+                                            borderRadius: BorderRadius.circular(8),
+                                            elevation: 2,
+                                            child: InkWell(
+                                              onTap: () => Navigator.pop(context, horario),
+                                              borderRadius: BorderRadius.circular(8),
+                                              child: Container(
+                                                padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                                                child: Row(
+                                                  children: [
+                                                    Icon(Icons.access_time, color: Colors.orange.shade600, size: 20),
+                                                    SizedBox(width: 12),
+                                                    Text(
+                                                      horario,
+                                                      style: TextStyle(
+                                                        fontSize: 18,
+                                                        fontWeight: FontWeight.bold,
+                                                        color: Colors.orange.shade800,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: 16),
+
+                    // Columna Tarde
+                    Expanded(
+                      child: Container(
+                        padding: EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.indigo.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.indigo.shade200, width: 2),
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.nights_stay, color: Colors.indigo.shade600, size: 28),
+                                SizedBox(width: 8),
+                                Text(
+                                  'TARDE',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.indigo.shade700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              'Desde 12:00',
+                              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                            ),
+                            SizedBox(height: 12),
+                            Flexible(
+                              child: horariosTarde.isEmpty
+                                  ? Padding(
+                                      padding: EdgeInsets.all(16),
+                                      child: Text(
+                                        'Sin horarios',
+                                        style: TextStyle(color: Colors.grey.shade500),
+                                      ),
+                                    )
+                                  : ListView.builder(
+                                      shrinkWrap: true,
+                                      itemCount: horariosTarde.length,
+                                      itemBuilder: (context, index) {
+                                        final horario = horariosTarde[index];
+                                        return Padding(
+                                          padding: EdgeInsets.symmetric(vertical: 4),
+                                          child: Material(
+                                            color: Colors.white,
+                                            borderRadius: BorderRadius.circular(8),
+                                            elevation: 2,
+                                            child: InkWell(
+                                              onTap: () => Navigator.pop(context, horario),
+                                              borderRadius: BorderRadius.circular(8),
+                                              child: Container(
+                                                padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                                                child: Row(
+                                                  children: [
+                                                    Icon(Icons.access_time, color: Colors.indigo.shade600, size: 20),
+                                                    SizedBox(width: 12),
+                                                    Text(
+                                                      horario,
+                                                      style: TextStyle(
+                                                        fontSize: 18,
+                                                        fontWeight: FontWeight.bold,
+                                                        color: Colors.indigo.shade800,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                onTap: () => Navigator.pop(context, horario),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                hoverColor: Colors.blue.shade50,
-              );
-            },
+              ),
+
+              SizedBox(height: 24),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('CANCELAR', style: TextStyle(fontSize: 16)),
+              ),
+            ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('CANCELAR'),
-          ),
-        ],
       ),
     );
 
@@ -264,6 +454,12 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
 
     if (destino == 'Intermedio' && (kilometroIntermedio == null || kilometroIntermedio!.isEmpty)) {
       _mostrarError('Por favor ingrese el kilómetro intermedio');
+      return;
+    }
+
+    // Validar que origen y destino no sean iguales (excepto para Intermedio)
+    if (destino != 'Intermedio' && origenViaje == destino) {
+      _mostrarError('El origen y destino no pueden ser iguales');
       return;
     }
 
@@ -616,53 +812,37 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildSectionTitle('Configuración del Viaje', isDomingoFeriado),
+                          _buildSectionTitle('CONFIGURACIÓN DEL VIAJE', isDomingoFeriado),
                           SizedBox(height: 16),
 
-                          // Destino
-                          _buildLabel('Destino'),
-                          _buildSegmentedButton(
-                            destinos,
-                            destino,
-                            (value) {
-                              setState(() {
-                                destino = value;
-                                if (value != 'Intermedio') kilometroIntermedio = null;
-
-                                // Ajustar origen automáticamente según destino
-                                if (value == 'Aysen') {
-                                  origenViaje = 'Coyhaique';
-                                } else if (value == 'Coyhaique') {
-                                  origenViaje = 'Aysen';
-                                }
-                              });
-                              _cargarTarifas();
-                            },
-                            isDomingoFeriado,
-                          ),
-
-                          // Selector de origen para todos los destinos (excepto Intermedio que usa su propio selector)
+                          // ORIGEN DEL VIAJE - Púrpura pastel (se muestra primero)
                           if (destino != 'Intermedio') ...[
-                            SizedBox(height: 16),
                             Container(
                               padding: EdgeInsets.all(16),
                               decoration: BoxDecoration(
-                                color: _getColorSecundario(),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: _getColorPrimario().withOpacity(0.3)),
+                                color: Colors.purple.shade50,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.purple.shade200, width: 2),
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Row(
                                     children: [
-                                      Icon(Icons.trip_origin, color: _getColorPrimario(), size: 20),
+                                      Icon(Icons.trip_origin, color: Colors.purple.shade600, size: 24),
                                       SizedBox(width: 8),
-                                      _buildLabel('Origen del Viaje', color: _getColorPrimario()),
+                                      Text(
+                                        'ORIGEN',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.purple.shade700,
+                                        ),
+                                      ),
                                     ],
                                   ),
-                                  SizedBox(height: 8),
-                                  _buildSegmentedButton(
+                                  SizedBox(height: 12),
+                                  _buildSegmentedButtonColored(
                                     ['Coyhaique', 'Aysen'],
                                     origenViaje,
                                     (value) {
@@ -671,39 +851,92 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                                         horarioSeleccionado = null;
                                       });
                                     },
-                                    isDomingoFeriado,
-                                    compact: true,
-                                  ),
-                                  SizedBox(height: 8),
-                                  Text(
-                                    'Viaje: $origenViaje → $destino',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.bold,
-                                      color: _getColorPrimario(),
-                                    ),
+                                    Colors.purple,
                                   ),
                                 ],
                               ),
                             ),
+                            SizedBox(height: 16),
                           ],
 
-                          // Origen para intermedio
+                          // DESTINO DEL VIAJE - Turquesa pastel (se muestra segundo)
+                          Container(
+                            padding: EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.teal.shade50,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.teal.shade200, width: 2),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(Icons.location_on, color: Colors.teal.shade600, size: 24),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      'DESTINO',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.teal.shade700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                SizedBox(height: 12),
+                                _buildSegmentedButtonColored(
+                                  destinos,
+                                  destino,
+                                  (value) {
+                                    setState(() {
+                                      destino = value;
+                                      if (value != 'Intermedio') kilometroIntermedio = null;
+
+                                      // Ajustar origen automáticamente según destino
+                                      if (value == 'Aysen') {
+                                        origenViaje = 'Coyhaique';
+                                      } else if (value == 'Coyhaique') {
+                                        origenViaje = 'Aysen';
+                                      }
+                                    });
+                                    _cargarTarifas();
+                                  },
+                                  Colors.teal,
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          // Origen para intermedio - Púrpura pastel
                           if (destino == 'Intermedio') ...[
                             SizedBox(height: 16),
                             Container(
                               padding: EdgeInsets.all(16),
                               decoration: BoxDecoration(
-                                color: _getColorSecundario(),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: _getColorPrimario().withOpacity(0.3)),
+                                color: Colors.purple.shade50,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.purple.shade200, width: 2),
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  _buildLabel('Origen del Viaje', color: _getColorPrimario()),
-                                  SizedBox(height: 8),
-                                  _buildSegmentedButton(
+                                  Row(
+                                    children: [
+                                      Icon(Icons.trip_origin, color: Colors.purple.shade600, size: 24),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        'ORIGEN',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.purple.shade700,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  SizedBox(height: 12),
+                                  _buildSegmentedButtonColored(
                                     ['Aysen', 'Coyhaique'],
                                     origenIntermedio,
                                     (value) {
@@ -712,11 +945,17 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                                         horarioSeleccionado = null;
                                       });
                                     },
-                                    isDomingoFeriado,
-                                    compact: true,
+                                    Colors.purple,
                                   ),
-                                  SizedBox(height: 12),
-                                  _buildLabel('Kilómetro Intermedio', color: _getColorPrimario()),
+                                  SizedBox(height: 16),
+                                  Text(
+                                    'Kilómetro intermedio',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.purple.shade700,
+                                    ),
+                                  ),
                                   SizedBox(height: 8),
                                   TextFormField(
                                     controller: _kmController,
@@ -730,6 +969,10 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                                       hintText: 'Ej: 20 (máx. 64)',
                                       border: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide(color: Colors.purple.shade600, width: 2),
                                       ),
                                       contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                                     ),
@@ -760,11 +1003,11 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                           ],
 
                           SizedBox(height: 24),
-                          _buildSectionTitle('Datos del Boleto', isDomingoFeriado),
+                          _buildSectionTitle('DATOS DEL BOLETO', isDomingoFeriado),
                           SizedBox(height: 16),
 
                           // CAMPO DE FECHA ESCRITA (050825 -> 05/08/25)
-                          _buildLabel('Fecha (Escribir)'),
+                          _buildLabel('Fecha'),
                           TextFormField(
                             controller: _fechaController,
                             focusNode: _fechaFocusNode,
@@ -806,12 +1049,12 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                           SizedBox(height: 24),
 
                           // HORARIO (vertical) - Ahora usa selector de dropdown
-                          _buildLabel('Horario de Salida'),
+                          _buildLabel('Horario de salida'),
                           InkWell(
                             onTap: _mostrarSelectorHorarios,
                             child: InputDecorator(
                               decoration: InputDecoration(
-                                hintText: 'Seleccionar horario',
+                                hintText: 'Seleccione el horario',
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(8),
                                 ),
@@ -819,7 +1062,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                                 suffixIcon: Icon(Icons.arrow_drop_down),
                               ),
                               child: Text(
-                                _horarioController.text.isEmpty ? 'Seleccionar horario' : _horarioController.text,
+                                _horarioController.text.isEmpty ? 'Seleccione el horario' : _horarioController.text,
                                 style: TextStyle(
                                   fontSize: 16,
                                   color: _horarioController.text.isEmpty ? Colors.grey.shade600 : Colors.black,
@@ -842,7 +1085,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                           SizedBox(height: 24),
 
                           // ASIENTO (vertical) - MODIFICADO PARA NO AUTO-SELECCIONAR
-                          _buildLabel('Número de Asiento'),
+                          _buildLabel('Número de asiento'),
                           TextFormField(
                             controller: _asientoController,
                             focusNode: _asientoFocusNode,
@@ -852,7 +1095,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                               LengthLimitingTextInputFormatter(2),
                             ],
                             decoration: InputDecoration(
-                              hintText: '01-45',
+                              hintText: 'Ingrese el número de asiento (01-45)',
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),
@@ -890,7 +1133,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                                 return Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    _buildLabel('Seleccionar Tarifa'),
+                                    _buildLabel('Seleccionar tarifa'),
                                     if (tarifasDisponibles.isEmpty)
                                       Container(
                                         padding: EdgeInsets.all(16),
@@ -953,7 +1196,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                                 return Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    _buildLabel('Valor del Boleto'),
+                                    _buildLabel('Valor del boleto'),
                                     TextFormField(
                                       controller: _valorController,
                                       focusNode: _valorFocusNode,
@@ -990,14 +1233,18 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                           // Botón de generar
                           SizedBox(
                             width: double.infinity,
-                            height: 48,
+                            height: 50,
                             child: ElevatedButton.icon(
                               onPressed: _isLoading ? null : _confirmarVenta,
-                              icon: Icon(Icons.print),
-                              label: Text('GENERAR TICKET (F1)', style: TextStyle(fontSize: 16)),
+                              icon: Icon(Icons.print, size: 24),
+                              label: Text('GENERAR TICKET (F1)', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: _getColorPrimario(),
                                 foregroundColor: Colors.white,
+                                elevation: 4,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                               ),
                             ),
                           ),
@@ -1041,19 +1288,25 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
   Widget _buildTicketPreviewCompact() {
     final isDomingoFeriado = tipoDia == 'DOMINGO / FERIADO';
 
-    String origenTexto = destino == 'Coyhaique' ? 'Aysén' : 'Coyhaique';
+    String origenTexto = destino == 'Intermedio' ? origenIntermedio : origenViaje;
     String destinoTexto = destino;
 
     if (destino == 'Intermedio' && kilometroIntermedio != null && kilometroIntermedio!.isNotEmpty) {
-      origenTexto = origenIntermedio;
       destinoTexto = 'Int. Km $kilometroIntermedio';
     }
 
     return Container(
-      padding: EdgeInsets.all(12),
+      padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
+        gradient: LinearGradient(
+          colors: [
+            isDomingoFeriado ? Colors.red.shade50 : Colors.blue.shade50,
+            Colors.white,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: isDomingoFeriado ? Colors.red.shade300 : Colors.blue.shade300,
           width: 2,
@@ -1061,16 +1314,43 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
       ),
       child: Column(
         children: [
-          // Origen → Destino
+          // Título AppBar secundaria
+          Text(
+            'RESUMEN DEL VIAJE',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: isDomingoFeriado ? Colors.red.shade800 : Colors.blue.shade800,
+            ),
+          ),
+          SizedBox(height: 12),
+          Divider(height: 1),
+          SizedBox(height: 12),
+
+          // Origen → Destino con colores
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(
-                origenTexto,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: isDomingoFeriado ? Colors.red.shade800 : Colors.blue.shade800,
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.purple.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.purple.shade300),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.trip_origin, size: 16, color: Colors.purple.shade700),
+                    SizedBox(width: 4),
+                    Text(
+                      origenTexto,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.purple.shade800,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               Padding(
@@ -1078,40 +1358,57 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                 child: Icon(
                   Icons.arrow_forward,
                   color: isDomingoFeriado ? Colors.red.shade600 : Colors.blue.shade600,
-                  size: 16,
+                  size: 20,
                 ),
               ),
-              Text(
-                destinoTexto,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: isDomingoFeriado ? Colors.red.shade800 : Colors.blue.shade800,
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.teal.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.teal.shade300),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.location_on, size: 16, color: Colors.teal.shade700),
+                    SizedBox(width: 4),
+                    Text(
+                      destinoTexto,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.teal.shade800,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
 
-          SizedBox(height: 8),
+          SizedBox(height: 12),
 
-          // Detalles compactos
+          // Detalles: Asiento, Horario, Valor
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               _buildInfoChip(
+                asientoSeleccionado ?? '--',
+                Icons.event_seat,
+                isDomingoFeriado,
+                label: 'Asiento',
+              ),
+              _buildInfoChip(
                 horarioSeleccionado ?? '--:--',
                 Icons.access_time,
                 isDomingoFeriado,
-              ),
-              _buildInfoChip(
-                'A-${asientoSeleccionado ?? '--'}',
-                Icons.event_seat,
-                isDomingoFeriado,
+                label: 'Horario',
               ),
               _buildInfoChip(
                 '\$${valorBoleto != '0' ? valorBoleto : '--'}',
                 Icons.attach_money,
                 isDomingoFeriado,
+                label: 'Valor',
               ),
             ],
           ),
@@ -1120,32 +1417,50 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
     );
   }
 
-  Widget _buildInfoChip(String text, IconData icon, bool isDomingoFeriado) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: isDomingoFeriado ? Colors.red.shade50 : Colors.blue.shade50,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-            size: 14,
-            color: isDomingoFeriado ? Colors.red.shade700 : Colors.blue.shade700,
-          ),
-          SizedBox(width: 4),
+  Widget _buildInfoChip(String text, IconData icon, bool isDomingoFeriado, {String? label}) {
+    return Column(
+      children: [
+        if (label != null) ...[
           Text(
-            text,
+            label,
             style: TextStyle(
               fontSize: 11,
-              fontWeight: FontWeight.bold,
-              color: isDomingoFeriado ? Colors.red.shade800 : Colors.blue.shade800,
+              color: Colors.grey.shade600,
+              fontWeight: FontWeight.w500,
             ),
           ),
+          SizedBox(height: 4),
         ],
-      ),
+        Container(
+          padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: isDomingoFeriado ? Colors.red.shade100 : Colors.blue.shade100,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: isDomingoFeriado ? Colors.red.shade300 : Colors.blue.shade300,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: isDomingoFeriado ? Colors.red.shade700 : Colors.blue.shade700,
+              ),
+              SizedBox(width: 6),
+              Text(
+                text,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: isDomingoFeriado ? Colors.red.shade800 : Colors.blue.shade800,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -1211,6 +1526,49 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                     fontSize: compact ? 12 : 13,
                     fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                     color: isSelected ? colorTexto : Colors.black87,
+                  ),
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildSegmentedButtonColored(
+    List<String> options,
+    String selected,
+    Function(String) onSelect,
+    MaterialColor baseColor,
+  ) {
+    return Container(
+      height: 44,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Row(
+        children: options.map((option) {
+          bool isSelected = selected == option;
+          return Expanded(
+            child: InkWell(
+              onTap: () => onSelect(option),
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: isSelected ? baseColor.shade100 : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  option,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    color: isSelected ? baseColor.shade700 : Colors.black87,
                   ),
                 ),
               ),
