@@ -96,7 +96,7 @@ class _PaymentMethodDialogState extends State<PaymentMethodDialog> {
   }
 
   void _onAmountChanged() {
-    if (metodoPago != 'Personalizar') return;
+    if (metodoPago != 'Pago Mixto') return;
 
     double efectivo = double.tryParse(_efectivoController.text) ?? 0;
     double tarjeta = double.tryParse(_tarjetaController.text) ?? 0;
@@ -140,7 +140,7 @@ class _PaymentMethodDialogState extends State<PaymentMethodDialog> {
     double efectivo = double.tryParse(_efectivoController.text) ?? 0;
     double tarjeta = double.tryParse(_tarjetaController.text) ?? 0;
 
-    if (metodoPago == 'Personalizar' && efectivo + tarjeta != widget.totalAmount) {
+    if (metodoPago == 'Pago Mixto' && efectivo + tarjeta != widget.totalAmount) {
       setState(() {
         errorMessage = 'La suma debe ser igual al total';
       });
@@ -189,54 +189,169 @@ class _PaymentMethodDialogState extends State<PaymentMethodDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text('Método de Pago'),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: Row(
+        children: [
+          Icon(Icons.payment, color: Colors.blue.shade700, size: 28),
+          SizedBox(width: 12),
+          Text(
+            'MÉTODO DE PAGO',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Total: \$${widget.totalAmount.toStringAsFixed(0)}',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            Container(
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Total a pagar:',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                  ),
+                  Text(
+                    '\$${widget.totalAmount.toStringAsFixed(0)}',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.blue.shade700),
+                  ),
+                ],
+              ),
             ),
-            SizedBox(height: 16),
-            RadioListTile<String>(
-              title: Text('Efectivo'),
-              value: 'Efectivo',
-              groupValue: metodoPago,
-              onChanged: _onMetodoChanged,
+            SizedBox(height: 20),
+
+            // Efectivo - Color turquesa
+            Container(
+              margin: EdgeInsets.only(bottom: 8),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: metodoPago == 'Efectivo' ? Colors.teal.shade400 : Colors.grey.shade300,
+                  width: 2,
+                ),
+                color: metodoPago == 'Efectivo' ? Colors.teal.shade50 : Colors.white,
+              ),
+              child: RadioListTile<String>(
+                title: Row(
+                  children: [
+                    Icon(Icons.attach_money, color: Colors.teal.shade600, size: 24),
+                    SizedBox(width: 8),
+                    Text(
+                      'Efectivo',
+                      style: TextStyle(
+                        fontWeight: metodoPago == 'Efectivo' ? FontWeight.bold : FontWeight.normal,
+                        color: Colors.teal.shade700,
+                      ),
+                    ),
+                  ],
+                ),
+                value: 'Efectivo',
+                groupValue: metodoPago,
+                onChanged: _onMetodoChanged,
+                activeColor: Colors.teal.shade600,
+              ),
             ),
-            RadioListTile<String>(
-              title: Text('Tarjeta'),
-              value: 'Tarjeta',
-              groupValue: metodoPago,
-              onChanged: _onMetodoChanged,
+
+            // Tarjeta - Color púrpura
+            Container(
+              margin: EdgeInsets.only(bottom: 8),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: metodoPago == 'Tarjeta' ? Colors.purple.shade400 : Colors.grey.shade300,
+                  width: 2,
+                ),
+                color: metodoPago == 'Tarjeta' ? Colors.purple.shade50 : Colors.white,
+              ),
+              child: RadioListTile<String>(
+                title: Row(
+                  children: [
+                    Icon(Icons.credit_card, color: Colors.purple.shade600, size: 24),
+                    SizedBox(width: 8),
+                    Text(
+                      'Tarjeta',
+                      style: TextStyle(
+                        fontWeight: metodoPago == 'Tarjeta' ? FontWeight.bold : FontWeight.normal,
+                        color: Colors.purple.shade700,
+                      ),
+                    ),
+                  ],
+                ),
+                value: 'Tarjeta',
+                groupValue: metodoPago,
+                onChanged: _onMetodoChanged,
+                activeColor: Colors.purple.shade600,
+              ),
             ),
-            RadioListTile<String>(
-              title: Text('Personalizar'),
-              value: 'Personalizar',
-              groupValue: metodoPago,
-              onChanged: _onMetodoChanged,
+
+            // Pago Mixto
+            Container(
+              margin: EdgeInsets.only(bottom: 8),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: metodoPago == 'Pago Mixto' ? Colors.orange.shade400 : Colors.grey.shade300,
+                  width: 2,
+                ),
+                color: metodoPago == 'Pago Mixto' ? Colors.orange.shade50 : Colors.white,
+              ),
+              child: RadioListTile<String>(
+                title: Row(
+                  children: [
+                    Icon(Icons.account_balance_wallet, color: Colors.orange.shade600, size: 24),
+                    SizedBox(width: 8),
+                    Text(
+                      'Pago Mixto',
+                      style: TextStyle(
+                        fontWeight: metodoPago == 'Pago Mixto' ? FontWeight.bold : FontWeight.normal,
+                        color: Colors.orange.shade700,
+                      ),
+                    ),
+                  ],
+                ),
+                value: 'Pago Mixto',
+                groupValue: metodoPago,
+                onChanged: _onMetodoChanged,
+                activeColor: Colors.orange.shade600,
+              ),
             ),
-            if (metodoPago == 'Personalizar') ...[
+
+            if (metodoPago == 'Pago Mixto') ...[
               SizedBox(height: 16),
               TextField(
                 controller: _efectivoController,
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(
                   labelText: 'Efectivo',
+                  prefixIcon: Icon(Icons.attach_money, color: Colors.teal.shade600),
                   prefixText: '\$',
-                  border: OutlineInputBorder(),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: Colors.teal.shade600, width: 2),
+                  ),
                 ),
               ),
-              SizedBox(height: 8),
+              SizedBox(height: 12),
               TextField(
                 controller: _tarjetaController,
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(
                   labelText: 'Tarjeta',
+                  prefixIcon: Icon(Icons.credit_card, color: Colors.purple.shade600),
                   prefixText: '\$',
-                  border: OutlineInputBorder(),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: Colors.purple.shade600, width: 2),
+                  ),
                 ),
               ),
               if (errorMessage != null) ...[
@@ -253,11 +368,16 @@ class _PaymentMethodDialogState extends State<PaymentMethodDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: Text('Cancelar'),
+          child: Text('CANCELAR'),
         ),
         ElevatedButton(
           onPressed: errorMessage == null ? _confirmar : null,
-          child: Text('Confirmar'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.blue.shade600,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+          child: Text('CONFIRMAR'),
         ),
       ],
     );
@@ -737,7 +857,7 @@ class _AnimatedPaymentMethodDialogState extends State<AnimatedPaymentMethodDialo
   }
 
   void _onAmountChanged() {
-    if (metodoPago != 'Personalizar') return;
+    if (metodoPago != 'Pago Mixto') return;
 
     double efectivo = double.tryParse(_efectivoController.text) ?? 0;
     double tarjeta = double.tryParse(_tarjetaController.text) ?? 0;
@@ -787,7 +907,7 @@ class _AnimatedPaymentMethodDialogState extends State<AnimatedPaymentMethodDialo
     double efectivo = double.tryParse(_efectivoController.text) ?? 0;
     double tarjeta = double.tryParse(_tarjetaController.text) ?? 0;
 
-    if (metodoPago == 'Personalizar' && (efectivo + tarjeta).abs() > 0.01 && (efectivo + tarjeta - widget.totalAmount).abs() > 0.01) {
+    if (metodoPago == 'Pago Mixto' && (efectivo + tarjeta).abs() > 0.01 && (efectivo + tarjeta - widget.totalAmount).abs() > 0.01) {
       setState(() {
         errorMessage = 'La suma debe ser igual al total';
       });
@@ -896,8 +1016,8 @@ class _AnimatedPaymentMethodDialogState extends State<AnimatedPaymentMethodDialo
               children: [
                 _buildPaymentOption('Efectivo', colors),
                 _buildPaymentOption('Tarjeta', colors),
-                _buildPaymentOption('Personalizar', colors),
-                if (metodoPago == 'Personalizar') ...[
+                _buildPaymentOption('Pago Mixto', colors),
+                if (metodoPago == 'Pago Mixto') ...[
                   SizedBox(height: 16),
                   TextField(
                     controller: _efectivoController,
