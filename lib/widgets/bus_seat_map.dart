@@ -135,9 +135,8 @@ class _BusSeatMapState extends State<BusSeatMap> {
         break;
 
       case 35:
-        // 35 asientos: asiento del medio como central (igual que 45)
-        // 8 filas de 4 (32) + última fila de 3 (central)
-        for (int i = 0; i < 8; i++) {
+        // 35 asientos: 7 filas de 4 (28) + penúltima fila de 2 (29, 30) + última fila de 5 (31, 32, 35, 33, 34)
+        for (int i = 0; i < 7; i++) {
           rows.add(_buildRow4Seats(
             i * 4 + 1,
             i * 4 + 2,
@@ -145,6 +144,8 @@ class _BusSeatMapState extends State<BusSeatMap> {
             i * 4 + 4,
           ));
         }
+        rows.add(const SizedBox(height: 8));
+        rows.add(_buildPenultimateRow35());
         rows.add(const SizedBox(height: 12));
         rows.add(const Divider());
         rows.add(const SizedBox(height: 8));
@@ -228,28 +229,41 @@ class _BusSeatMapState extends State<BusSeatMap> {
     );
   }
 
-  Widget _buildLastRow35() {
-    // Última fila para 35 asientos: 33, 34, 35 (centro)
+  Widget _buildPenultimateRow35() {
+    // Penúltima fila para 35 asientos: 29, 30
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        _buildSeat(33, isWindowSeat: true),
-        _buildSeat(34),
-        _buildSeat(35), // Centro
+        _buildSeat(29),
+        _buildSeat(30),
+      ],
+    );
+  }
+
+  Widget _buildLastRow35() {
+    // Última fila para 35 asientos: 31, 32, 35 (centro), 33, 34
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _buildSeat(31, isWindowSeat: true),
+        _buildSeat(32),
+        _buildSeat(35), // Asiento 35 en el medio
+        _buildSeat(33),
+        _buildSeat(34, isWindowSeat: true),
       ],
     );
   }
 
   Widget _buildLastRow41() {
-    // Última fila para 41 asientos: 37, 38, 39, 40, 41
+    // Última fila para 41 asientos: 37, 38, 41 (centro), 39, 40
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         _buildSeat(37, isWindowSeat: true),
         _buildSeat(38),
-        _buildSeat(39), // Centro
-        _buildSeat(40),
-        _buildSeat(41, isWindowSeat: true),
+        _buildSeat(41), // Asiento 41 en el medio
+        _buildSeat(39),
+        _buildSeat(40, isWindowSeat: true),
       ],
     );
   }
