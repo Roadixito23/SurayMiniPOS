@@ -418,12 +418,9 @@ class _BusSeatMapState extends State<BusSeatMap> {
           const SizedBox(height: 16),
 
           // Mapa de asientos
-          Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                children: _buildSeatRows(),
-              ),
-            ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: _buildSeatRows(),
           ),
         ],
       ),
