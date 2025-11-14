@@ -769,29 +769,17 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                       
                       // Mapa de asientos con tamaño controlado
                       Expanded(
-                        child: LayoutBuilder(
-                          builder: (context, constraints) {
-                            return SingleChildScrollView(
-                              child: Center(
-                                child: ConstrainedBox(
-                                  constraints: BoxConstraints(
-                                    maxHeight: constraints.maxHeight * 0.95,
-                                  ),
-                                  child: FittedBox(
-                                    fit: BoxFit.contain,
-                                    child: BusSeatMap(
-                                      selectedSeat: asientoSeleccionado != null && asientoSeleccionado!.isNotEmpty
-                                          ? int.tryParse(asientoSeleccionado!)
-                                          : null,
-                                      occupiedSeats: asientosOcupados,
-                                      onSeatTap: _onAsientoSeleccionado,
-                                      tipoDia: tipoDia,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
+                        child: SingleChildScrollView(
+                          child: Center(
+                            child: BusSeatMap(
+                              selectedSeat: asientoSeleccionado != null && asientoSeleccionado!.isNotEmpty
+                                  ? int.tryParse(asientoSeleccionado!)
+                                  : null,
+                              occupiedSeats: asientosOcupados,
+                              onSeatTap: _onAsientoSeleccionado,
+                              tipoDia: tipoDia,
+                            ),
+                          ),
                         ),
                       ),
                     ],
