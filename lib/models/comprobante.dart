@@ -105,11 +105,16 @@ class ComprobanteManager {
 
   /// Obtiene y genera el siguiente número de comprobante para boletos de bus
   /// [tipoBoleto] puede ser: "PUBLICO GENERAL", "ESCOLAR", "ADULTO MAYOR", "INTERMEDIO 15KM", "INTERMEDIO 50KM"
-  Future<String> getNextBusComprobante(String tipoBoleto) async {
+  /// [idSecretario] ID del secretario logueado (01-99)
+  /// [origenActual] Origen actual seleccionado al iniciar sesión (AYS o COY)
+  Future<String> getNextBusComprobante(String tipoBoleto, {String? idSecretario, String? origenActual}) async {
     await _ensureInitialized();
 
-    // Recargar origen desde la base de datos para asegurar que esté actualizado
-    await getOrigen();
+    // Usar el ID de secretario proporcionado o el device_id por defecto
+    final secretarioId = idSecretario ?? _deviceId;
+
+    // Usar el origen proporcionado o el origen de la base de datos
+    final origen = origenActual ?? await getOrigen();
 
     // Verificar que el tipo de boleto sea válido
     if (!_counters.containsKey(tipoBoleto)) {
@@ -120,8 +125,8 @@ class ComprobanteManager {
     // Formatear el número de comprobante a 6 dígitos con ceros a la izquierda
     final formattedNumber = _getFormattedCounter(tipoBoleto);
 
-    // Combinar: ORIGEN-ID-NUMERO (ej: AYS-01-000001)
-    final fullComprobante = '$_origen-$_deviceId-$formattedNumber';
+    // Combinar: ORIGEN-ID_SECRETARIO-NUMERO (ej: AYS-01-000001)
+    final fullComprobante = '$origen-$secretarioId-$formattedNumber';
 
     // Incrementar y guardar el contador para el próximo uso
     await _incrementCounter(tipoBoleto);
@@ -130,17 +135,22 @@ class ComprobanteManager {
   }
 
   /// Obtiene y genera el siguiente número de comprobante para carga
-  Future<String> getNextCargoComprobante() async {
+  /// [idSecretario] ID del secretario logueado (01-99)
+  /// [origenActual] Origen actual seleccionado al iniciar sesión (AYS o COY)
+  Future<String> getNextCargoComprobante({String? idSecretario, String? origenActual}) async {
     await _ensureInitialized();
 
-    // Recargar origen desde la base de datos para asegurar que esté actualizado
-    await getOrigen();
+    // Usar el ID de secretario proporcionado o el device_id por defecto
+    final secretarioId = idSecretario ?? _deviceId;
+
+    // Usar el origen proporcionado o el origen de la base de datos
+    final origen = origenActual ?? await getOrigen();
 
     // Usar el mismo formato que los tickets de bus
     final formattedNumber = _getFormattedCounter('CARGO');
 
-    // Combinar: ORIGEN-ID-NUMERO (ej: COY-01-000001)
-    final fullComprobante = '$_origen-$_deviceId-$formattedNumber';
+    // Combinar: ORIGEN-ID_SECRETARIO-NUMERO (ej: COY-01-000001)
+    final fullComprobante = '$origen-$secretarioId-$formattedNumber';
 
     // Incrementar y guardar el contador para el próximo uso
     await _incrementCounter('CARGO');

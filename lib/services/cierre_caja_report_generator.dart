@@ -13,9 +13,13 @@ class CierreCajaReportGenerator {
     double.infinity,        // Altura flexible basada en el contenido
   );
 
-  static Future<void> generateAndPrintReport(Map<String, dynamic> cierre) async {
+  static Future<void> generateAndPrintReport(
+    Map<String, dynamic> cierre, {
+    String? idSecretario,
+    String? sucursalOrigen,
+  }) async {
     try {
-      final pdfData = await _generatePdf(cierre);
+      final pdfData = await _generatePdf(cierre, idSecretario: idSecretario, sucursalOrigen: sucursalOrigen);
 
       // Imprimir el reporte
       await Printing.layoutPdf(
@@ -28,7 +32,11 @@ class CierreCajaReportGenerator {
     }
   }
 
-  static Future<Uint8List> _generatePdf(Map<String, dynamic> cierre) async {
+  static Future<Uint8List> _generatePdf(
+    Map<String, dynamic> cierre, {
+    String? idSecretario,
+    String? sucursalOrigen,
+  }) async {
     final doc = pw.Document();
 
     // Cargar logo
@@ -66,6 +74,30 @@ class CierreCajaReportGenerator {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.center,
             children: [
+              // Encabezado empresarial
+              pw.Text(
+                'TRANSPORTE SURAY LIMITADA',
+                style: pw.TextStyle(
+                  fontSize: 11,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+                textAlign: pw.TextAlign.center,
+              ),
+              pw.SizedBox(height: 2),
+              pw.Text(
+                'RUT: 77.799.670-3',
+                style: pw.TextStyle(fontSize: 9),
+                textAlign: pw.TextAlign.center,
+              ),
+              pw.SizedBox(height: 2),
+              pw.Text(
+                'Dirección: Eusebio Ibar 630',
+                style: pw.TextStyle(fontSize: 9),
+                textAlign: pw.TextAlign.center,
+              ),
+
+              pw.SizedBox(height: 8),
+
               // Título del reporte
               pw.Container(
                 width: double.infinity,
@@ -84,7 +116,22 @@ class CierreCajaReportGenerator {
                 ),
               ),
 
-              pw.SizedBox(height: 10),
+              pw.SizedBox(height: 8),
+
+              // Información de sucursal y secretario
+              pw.Text(
+                'Sucursal: ${sucursalOrigen ?? 'N/A'}',
+                style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
+                textAlign: pw.TextAlign.center,
+              ),
+              pw.SizedBox(height: 3),
+              pw.Text(
+                'ID Secretario: ${idSecretario ?? '01'}',
+                style: pw.TextStyle(fontSize: 9),
+                textAlign: pw.TextAlign.center,
+              ),
+
+              pw.SizedBox(height: 6),
 
               // Información de fecha y hora
               pw.Row(
@@ -92,22 +139,14 @@ class CierreCajaReportGenerator {
                 children: [
                   pw.Text(
                     'Fecha: $fecha',
-                    style: pw.TextStyle(fontSize: 10),
+                    style: pw.TextStyle(fontSize: 9),
                   ),
-                  pw.SizedBox(width: 10),
+                  pw.SizedBox(width: 8),
                   pw.Text(
                     'Hora: $hora',
-                    style: pw.TextStyle(fontSize: 10),
+                    style: pw.TextStyle(fontSize: 9),
                   ),
                 ],
-              ),
-
-              pw.SizedBox(height: 5),
-
-              // Usuario
-              pw.Text(
-                'Secretario: 01',
-                style: pw.TextStyle(fontSize: 10),
               ),
 
               pw.Divider(),

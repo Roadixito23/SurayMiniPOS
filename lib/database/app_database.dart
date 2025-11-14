@@ -19,7 +19,7 @@ class AppDatabase {
 
     return await openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -34,7 +34,9 @@ class AppDatabase {
         password TEXT NOT NULL,
         rol TEXT NOT NULL,
         activo INTEGER NOT NULL DEFAULT 1,
-        fecha_creacion TEXT NOT NULL
+        fecha_creacion TEXT NOT NULL,
+        id_secretario TEXT,
+        sucursal_origen TEXT
       )
     ''');
 
@@ -101,6 +103,8 @@ class AppDatabase {
       'rol': 'Administrador',
       'activo': 1,
       'fecha_creacion': DateTime.now().toIso8601String(),
+      'id_secretario': '01',
+      'sucursal_origen': 'AYS',
     });
 
     // Insertar configuración por defecto
@@ -210,6 +214,34 @@ class AppDatabase {
       where: 'id = ?',
       whereArgs: [id],
     );
+  }
+
+  Future<int> eliminarUsuarioPermanente(int id) async {
+    final db = await database;
+    return await db.delete(
+      'usuarios',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  // Validar si ID de secretario ya existe en una sucursal
+  Future<bool> idSecretarioDisponible(String idSecretario, String sucursal, {int? excluyendoUsuarioId}) async {
+    final db = await database;
+    final whereClause = excluyendoUsuarioId != null
+        ? 'id_secretario = ? AND sucursal_origen = ? AND id != ?'
+        : 'id_secretario = ? AND sucursal_origen = ?';
+    final whereArgs = excluyendoUsuarioId != null
+        ? [idSecretario, sucursal, excluyendoUsuarioId]
+        : [idSecretario, sucursal];
+
+    final result = await db.query(
+      'usuarios',
+      where: whereClause,
+      whereArgs: whereArgs,
+    );
+
+    return result.isEmpty;
   }
 
   // MÉTODOS PARA CONFIGURACIÓN
@@ -357,6 +389,19 @@ class AppDatabase {
           FOREIGN KEY (salida_id) REFERENCES salidas (id) ON DELETE CASCADE,
           UNIQUE(salida_id, numero_asiento)
         )
+      ''');
+    }
+
+    if (oldVersion < 3) {
+      // Agregar campos id_secretario y sucursal_origen a usuarios
+      await db.execute('ALTER TABLE usuarios ADD COLUMN id_secretario TEXT');
+      await db.execute('ALTER TABLE usuarios ADD COLUMN sucursal_origen TEXT');
+
+      // Actualizar usuarios existentes con valores por defecto
+      await db.execute('''
+        UPDATE usuarios
+        SET id_secretario = '01', sucursal_origen = 'AYS'
+        WHERE id_secretario IS NULL
       ''');
     }
   }

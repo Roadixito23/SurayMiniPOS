@@ -194,8 +194,13 @@ class _CierreCajaScreenState extends State<CierreCajaScreen> {
         observaciones: _observacionesController.text,
       );
 
-      // Generar reporte PDF
-      await CierreCajaReportGenerator.generateAndPrintReport(cierre);
+      // Generar reporte PDF con datos del secretario
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      await CierreCajaReportGenerator.generateAndPrintReport(
+        cierre,
+        idSecretario: authProvider.idSecretario,
+        sucursalOrigen: authProvider.sucursalActual,
+      );
 
       // Refrescar datos
       await _cargarDatos();

@@ -28,6 +28,8 @@ class BusTicketGenerator {
     String metodoPago = 'Efectivo', // Método de pago: "Efectivo", "Tarjeta", "Personalizar"
     double? montoEfectivo,         // Para método personalizado
     double? montoTarjeta,          // Para método personalizado
+    String? idSecretario,          // ID del secretario logueado
+    String? origenSucursal,        // Sucursal de origen seleccionada al login
   }) async {
     try {
       // Verificar si se trata de un destino intermedio
@@ -39,7 +41,11 @@ class BusTicketGenerator {
       // Obtener número de comprobante (formato AYS-01-000001 o COY-01-000001)
       // Ahora con comprobantes individualizados por tipo de boleto
       final comprobanteManager = ComprobanteManager();
-      final String numeroComprobante = await comprobanteManager.getNextBusComprobante(tipoBoleto);
+      final String numeroComprobante = await comprobanteManager.getNextBusComprobante(
+        tipoBoleto,
+        idSecretario: idSecretario,
+        origenActual: origenSucursal,
+      );
 
       // Generar el PDF
       final pdfBytes = await _generatePdf(

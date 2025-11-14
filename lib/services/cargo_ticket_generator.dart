@@ -47,13 +47,18 @@ class CargoTicketGenerator {
     String metodoPago = 'Efectivo', // Método de pago: "Efectivo", "Tarjeta", "Personalizar"
     double? montoEfectivo,          // Para método personalizado
     double? montoTarjeta,           // Para método personalizado
+    String? idSecretario,           // ID del secretario logueado
+    String? origenSucursal,         // Sucursal de origen seleccionada al login
   }) async {
     try {
       // Asegurar que los recursos estén precargados
       await preloadResources();
 
       final comprobanteManager = ComprobanteManager();
-      final numeroComprobante = await comprobanteManager.getNextCargoComprobante();
+      final numeroComprobante = await comprobanteManager.getNextCargoComprobante(
+        idSecretario: idSecretario,
+        origenActual: origenSucursal,
+      );
 
       final now = DateTime.now();
       final currentDate = DateFormat('dd/MM/yyyy').format(now);
