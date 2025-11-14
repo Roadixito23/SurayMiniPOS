@@ -34,7 +34,14 @@ class DetalleCierreScreen extends StatelessWidget {
         actions: [
           IconButton(
             icon: Icon(Icons.print),
-            onPressed: () => CierreCajaReportGenerator.generateAndPrintReport(cierre),
+            onPressed: () {
+              final authProvider = Provider.of<AuthProvider>(context, listen: false);
+              CierreCajaReportGenerator.generateAndPrintReport(
+                cierre,
+                idSecretario: authProvider.idSecretario,
+                sucursalOrigen: authProvider.sucursalActual,
+              );
+            },
             tooltip: 'Reimprimir reporte',
           ),
         ],

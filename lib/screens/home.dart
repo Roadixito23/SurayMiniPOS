@@ -98,9 +98,201 @@ class _Sidebar extends StatelessWidget {
               ],
             ),
           ),
+          // Botón de cerrar sesión
+          _LogoutButton(),
         ],
       ),
     );
+  }
+}
+
+class _LogoutButton extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final authProvider = Provider.of<AuthProvider>(context);
+
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: Colors.white24, width: 1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Información del usuario
+          Padding(
+            padding: EdgeInsets.only(bottom: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  authProvider.username,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Row(
+                  children: [
+                    Icon(Icons.badge, size: 12, color: Colors.white70),
+                    SizedBox(width: 4),
+                    Text(
+                      authProvider.rol,
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 2),
+                Row(
+                  children: [
+                    Icon(Icons.numbers, size: 12, color: Colors.white70),
+                    SizedBox(width: 4),
+                    Text(
+                      'ID: ${authProvider.idSecretario}',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 11,
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                    Icon(Icons.location_on, size: 12, color: Colors.white70),
+                    SizedBox(width: 4),
+                    Text(
+                      authProvider.sucursalActual ?? 'N/A',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          // Botón de cerrar sesión
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () async {
+                await _handleLogout(context, authProvider);
+              },
+              icon: Icon(Icons.logout, size: 18),
+              label: Text('Cerrar Sesión'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white.withOpacity(0.2),
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleLogout(BuildContext context, AuthProvider authProvider) async {
+    // Verificar si hay cierres pendientes
+    final cajaDb = CajaDatabase();
+    final ventasPendientes = await cajaDb.getVentasDiarias();
+    final tieneCierresPendientes = ventasPendientes.isNotEmpty;
+
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning, color: Colors.orange),
+            SizedBox(width: 8),
+            Text('Cerrar Sesión'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('¿Está seguro que desea cerrar sesión?'),
+            SizedBox(height: 16),
+            if (tieneCierresPendientes) ...[
+              Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.red.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.error_outline, color: Colors.red, size: 20),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'ADVERTENCIA: Tiene cierres de caja pendientes',
+                        style: TextStyle(
+                          color: Colors.red.shade700,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ] else ...[
+              Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.green.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.check_circle_outline, color: Colors.green, size: 20),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'No tiene cierres de caja pendientes',
+                        style: TextStyle(
+                          color: Colors.green.shade700,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('Cerrar Sesión'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar == true) {
+      authProvider.logout();
+      Navigator.of(context).pushReplacementNamed('/login');
+    }
   }
 }
 

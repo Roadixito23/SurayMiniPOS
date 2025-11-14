@@ -90,6 +90,8 @@ class _VentaCargoScreenState extends State<VentaCargoScreen> {
       setState(() => _isLoading = true);
 
       try {
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
         await CargoTicketGenerator.generateAndPrintTicket(
           remitente: remitenteController.text,
           destinatario: destinatarioController.text,
@@ -101,6 +103,8 @@ class _VentaCargoScreenState extends State<VentaCargoScreen> {
           metodoPago: paymentResult['metodo'],
           montoEfectivo: paymentResult['montoEfectivo'],
           montoTarjeta: paymentResult['montoTarjeta'],
+          idSecretario: authProvider.idSecretario,
+          origenSucursal: authProvider.sucursalActual,
         );
 
         ScaffoldMessenger.of(context).showSnackBar(

@@ -558,6 +558,8 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
           metodoPago: paymentResult['metodo'],
           montoEfectivo: paymentResult['montoEfectivo'],
           montoTarjeta: paymentResult['montoTarjeta'],
+          idSecretario: authProvider.idSecretario,
+          origenSucursal: authProvider.sucursalActual,
         );
 
         // Reservar el asiento en la base de datos

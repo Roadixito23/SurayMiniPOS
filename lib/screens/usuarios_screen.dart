@@ -59,12 +59,25 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
 
     if (resultado != null) {
       try {
+        // Validar ID de secretario único por sucursal
+        final idDisponible = await AppDatabase.instance.idSecretarioDisponible(
+          resultado['id_secretario'],
+          resultado['sucursal_origen'],
+        );
+
+        if (!idDisponible) {
+          _mostrarError('El ID de secretario ${resultado['id_secretario']} ya está en uso en la sucursal ${resultado['sucursal_origen']}');
+          return;
+        }
+
         await AppDatabase.instance.insertUsuario({
           'username': resultado['username'],
           'password': resultado['password'],
           'rol': resultado['rol'],
           'activo': 1,
           'fecha_creacion': DateTime.now().toIso8601String(),
+          'id_secretario': resultado['id_secretario'],
+          'sucursal_origen': resultado['sucursal_origen'],
         });
         _mostrarExito('Usuario creado exitosamente');
         _cargarUsuarios();
@@ -89,12 +102,26 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
 
     if (resultado != null) {
       try {
+        // Validar ID de secretario único por sucursal
+        final idDisponible = await AppDatabase.instance.idSecretarioDisponible(
+          resultado['id_secretario'],
+          resultado['sucursal_origen'],
+          excluyendoUsuarioId: usuario['id'],
+        );
+
+        if (!idDisponible) {
+          _mostrarError('El ID de secretario ${resultado['id_secretario']} ya está en uso en la sucursal ${resultado['sucursal_origen']}');
+          return;
+        }
+
         await AppDatabase.instance.updateUsuario(
           usuario['id'],
           {
             'username': resultado['username'],
             'password': resultado['password'],
             'rol': resultado['rol'],
+            'id_secretario': resultado['id_secretario'],
+            'sucursal_origen': resultado['sucursal_origen'],
           },
         );
         _mostrarExito('Usuario actualizado exitosamente');
@@ -147,6 +174,55 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
         _cargarUsuarios();
       } catch (e) {
         _mostrarError('Error al cambiar estado del usuario: $e');
+      }
+    }
+  }
+
+  Future<void> _eliminarUsuario(Map<String, dynamic> usuario) async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+    if (!authProvider.isAdmin) {
+      _mostrarError('Solo los administradores pueden eliminar usuarios');
+      return;
+    }
+
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Eliminar Usuario'),
+          ],
+        ),
+        content: Text(
+          '¿Está seguro que desea eliminar permanentemente al usuario ${usuario['username']}?\n\nEsta acción no se puede deshacer.',
+          style: TextStyle(fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('Eliminar'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar == true) {
+      try {
+        await AppDatabase.instance.eliminarUsuarioPermanente(usuario['id']);
+        _mostrarExito('Usuario eliminado exitosamente');
+        _cargarUsuarios();
+      } catch (e) {
+        _mostrarError('Error al eliminar usuario: $e');
       }
     }
   }
@@ -264,6 +340,7 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
                               usuario: usuario,
                               onEdit: () => _editarUsuario(usuario),
                               onToggleStatus: () => _cambiarEstadoUsuario(usuario),
+                              onDelete: () => _eliminarUsuario(usuario),
                             );
                           },
                         ),
@@ -349,11 +426,13 @@ class _UserCard extends StatelessWidget {
   final Map<String, dynamic> usuario;
   final VoidCallback onEdit;
   final VoidCallback onToggleStatus;
+  final VoidCallback onDelete;
 
   const _UserCard({
     required this.usuario,
     required this.onEdit,
     required this.onToggleStatus,
+    required this.onDelete,
   });
 
   @override
@@ -415,6 +494,24 @@ class _UserCard extends StatelessWidget {
                 ),
               ],
             ),
+            SizedBox(height: 4),
+            Row(
+              children: [
+                Icon(Icons.numbers, size: 14, color: Colors.grey.shade600),
+                SizedBox(width: 4),
+                Text(
+                  'ID: ${usuario['id_secretario'] ?? 'N/A'}',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                ),
+                SizedBox(width: 16),
+                Icon(Icons.location_on, size: 14, color: Colors.grey.shade600),
+                SizedBox(width: 4),
+                Text(
+                  usuario['sucursal_origen'] ?? 'N/A',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                ),
+              ],
+            ),
           ],
         ),
         trailing: Row(
@@ -432,6 +529,11 @@ class _UserCard extends StatelessWidget {
               ),
               onPressed: onToggleStatus,
               tooltip: isActive ? 'Desactivar' : 'Activar',
+            ),
+            IconButton(
+              icon: Icon(Icons.delete_forever, color: Colors.red.shade700),
+              onPressed: onDelete,
+              tooltip: 'Eliminar usuario',
             ),
           ],
         ),
@@ -453,7 +555,9 @@ class _FormularioUsuarioDialogState extends State<_FormularioUsuarioDialog> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _usernameController;
   late TextEditingController _passwordController;
+  late TextEditingController _idSecretarioController;
   String _rolSeleccionado = 'Secretaria';
+  String _sucursalSeleccionada = 'AYS';
   bool _mostrarPassword = false;
 
   @override
@@ -465,13 +569,18 @@ class _FormularioUsuarioDialogState extends State<_FormularioUsuarioDialog> {
     _passwordController = TextEditingController(
       text: widget.usuario?['password'] ?? '',
     );
+    _idSecretarioController = TextEditingController(
+      text: widget.usuario?['id_secretario'] ?? '01',
+    );
     _rolSeleccionado = widget.usuario?['rol'] ?? 'Secretaria';
+    _sucursalSeleccionada = widget.usuario?['sucursal_origen'] ?? 'AYS';
   }
 
   @override
   void dispose() {
     _usernameController.dispose();
     _passwordController.dispose();
+    _idSecretarioController.dispose();
     super.dispose();
   }
 
@@ -546,6 +655,84 @@ class _FormularioUsuarioDialogState extends State<_FormularioUsuarioDialog> {
                     return 'Mínimo 4 caracteres';
                   }
                   return null;
+                },
+              ),
+
+              SizedBox(height: 16),
+
+              // Campo de ID de Secretario
+              TextFormField(
+                controller: _idSecretarioController,
+                decoration: InputDecoration(
+                  labelText: 'ID de Secretario (01-99)',
+                  prefixIcon: Icon(Icons.numbers),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  helperText: 'Número único por sucursal',
+                ),
+                keyboardType: TextInputType.number,
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Ingrese un ID de secretario';
+                  }
+                  final id = int.tryParse(value);
+                  if (id == null || id < 1 || id > 99) {
+                    return 'Ingrese un número entre 01 y 99';
+                  }
+                  return null;
+                },
+                onChanged: (value) {
+                  // Formatear automáticamente a dos dígitos
+                  final id = int.tryParse(value);
+                  if (id != null && id >= 1 && id <= 99) {
+                    final formatted = id.toString().padLeft(2, '0');
+                    if (value != formatted) {
+                      _idSecretarioController.value = TextEditingValue(
+                        text: formatted,
+                        selection: TextSelection.collapsed(offset: formatted.length),
+                      );
+                    }
+                  }
+                },
+              ),
+
+              SizedBox(height: 16),
+
+              // Selector de Sucursal de Origen
+              DropdownButtonFormField<String>(
+                value: _sucursalSeleccionada,
+                decoration: InputDecoration(
+                  labelText: 'Sucursal de Origen',
+                  prefixIcon: Icon(Icons.location_on),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                items: [
+                  DropdownMenuItem(
+                    value: 'AYS',
+                    child: Row(
+                      children: [
+                        Icon(Icons.location_city, color: Colors.purple, size: 20),
+                        SizedBox(width: 8),
+                        Text('Aysén (AYS)'),
+                      ],
+                    ),
+                  ),
+                  DropdownMenuItem(
+                    value: 'COY',
+                    child: Row(
+                      children: [
+                        Icon(Icons.location_city, color: Colors.teal, size: 20),
+                        SizedBox(width: 8),
+                        Text('Coyhaique (COY)'),
+                      ],
+                    ),
+                  ),
+                ],
+                onChanged: (value) {
+                  setState(() => _sucursalSeleccionada = value!);
                 },
               ),
 
@@ -656,10 +843,16 @@ class _FormularioUsuarioDialogState extends State<_FormularioUsuarioDialog> {
         ElevatedButton.icon(
           onPressed: () {
             if (_formKey.currentState!.validate()) {
+              // Formatear ID de secretario a dos dígitos
+              final id = int.tryParse(_idSecretarioController.text);
+              final idFormatted = id?.toString().padLeft(2, '0') ?? '01';
+
               Navigator.pop(context, {
                 'username': _usernameController.text.trim(),
                 'password': _passwordController.text,
                 'rol': _rolSeleccionado,
+                'id_secretario': idFormatted,
+                'sucursal_origen': _sucursalSeleccionada,
               });
             }
           },
