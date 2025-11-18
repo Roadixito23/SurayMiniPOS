@@ -1,456 +1,362 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-import 'package:path_provider/path_provider.dart';
-import '../database/caja_database.dart';
-import '../widgets/shared_widgets.dart';
-import '../models/comprobante.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import '../models/server_status_provider.dart';
 
-/// Pantalla para gestionar los datos y backups de la aplicación
+/// Pantalla para monitorear el estado del servidor y soporte
 class DataManagementScreen extends StatefulWidget {
   @override
   _DataManagementScreenState createState() => _DataManagementScreenState();
 }
 
-class _DataManagementScreenState extends State<DataManagementScreen> {
-  final CajaDatabase _cajaDatabase = CajaDatabase();
-  final ComprobanteManager _comprobanteManager = ComprobanteManager();
-  bool _isLoading = false;
-  List<FileSystemEntity> _backupFiles = [];
-  DateTime? _ultimaFechaBackup;
-  String? _backupLocation;
-  String? _exportLocation;
+class _DataManagementScreenState extends State<DataManagementScreen>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<double> _pulseAnimation;
 
   @override
   void initState() {
     super.initState();
-    _loadBackups();
-  }
+    // Animación de pulso para el indicador de estado
+    _animationController = AnimationController(
+      duration: Duration(seconds: 2),
+      vsync: this,
+    )..repeat(reverse: true);
 
-  /// Carga la lista de backups existentes
-  Future<void> _loadBackups() async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      // Inicializar la base de datos si es necesario
-      await _cajaDatabase.initialize();
-
-      // Obtener directorio de la aplicación
-      final appDir = await getApplicationDocumentsDirectory();
-      final backupDir = Directory('${appDir.path}/backups');
-
-      if (await backupDir.exists()) {
-        // Obtener lista de archivos en el directorio de backups
-        _backupFiles = await backupDir.list().toList();
-
-        // Ordenar por fecha (más reciente primero)
-        _backupFiles.sort((a, b) => b.path.compareTo(a.path));
-
-        // Obtener fecha del último backup
-        if (_backupFiles.isNotEmpty) {
-          final fileName = _backupFiles.first.path.split('/').last;
-          final timestampStr = fileName.split('_').last.split('.').first;
-          final timestamp = int.tryParse(timestampStr);
-          if (timestamp != null) {
-            _ultimaFechaBackup = DateTime.fromMillisecondsSinceEpoch(timestamp);
-          }
-        }
-      }
-
-      setState(() {
-        _backupLocation = '${backupDir.path}';
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al cargar backups: $e')),
-      );
-    }
-  }
-
-  /// Crea un nuevo backup manualmente
-  Future<void> _createBackup() async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      final success = await _cajaDatabase.crearBackup();
-
-      if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Backup creado exitosamente'),
-            backgroundColor: Colors.green,
-          ),
-        );
-
-        // Recargar la lista de backups
-        await _loadBackups();
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al crear backup'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error al crear backup: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
-    }
-  }
-
-  /// Restaura desde el backup más reciente
-  Future<void> _restoreFromBackup() async {
-    // Pedir confirmación
-    final confirmar = await showDialog<bool>(
-      context: context,
-      builder: (_) => ConfirmationDialog(
-        title: 'Confirmar Restauración',
-        content: 'Esta acción restaurará los datos desde el backup más reciente. '
-            'Los datos actuales serán reemplazados. ¿Desea continuar?',
-      ),
+    _pulseAnimation = Tween<double>(begin: 0.9, end: 1.1).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
     );
-
-    if (confirmar != true) return;
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      final success = await _cajaDatabase.restaurarDesdeBackup();
-
-      if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Datos restaurados exitosamente'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('No se pudo restaurar los datos'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error al restaurar datos: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
-    }
   }
 
-  /// Exporta todos los datos a un archivo externo
-  Future<void> _exportData() async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      final exportPath = await _cajaDatabase.exportarDatos();
-
-      setState(() {
-        _exportLocation = exportPath;
-      });
-
-      if (exportPath != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Datos exportados a: $exportPath'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 5),
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('No se pudieron exportar los datos'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error al exportar datos: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
-    }
-  }
-
-  /// Limpia todos los datos (para depuración)
-  Future<void> _clearAllData() async {
-    // Pedir confirmación
-    final confirmar = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text('ADVERTENCIA'),
-        content: Text(
-          '⚠️ Esta acción eliminará TODOS los datos de la aplicación:\n\n'
-              '- Ventas pendientes\n'
-              '- Historial de cierres\n'
-              '- Contador de comprobantes\n\n'
-              'Esta operación NO SE PUEDE DESHACER.\n\n'
-              'Escriba "CONFIRMAR" para continuar:',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancelar'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text('Sí, eliminar todo', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmar != true) return;
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      // Crear backup antes de limpiar (por seguridad)
-      await _cajaDatabase.crearBackup();
-
-      // Limpiar datos de caja
-      await _cajaDatabase.limpiarDatos();
-
-      // Reiniciar contador de comprobantes
-      await _comprobanteManager.resetCounter();
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Todos los datos han sido eliminados. Se ha creado un backup automático.'),
-          backgroundColor: Colors.green,
-        ),
-      );
-
-      // Recargar la lista de backups
-      await _loadBackups();
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error al limpiar datos: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
-    }
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final serverStatus = Provider.of<ServerStatusProvider>(context);
+    final isOnline = serverStatus.isOnline;
+
     return Scaffold(
       appBar: AppBar(
         title: Text('Gestión de Datos'),
         centerTitle: true,
+        backgroundColor: Color(0xFFB8A5D6), // Lila suave
       ),
-      body: _isLoading
-          ? Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-        padding: EdgeInsets.all(16.0),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFFB8A5D6), // Lila suave
+              Color(0xFFC5D5C5), // Verde salvia pastel
+            ],
+          ),
+        ),
+        child: SingleChildScrollView(
+          padding: EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Estado del servidor
+              _buildServerStatusCard(isOnline, serverStatus),
+
+              SizedBox(height: 24),
+
+              // Información de estado
+              _buildStatusInfoCard(isOnline),
+
+              SizedBox(height: 24),
+
+              // Soporte técnico
+              _buildSupportCard(),
+
+              SizedBox(height: 24),
+
+              // Acciones rápidas (TODO: implementar más adelante)
+              _buildQuickActionsCard(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildServerStatusCard(bool isOnline, ServerStatusProvider serverStatus) {
+    return Card(
+      elevation: 8,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          gradient: LinearGradient(
+            colors: isOnline
+                ? [Color(0xFF4CAF50), Color(0xFF81C784)]
+                : [Color(0xFFF44336), Color(0xFFE57373)],
+          ),
+        ),
+        padding: EdgeInsets.all(24),
+        child: Column(
+          children: [
+            AnimatedBuilder(
+              animation: _pulseAnimation,
+              builder: (context, child) {
+                return Transform.scale(
+                  scale: _pulseAnimation.value,
+                  child: Container(
+                    width: 100,
+                    height: 100,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.3),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      isOnline ? Icons.cloud_done : Icons.cloud_off,
+                      size: 60,
+                      color: Colors.white,
+                    ),
+                  ),
+                );
+              },
+            ),
+            SizedBox(height: 16),
+            Text(
+              isOnline ? 'SERVIDOR ONLINE' : 'SERVIDOR OFFLINE',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                letterSpacing: 1.2,
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              isOnline
+                  ? 'Sistema conectado y operativo'
+                  : 'Sistema funcionando en modo local',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.white.withOpacity(0.9),
+              ),
+              textAlign: TextAlign.center,
+            ),
+            if (serverStatus.isSimulated) ...[
+              SizedBox(height: 12),
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.bug_report, color: Colors.white, size: 16),
+                    SizedBox(width: 6),
+                    Text(
+                      'Modo Debug Activo',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusInfoCard(bool isOnline) {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Sección de Backup
-            Card(
-              elevation: 4,
-              child: Padding(
-                padding: EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Backup de Datos',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue.shade700,
-                      ),
-                    ),
-                    SizedBox(height: 16),
+            Row(
+              children: [
+                Icon(
+                  Icons.info_outline,
+                  color: Color(0xFF6B4E9F),
+                  size: 28,
+                ),
+                SizedBox(width: 12),
+                Text(
+                  'Estado Actual',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF6B4E9F),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 16),
+            _buildInfoRow(
+              Icons.check_circle,
+              'Ventas permitidas:',
+              isOnline ? 'Desde cualquier origen' : 'Solo desde sucursal local',
+              isOnline ? Colors.green : Colors.orange,
+            ),
+            SizedBox(height: 12),
+            _buildInfoRow(
+              Icons.sync,
+              'Sincronización:',
+              isOnline ? 'Activa en tiempo real' : 'En espera de conexión',
+              isOnline ? Colors.green : Colors.grey,
+            ),
+            SizedBox(height: 12),
+            _buildInfoRow(
+              Icons.storage,
+              'Almacenamiento:',
+              isOnline ? 'Local y remoto' : 'Solo local',
+              isOnline ? Colors.green : Colors.blue,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
-                    // Información del último backup
-                    _buildInfoRow(
-                      'Último backup:',
-                      _ultimaFechaBackup != null
-                          ? DateFormat('dd/MM/yyyy HH:mm').format(_ultimaFechaBackup!)
-                          : 'No hay backups',
-                    ),
-                    _buildInfoRow(
-                      'Ubicación:',
-                      _backupLocation ?? 'No disponible',
-                    ),
-                    _buildInfoRow(
-                      'Backups disponibles:',
-                      '${_backupFiles.length}',
-                    ),
-
-                    SizedBox(height: 16),
-
-                    // Botones de acción
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        ElevatedButton.icon(
-                          icon: Icon(Icons.backup),
-                          label: Text('Crear Backup'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue,
-                          ),
-                          onPressed: _createBackup,
-                        ),
-                        ElevatedButton.icon(
-                          icon: Icon(Icons.restore),
-                          label: Text('Restaurar'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.amber,
-                          ),
-                          onPressed: _backupFiles.isEmpty ? null : _restoreFromBackup,
-                        ),
-                      ],
-                    ),
-                  ],
+  Widget _buildInfoRow(IconData icon, String label, String value, Color color) {
+    return Row(
+      children: [
+        Icon(icon, color: color, size: 20),
+        SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w500,
                 ),
               ),
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSupportCard() {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.support_agent,
+                  color: Color(0xFF6B4E9F),
+                  size: 28,
+                ),
+                SizedBox(width: 12),
+                Text(
+                  'Soporte Técnico',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF6B4E9F),
+                  ),
+                ),
+              ],
             ),
-
-            SizedBox(height: 20),
-
-            // Sección de Exportación
-            Card(
-              elevation: 4,
-              child: Padding(
-                padding: EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Exportación de Datos',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue.shade700,
+            SizedBox(height: 16),
+            Container(
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Color(0xFFF5F5F5),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Color(0xFFB8A5D6), width: 2),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.email, color: Color(0xFF6B4E9F)),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Correo de Soporte:',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              'dante@suray.cl',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF6B4E9F),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    SizedBox(height: 16),
-
-                    // Explicación
-                    Text(
-                      'Exporte todos los datos para guardarlos en un dispositivo externo o transferirlos a otro equipo.',
-                      style: TextStyle(fontSize: 14),
-                    ),
-
-                    if (_exportLocation != null) ...[
-                      SizedBox(height: 8),
-                      Text(
-                        'Última exportación: $_exportLocation',
-                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                      IconButton(
+                        icon: Icon(Icons.copy, color: Color(0xFF6B4E9F)),
+                        onPressed: () {
+                          Clipboard.setData(ClipboardData(text: 'dante@suray.cl'));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Correo copiado al portapapeles'),
+                              backgroundColor: Colors.green,
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                        },
+                        tooltip: 'Copiar correo',
                       ),
                     ],
-
-                    SizedBox(height: 16),
-
-                    // Botón de exportación
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        icon: Icon(Icons.file_download),
-                        label: Text('Exportar Todos los Datos'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                        ),
-                        onPressed: _exportData,
-                      ),
+                  ),
+                  SizedBox(height: 12),
+                  Text(
+                    'Para recibir asistencia técnica o reportar problemas, contacte a través del correo electrónico indicado.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                      fontStyle: FontStyle.italic,
                     ),
-                  ],
-                ),
-              ),
-            ),
-
-            SizedBox(height: 20),
-
-            // Sección de Eliminación de Datos (zona peligrosa)
-            Card(
-              elevation: 4,
-              color: Colors.red.shade50,
-              child: Padding(
-                padding: EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Zona Peligrosa',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.red.shade700,
-                      ),
-                    ),
-                    SizedBox(height: 8),
-
-                    Text(
-                      '⚠️ Las siguientes acciones son irreversibles y pueden causar pérdida de datos.',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.red.shade900,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-
-                    SizedBox(height: 16),
-
-                    // Botón para limpiar todos los datos
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        icon: Icon(Icons.delete_forever),
-                        label: Text('Eliminar Todos los Datos'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red.shade700,
-                        ),
-                        onPressed: _clearAllData,
-                      ),
-                    ),
-                  ],
-                ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
               ),
             ),
           ],
@@ -459,26 +365,62 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
     );
   }
 
-  Widget _buildInfoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
+  Widget _buildQuickActionsCard() {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.flash_on,
+                  color: Color(0xFF6B4E9F),
+                  size: 28,
+                ),
+                SizedBox(width: 12),
+                Text(
+                  'Acciones Rápidas',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF6B4E9F),
+                  ),
+                ),
+              ],
             ),
-          ),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 14,
+            SizedBox(height: 16),
+            Container(
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.orange.shade200, width: 2),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.construction, color: Colors.orange, size: 32),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Funciones adicionales se implementarán próximamente',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[700],
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
