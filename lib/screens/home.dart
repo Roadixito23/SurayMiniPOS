@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:window_manager/window_manager.dart';
 import '../models/auth_provider.dart';
 import '../database/app_database.dart';
 import 'dart:math' as math;
@@ -84,9 +86,22 @@ class _Sidebar extends StatelessWidget {
             child: ListView(
               padding: EdgeInsets.symmetric(vertical: 8),
               children: [
+                // Sección Principal
+                Padding(
+                  padding: EdgeInsets.fromLTRB(16, 8, 16, 8),
+                  child: Text(
+                    'PRINCIPAL',
+                    style: TextStyle(
+                      color: Colors.white38,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                ),
                 _SidebarMenuItem(
-                  icon: Icons.home,
-                  label: 'Inicio',
+                  icon: Icons.dashboard,
+                  label: 'Panel Principal',
                   isActive: true,
                   onTap: () {},
                 ),
@@ -94,6 +109,47 @@ class _Sidebar extends StatelessWidget {
                   icon: Icons.schedule,
                   label: 'Horarios',
                   onTap: () => Navigator.pushNamed(context, '/horarios'),
+                ),
+                _SidebarMenuItem(
+                  icon: Icons.attach_money,
+                  label: 'Tarifas',
+                  onTap: () => Navigator.pushNamed(context, '/tarifas'),
+                ),
+
+                SizedBox(height: 8),
+                Divider(color: Colors.white24, thickness: 1),
+
+                // Sección de Administración
+                Consumer<AuthProvider>(
+                  builder: (context, authProvider, _) => Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (authProvider.isAdmin) ...[
+                        Padding(
+                          padding: EdgeInsets.fromLTRB(16, 8, 16, 8),
+                          child: Text(
+                            'ADMINISTRACIÓN',
+                            style: TextStyle(
+                              color: Colors.white38,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                        ),
+                        _SidebarMenuItem(
+                          icon: Icons.people,
+                          label: 'Usuarios',
+                          onTap: () => Navigator.pushNamed(context, '/usuarios'),
+                        ),
+                        _SidebarMenuItem(
+                          icon: Icons.settings,
+                          label: 'Configuración',
+                          onTap: () => Navigator.pushNamed(context, '/settings'),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -367,6 +423,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   String _secretCode = '';
   bool _showDebugButtons = false;
   bool _isLoading = false; // Variable de estado para la carga de la DB
+  bool _isFullScreen = false; // Estado de pantalla completa
 
   @override
   void initState() {
@@ -393,6 +450,65 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   void _handleKeyEvent(RawKeyEvent event) {
     if (event is RawKeyDownEvent) {
+      // Obtener el authProvider para verificar permisos
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+      // Manejar teclas de función F1-F8 y F11
+      if (event.logicalKey == LogicalKeyboardKey.f11) {
+        // F11: Alternar pantalla completa
+        _toggleFullScreen();
+        return;
+      } else if (event.logicalKey == LogicalKeyboardKey.f1) {
+        // F1: Venta de Pasajes
+        Navigator.pushNamed(context, '/venta_bus');
+        _showShortcutFeedback('Venta de Pasajes', Icons.airline_seat_recline_normal, Colors.blue);
+        return;
+      } else if (event.logicalKey == LogicalKeyboardKey.f2) {
+        // F2: Venta de Carga
+        Navigator.pushNamed(context, '/venta_cargo');
+        _showShortcutFeedback('Venta de Carga', Icons.inventory, Colors.purple);
+        return;
+      } else if (event.logicalKey == LogicalKeyboardKey.f3) {
+        // F3: Historial de Carga
+        Navigator.pushNamed(context, '/cargo_history');
+        _showShortcutFeedback('Historial de Carga', Icons.history, Colors.orange);
+        return;
+      } else if (event.logicalKey == LogicalKeyboardKey.f4) {
+        // F4: Cierre de Caja
+        Navigator.pushNamed(context, '/cierre_caja');
+        _showShortcutFeedback('Cierre de Caja', Icons.calculate, Colors.green.shade600);
+        return;
+      } else if (event.logicalKey == LogicalKeyboardKey.f5) {
+        // F5: Gestión de Datos
+        Navigator.pushNamed(context, '/data_management');
+        _showShortcutFeedback('Gestión de Datos', Icons.storage, Colors.indigo);
+        return;
+      } else if (event.logicalKey == LogicalKeyboardKey.f6) {
+        // F6: Gestión de Usuarios (solo admin)
+        if (authProvider.isAdmin) {
+          Navigator.pushNamed(context, '/usuarios');
+          _showShortcutFeedback('Gestión de Usuarios', Icons.people, Colors.deepPurple);
+        } else {
+          _showShortcutFeedback('Acceso denegado - Solo administradores', Icons.lock, Colors.red);
+        }
+        return;
+      } else if (event.logicalKey == LogicalKeyboardKey.f7) {
+        // F7: Estadísticas
+        Navigator.pushNamed(context, '/estadisticas');
+        _showShortcutFeedback('Estadísticas', Icons.analytics, Colors.teal);
+        return;
+      } else if (event.logicalKey == LogicalKeyboardKey.f8) {
+        // F8: Anular Venta (solo admin)
+        if (authProvider.isAdmin) {
+          Navigator.pushNamed(context, '/anular_venta');
+          _showShortcutFeedback('Anular Venta', Icons.cancel, Colors.red.shade600);
+        } else {
+          _showShortcutFeedback('Acceso denegado - Solo administradores', Icons.lock, Colors.red);
+        }
+        return;
+      }
+
+      // Manejar códigos secretos (administrador y debug)
       final key = event.character?.toLowerCase();
       if (key != null && key.length == 1) {
         setState(() {
@@ -431,6 +547,232 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         });
       }
     }
+  }
+
+  // Método para alternar pantalla completa
+  Future<void> _toggleFullScreen() async {
+    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      setState(() {
+        _isFullScreen = !_isFullScreen;
+      });
+
+      if (_isFullScreen) {
+        await windowManager.setFullScreen(true);
+        _showShortcutFeedback('Modo pantalla completa activado', Icons.fullscreen, Colors.blue);
+      } else {
+        await windowManager.setFullScreen(false);
+        _showShortcutFeedback('Modo pantalla completa desactivado', Icons.fullscreen_exit, Colors.blue);
+      }
+    }
+  }
+
+  // Método para mostrar feedback visual de atajos
+  void _showShortcutFeedback(String message, IconData icon, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(icon, color: Colors.white),
+            SizedBox(width: 12),
+            Text(message),
+          ],
+        ),
+        backgroundColor: color,
+        duration: Duration(milliseconds: 1500),
+        behavior: SnackBarBehavior.floating,
+        margin: EdgeInsets.only(bottom: 20, left: 20, right: 20),
+      ),
+    );
+  }
+
+  // Método para mostrar el diálogo de ayuda de atajos
+  void _showKeyboardShortcutsHelp() {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Container(
+          width: 700,
+          padding: EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Encabezado
+              Row(
+                children: [
+                  Container(
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.keyboard,
+                      color: Colors.blue.shade700,
+                      size: 32,
+                    ),
+                  ),
+                  SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Atajos de Teclado',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey.shade800,
+                          ),
+                        ),
+                        Text(
+                          'Accede rápidamente a las funciones del sistema',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              SizedBox(height: 24),
+              Divider(),
+              SizedBox(height: 16),
+
+              // Lista de atajos
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      _buildShortcutCategory('Navegación Principal', [
+                        _buildShortcutItem('F1', 'Venta de Pasajes', Icons.airline_seat_recline_normal, Colors.blue),
+                        _buildShortcutItem('F2', 'Venta de Carga', Icons.inventory, Colors.purple),
+                        _buildShortcutItem('F3', 'Historial de Carga', Icons.history, Colors.orange),
+                        _buildShortcutItem('F7', 'Estadísticas', Icons.analytics, Colors.teal),
+                      ]),
+                      SizedBox(height: 16),
+                      _buildShortcutCategory('Administración', [
+                        _buildShortcutItem('F4', 'Cierre de Caja', Icons.calculate, Colors.green),
+                        _buildShortcutItem('F5', 'Gestión de Datos', Icons.storage, Colors.indigo),
+                        _buildShortcutItem('F6', 'Gestión de Usuarios (Admin)', Icons.people, Colors.deepPurple),
+                        _buildShortcutItem('F8', 'Anular Venta (Admin)', Icons.cancel, Colors.red),
+                      ]),
+                      SizedBox(height: 16),
+                      _buildShortcutCategory('Sistema', [
+                        _buildShortcutItem('F11', 'Pantalla Completa', Icons.fullscreen, Colors.blue.shade700),
+                      ]),
+                      SizedBox(height: 16),
+                      _buildShortcutCategory('Códigos Especiales', [
+                        _buildShortcutItem('administrador', 'Acceso a Configuración', Icons.settings, Colors.green),
+                        _buildShortcutItem('debug', 'Mostrar/Ocultar Herramientas de Debug', Icons.bug_report, Colors.orange),
+                      ]),
+                    ],
+                  ),
+                ),
+              ),
+
+              SizedBox(height: 16),
+              Divider(),
+              SizedBox(height: 12),
+
+              // Pie del diálogo
+              Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.blue.shade700, size: 20),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Los atajos marcados con (Admin) solo están disponibles para administradores',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.blue.shade700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildShortcutCategory(String title, List<Widget> shortcuts) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.grey.shade700,
+          ),
+        ),
+        SizedBox(height: 8),
+        ...shortcuts,
+      ],
+    );
+  }
+
+  Widget _buildShortcutItem(String key, String description, IconData icon, Color color) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 8),
+      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: color.withOpacity(0.3)),
+            ),
+            child: Text(
+              key,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: color,
+                fontFamily: 'monospace',
+              ),
+            ),
+          ),
+          SizedBox(width: 16),
+          Icon(icon, color: color, size: 20),
+          SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              description,
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey.shade700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   /// REEMPLAZADO: Método para poblar la base de datos con datos de simulación
@@ -1001,6 +1343,22 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               ],
             ),
 
+            // Botón flotante de ayuda de atajos (siempre visible)
+            Positioned(
+              bottom: 20,
+              left: 20,
+              child: FloatingActionButton.extended(
+                onPressed: _showKeyboardShortcutsHelp,
+                backgroundColor: Colors.blue.shade700,
+                icon: Icon(Icons.keyboard, color: Colors.white),
+                label: Text(
+                  'Atajos de Teclado',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                ),
+                heroTag: 'keyboard_shortcuts',
+              ),
+            ),
+
             // Botones de debug (aparecen al escribir "debug")
             if (_showDebugButtons)
               Positioned(
@@ -1113,29 +1471,37 @@ class _ActionCardState extends State<_ActionCard> with SingleTickerProviderState
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
       child: AnimatedContainer(
-        duration: Duration(milliseconds: 200),
-        transform: Matrix4.translationValues(0, _isHovered ? -4 : 0, 0),
+        duration: Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+        transform: Matrix4.translationValues(0, _isHovered ? -6 : 0, 0)..scale(_isHovered ? 1.02 : 1.0),
         child: Card(
-          elevation: _isHovered ? 12 : 4,
+          elevation: _isHovered ? 16 : 4,
+          shadowColor: widget.color.withOpacity(0.3),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(
+              color: _isHovered ? widget.color.withOpacity(0.3) : Colors.transparent,
+              width: 2,
+            ),
           ),
           child: InkWell(
             onTap: widget.onTap,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
+            splashColor: widget.color.withOpacity(0.1),
+            highlightColor: widget.color.withOpacity(0.05),
             child: Container(
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(16),
                 gradient: _isHovered ? LinearGradient(
                   colors: [
-                    widget.color.withOpacity(0.05),
+                    widget.color.withOpacity(0.08),
                     Colors.white,
                   ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ) : null,
               ),
-              padding: EdgeInsets.all(20),
+              padding: EdgeInsets.all(24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1166,18 +1532,27 @@ class _ActionCardState extends State<_ActionCard> with SingleTickerProviderState
                         },
                       ),
                       Spacer(),
-                      Container(
-                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      AnimatedContainer(
+                        duration: Duration(milliseconds: 200),
+                        padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
-                          color: _isHovered ? widget.color.withOpacity(0.1) : Colors.grey.shade200,
-                          borderRadius: BorderRadius.circular(4),
+                          color: _isHovered ? widget.color : Colors.grey.shade200,
+                          borderRadius: BorderRadius.circular(6),
+                          boxShadow: _isHovered ? [
+                            BoxShadow(
+                              color: widget.color.withOpacity(0.3),
+                              blurRadius: 6,
+                              offset: Offset(0, 2),
+                            ),
+                          ] : [],
                         ),
                         child: Text(
                           widget.shortcut,
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: 12,
                             fontWeight: FontWeight.bold,
-                            color: _isHovered ? widget.color : Colors.grey.shade700,
+                            color: _isHovered ? Colors.white : Colors.grey.shade700,
+                            letterSpacing: 0.5,
                           ),
                         ),
                       ),
