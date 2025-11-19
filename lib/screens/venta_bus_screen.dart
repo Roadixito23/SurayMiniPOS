@@ -7,6 +7,8 @@ import '../widgets/horario_input_field.dart';
 import '../widgets/date_input_field.dart';
 import '../widgets/shared_widgets.dart';
 import '../widgets/bus_seat_map.dart';
+import '../widgets/horario_selector_dialog.dart';
+import '../widgets/tarifa_selector_dialog.dart';
 import '../models/tarifa.dart';
 import '../models/auth_provider.dart';
 import '../models/horario.dart';
@@ -163,7 +165,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
     return horarioDateTime.isBefore(hoy);
   }
 
-  // Método para mostrar selector de horarios embellecido con separación mañana/tarde
+  // Método para mostrar selector de horarios con navegación por teclado
   Future<void> _mostrarSelectorHorarios() async {
     await _horarioManager.cargarHorarios();
 
@@ -185,346 +187,52 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
       return;
     }
 
-    // Separar horarios en mañana (< 12:00) y tarde (>= 12:00)
-    List<String> horariosManana = [];
-    List<String> horariosTarde = [];
+    // Filtrar horarios pasados
+    List<String> horariosActivos = horariosDisponibles.where((h) => !_horarioPasado(h)).toList();
 
-    for (String horario in horariosDisponibles) {
-      final partes = horario.split(':');
-      if (partes.length == 2) {
-        final hora = int.tryParse(partes[0]);
-        if (hora != null) {
-          if (hora < 12) {
-            horariosManana.add(horario);
-          } else {
-            horariosTarde.add(horario);
-          }
-        }
-      }
+    if (horariosActivos.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No hay horarios disponibles (todos han pasado)'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
     }
 
     final isDomingoFeriado = tipoDia == 'DOMINGO / FERIADO';
 
-    // Mostrar diálogo embellecido con dos columnas
+    // Mostrar diálogo con navegación por teclado
     String? horarioSeleccionado = await showDialog<String>(
       context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Container(
-          width: 700,
-          padding: EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Título
-              Text(
-                'SELECCIONAR HORARIO',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: isDomingoFeriado ? Colors.red.shade700 : Colors.blue.shade700,
-                ),
-              ),
-              SizedBox(height: 8),
-              Text(
-                'Seleccione el horario de salida',
-                style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
-              ),
-              SizedBox(height: 24),
-
-              // Dos columnas con horarios
-              Flexible(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+      barrierDismissible: false,
+      builder: (context) => HorarioSelectorDialog(
+        horarios: horariosActivos,
+        horarioManager: _horarioManager,
+        destino: destinoReal,
+        categoria: categoria,
+        isDomingoFeriado: isDomingoFeriado,
+        onAgregarNuevo: () async {
+          final nuevoHorario = await _mostrarDialogoRelojDigitalVenta(destinoReal, categoria);
+          if (nuevoHorario != null) {
+            await _horarioManager.agregarSalidaExtra(nuevoHorario, destinoReal, categoria);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
                   children: [
-                    // Columna Mañana
+                    Icon(Icons.star, color: Colors.white),
+                    SizedBox(width: 12),
                     Expanded(
-                      child: Container(
-                        padding: EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.amber.shade50,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.amber.shade200, width: 2),
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.wb_sunny, color: Colors.orange.shade600, size: 28),
-                                SizedBox(width: 8),
-                                Text(
-                                  'MAÑANA',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.orange.shade700,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              'Antes de 12:00',
-                              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                            ),
-                            SizedBox(height: 12),
-                            Flexible(
-                              child: horariosManana.isEmpty
-                                  ? Padding(
-                                      padding: EdgeInsets.all(16),
-                                      child: Text(
-                                        'Sin horarios',
-                                        style: TextStyle(color: Colors.grey.shade500),
-                                      ),
-                                    )
-                                  : ListView.builder(
-                                      shrinkWrap: true,
-                                      itemCount: horariosManana.length,
-                                      itemBuilder: (context, index) {
-                                        final horario = horariosManana[index];
-                                        final pasado = _horarioPasado(horario);
-                                        final esSalidaExtra = _horarioManager.esSalidaExtra(horario, destinoReal, categoria);
-                                        return Padding(
-                                          padding: EdgeInsets.symmetric(vertical: 4),
-                                          child: Material(
-                                            color: pasado
-                                              ? Colors.grey.shade300
-                                              : (esSalidaExtra ? Colors.amber.shade100 : Colors.white),
-                                            borderRadius: BorderRadius.circular(8),
-                                            elevation: pasado ? 0 : 2,
-                                            child: InkWell(
-                                              onTap: pasado ? null : () => Navigator.pop(context, horario),
-                                              borderRadius: BorderRadius.circular(8),
-                                              child: Container(
-                                                padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                                                child: Row(
-                                                  children: [
-                                                    if (esSalidaExtra && !pasado) ...[
-                                                      Icon(Icons.star, color: Colors.orange.shade700, size: 18),
-                                                      SizedBox(width: 8),
-                                                    ],
-                                                    Icon(
-                                                      Icons.access_time,
-                                                      color: pasado ? Colors.grey.shade500 : Colors.orange.shade600,
-                                                      size: 20,
-                                                    ),
-                                                    SizedBox(width: 12),
-                                                    Expanded(
-                                                      child: Text(
-                                                        horario,
-                                                        style: TextStyle(
-                                                          fontSize: 18,
-                                                          fontWeight: FontWeight.bold,
-                                                          color: pasado ? Colors.grey.shade500 : Colors.orange.shade800,
-                                                          decoration: pasado ? TextDecoration.lineThrough : null,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                    if (esSalidaExtra && !pasado)
-                                                      Container(
-                                                        padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                        decoration: BoxDecoration(
-                                                          color: Colors.orange.shade200,
-                                                          borderRadius: BorderRadius.circular(4),
-                                                        ),
-                                                        child: Text(
-                                                          'EXTRA',
-                                                          style: TextStyle(
-                                                            fontSize: 10,
-                                                            fontWeight: FontWeight.bold,
-                                                            color: Colors.orange.shade900,
-                                                          ),
-                                                        ),
-                                                      ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    SizedBox(width: 16),
-
-                    // Columna Tarde
-                    Expanded(
-                      child: Container(
-                        padding: EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.indigo.shade50,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.indigo.shade200, width: 2),
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.wb_twilight, color: Colors.indigo.shade600, size: 28),
-                                SizedBox(width: 8),
-                                Text(
-                                  'TARDE',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.indigo.shade700,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              'Desde 12:00',
-                              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                            ),
-                            SizedBox(height: 12),
-                            Flexible(
-                              child: horariosTarde.isEmpty
-                                  ? Padding(
-                                      padding: EdgeInsets.all(16),
-                                      child: Text(
-                                        'Sin horarios',
-                                        style: TextStyle(color: Colors.grey.shade500),
-                                      ),
-                                    )
-                                  : ListView.builder(
-                                      shrinkWrap: true,
-                                      itemCount: horariosTarde.length,
-                                      itemBuilder: (context, index) {
-                                        final horario = horariosTarde[index];
-                                        final pasado = _horarioPasado(horario);
-                                        final esSalidaExtra = _horarioManager.esSalidaExtra(horario, destinoReal, categoria);
-                                        return Padding(
-                                          padding: EdgeInsets.symmetric(vertical: 4),
-                                          child: Material(
-                                            color: pasado
-                                              ? Colors.grey.shade300
-                                              : (esSalidaExtra ? Colors.amber.shade100 : Colors.white),
-                                            borderRadius: BorderRadius.circular(8),
-                                            elevation: pasado ? 0 : 2,
-                                            child: InkWell(
-                                              onTap: pasado ? null : () => Navigator.pop(context, horario),
-                                              borderRadius: BorderRadius.circular(8),
-                                              child: Container(
-                                                padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                                                child: Row(
-                                                  children: [
-                                                    if (esSalidaExtra && !pasado) ...[
-                                                      Icon(Icons.star, color: Colors.orange.shade700, size: 18),
-                                                      SizedBox(width: 8),
-                                                    ],
-                                                    Icon(
-                                                      Icons.access_time,
-                                                      color: pasado ? Colors.grey.shade500 : Colors.indigo.shade600,
-                                                      size: 20,
-                                                    ),
-                                                    SizedBox(width: 12),
-                                                    Expanded(
-                                                      child: Text(
-                                                        horario,
-                                                        style: TextStyle(
-                                                          fontSize: 18,
-                                                          fontWeight: FontWeight.bold,
-                                                          color: pasado ? Colors.grey.shade500 : Colors.indigo.shade800,
-                                                          decoration: pasado ? TextDecoration.lineThrough : null,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                    if (esSalidaExtra && !pasado)
-                                                      Container(
-                                                        padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                        decoration: BoxDecoration(
-                                                          color: Colors.orange.shade200,
-                                                          borderRadius: BorderRadius.circular(4),
-                                                        ),
-                                                        child: Text(
-                                                          'EXTRA',
-                                                          style: TextStyle(
-                                                            fontSize: 10,
-                                                            fontWeight: FontWeight.bold,
-                                                            color: Colors.orange.shade900,
-                                                          ),
-                                                        ),
-                                                      ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      child: Text('Salida extra $nuevoHorario agregada (solo para hoy)'),
                     ),
                   ],
                 ),
+                backgroundColor: Colors.orange.shade700,
               ),
-
-              SizedBox(height: 24),
-
-              // Botón Agregar Nuevo Horario
-              ElevatedButton.icon(
-                onPressed: () async {
-                  Navigator.pop(context); // Cerrar el diálogo actual
-                  // Abrir diálogo de reloj digital para agregar salida extra
-                  final nuevoHorario = await _mostrarDialogoRelojDigitalVenta(destinoReal, categoria);
-                  if (nuevoHorario != null) {
-                    // Agregar la salida extra
-                    await _horarioManager.agregarSalidaExtra(nuevoHorario, destinoReal, categoria);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Row(
-                          children: [
-                            Icon(Icons.star, color: Colors.white),
-                            SizedBox(width: 12),
-                            Expanded(
-                              child: Text('Salida extra $nuevoHorario agregada (solo para hoy)'),
-                            ),
-                          ],
-                        ),
-                        backgroundColor: Colors.orange.shade700,
-                      ),
-                    );
-                    // Reabrir el selector de horarios para que el usuario pueda seleccionar
-                    await Future.delayed(Duration(milliseconds: 300));
-                    _mostrarSelectorHorarios();
-                  }
-                },
-                icon: Icon(Icons.add_alarm, size: 20),
-                label: Text(
-                  'AGREGAR NUEVO HORARIO',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange.shade600,
-                  foregroundColor: Colors.white,
-                  padding: EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                  elevation: 4,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-              SizedBox(height: 12),
-
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text('CANCELAR', style: TextStyle(fontSize: 16)),
-              ),
-            ],
-          ),
-        ),
+            );
+          }
+          return nuevoHorario;
+        },
       ),
     );
 
@@ -533,10 +241,84 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
         _horarioController.text = horarioSeleccionado;
         this.horarioSeleccionado = horarioSeleccionado;
       });
-      _cargarAsientosOcupados();
-      _asientoFocusNode.requestFocus();
+      await _cargarAsientosOcupados();
+
+      // Auto-seleccionar asiento desde el 5 en adelante según disponibilidad
+      _autoSeleccionarAsiento();
     }
   }
+
+  // Método para auto-seleccionar asiento disponible desde el 5 en adelante
+  void _autoSeleccionarAsiento() {
+    for (int i = 5; i <= 45; i++) {
+      if (!asientosOcupados.contains(i)) {
+        setState(() {
+          asientoSeleccionado = i.toString().padLeft(2, '0');
+          _asientoController.text = asientoSeleccionado!;
+        });
+        _asientoFocusNode.requestFocus();
+        break;
+      }
+    }
+  }
+
+  // Método para mostrar selector de tarifa con navegación por teclado
+  Future<void> _mostrarSelectorTarifa() async {
+    if (tarifasDisponibles.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No hay tarifas disponibles para este tipo de día'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    final isDomingoFeriado = tipoDia == 'DOMINGO / FERIADO';
+
+    final tarifaSeleccionadaResult = await showDialog<Tarifa>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => TarifaSelectorDialog(
+        tarifas: tarifasDisponibles,
+        tarifaSeleccionada: tarifaSeleccionada,
+        isDomingoFeriado: isDomingoFeriado,
+      ),
+    );
+
+    if (tarifaSeleccionadaResult != null) {
+      setState(() {
+        tarifaSeleccionada = tarifaSeleccionadaResult;
+        valorBoleto = tarifaSeleccionadaResult.precio.toStringAsFixed(0);
+        _valorController.text = valorBoleto;
+      });
+
+      // Después de seleccionar tarifa, mostrar confirmación de venta
+      await _confirmarVenta();
+    }
+  }
+
+  // MÉTODO ANTERIOR - COMENTADO PARA REFERENCIA
+  /*
+  Future<void> _mostrarSelectorHorariosAntiguo() async {
+    await _horarioManager.cargarHorarios();
+
+    String destinoReal = destino == 'Intermedio' ? origenIntermedio : destino;
+    String categoria = tipoDia == 'DOMINGO / FERIADO' ? 'DomingosFeriados' :
+                       (DateTime.now().weekday == 6 ? 'Sabados' : 'LunesViernes');
+
+    List<String> horariosDisponibles = _horarioManager.obtenerHorariosCompletos(destinoReal, categoria);
+
+    if (horariosDisponibles.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No hay horarios configurados para este destino y tipo de día'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+  */
 
   // Mostrar diálogo de reloj digital para agregar horario (desde venta de pasajes)
   Future<String?> _mostrarDialogoRelojDigitalVenta(String destino, String categoria) async {
@@ -1441,9 +1223,9 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                             onChanged: (value) {
                               setState(() => fechaEscrita = value.replaceAll('/', ''));
                             },
-                            onFieldSubmitted: (_) {
-                              _horarioFocusNode.requestFocus();
-                              _autoScrollToField(_horarioFocusNode);
+                            onFieldSubmitted: (_) async {
+                              // Abrir automáticamente el selector de horarios
+                              await _mostrarSelectorHorarios();
                             },
                           ),
 
@@ -1512,11 +1294,13 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                             onChanged: (value) {
                               setState(() => asientoSeleccionado = value);
                             },
-                            onFieldSubmitted: (_) {
+                            onFieldSubmitted: (_) async {
                               final authProvider = Provider.of<AuthProvider>(context, listen: false);
                               if (authProvider.isSecretaria) {
-                                _confirmarVenta();
+                                // Mostrar selector de tarifa para secretarias
+                                await _mostrarSelectorTarifa();
                               } else {
+                                // Para administradores, ir al campo de valor
                                 _valorFocusNode.requestFocus();
                                 _autoScrollToField(_valorFocusNode);
                               }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 /// Clase helper para obtener los colores según el tipo de día
 class DayThemeHelper {
@@ -83,6 +84,10 @@ class _PaymentMethodDialogState extends State<PaymentMethodDialog> {
   String metodoPago = 'Efectivo';
   final TextEditingController _efectivoController = TextEditingController();
   final TextEditingController _tarjetaController = TextEditingController();
+  final FocusNode _efectivoFocusNode = FocusNode();
+  final FocusNode _tarjetaFocusNode = FocusNode();
+  final FocusNode _dialogFocusNode = FocusNode();
+  int _selectedOption = 0; // 0=Efectivo, 1=Tarjeta, 2=Pago Mixto
   String? errorMessage;
 
   @override
@@ -93,6 +98,10 @@ class _PaymentMethodDialogState extends State<PaymentMethodDialog> {
 
     _efectivoController.addListener(_onAmountChanged);
     _tarjetaController.addListener(_onAmountChanged);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _dialogFocusNode.requestFocus();
+    });
   }
 
   void _onAmountChanged() {
@@ -116,7 +125,29 @@ class _PaymentMethodDialogState extends State<PaymentMethodDialog> {
   void dispose() {
     _efectivoController.dispose();
     _tarjetaController.dispose();
+    _efectivoFocusNode.dispose();
+    _tarjetaFocusNode.dispose();
+    _dialogFocusNode.dispose();
     super.dispose();
+  }
+
+  void _moveSelection(int delta) {
+    setState(() {
+      _selectedOption = (_selectedOption + delta).clamp(0, 2);
+      _selectOption(_selectedOption);
+    });
+  }
+
+  void _selectOption(int option) {
+    String metodo;
+    if (option == 0) {
+      metodo = 'Efectivo';
+    } else if (option == 1) {
+      metodo = 'Tarjeta';
+    } else {
+      metodo = 'Pago Mixto';
+    }
+    _onMetodoChanged(metodo);
   }
 
   void _onMetodoChanged(String? value) {
@@ -127,11 +158,15 @@ class _PaymentMethodDialogState extends State<PaymentMethodDialog> {
       errorMessage = null;
 
       if (metodoPago == 'Efectivo') {
+        _selectedOption = 0;
         _efectivoController.text = widget.totalAmount.toStringAsFixed(0);
         _tarjetaController.text = '0';
       } else if (metodoPago == 'Tarjeta') {
+        _selectedOption = 1;
         _efectivoController.text = '0';
         _tarjetaController.text = widget.totalAmount.toStringAsFixed(0);
+      } else {
+        _selectedOption = 2;
       }
     });
   }
@@ -188,18 +223,44 @@ class _PaymentMethodDialogState extends State<PaymentMethodDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: Row(
-        children: [
-          Icon(Icons.payment, color: Colors.blue.shade700, size: 28),
-          SizedBox(width: 12),
-          Text(
-            'MÉTODO DE PAGO',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-        ],
-      ),
+    return RawKeyboardListener(
+      focusNode: _dialogFocusNode,
+      autofocus: true,
+      onKey: (RawKeyEvent event) {
+        if (event is RawKeyDownEvent) {
+          if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+            _moveSelection(1);
+          } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+            _moveSelection(-1);
+          } else if (event.logicalKey == LogicalKeyboardKey.enter) {
+            if (metodoPago == 'Pago Mixto') {
+              // Si está en pago mixto, navegar entre campos
+              if (!_efectivoFocusNode.hasFocus && !_tarjetaFocusNode.hasFocus) {
+                _efectivoFocusNode.requestFocus();
+              }
+            } else {
+              // Confirmar directamente si no es pago mixto
+              if (errorMessage == null) {
+                _confirmar();
+              }
+            }
+          } else if (event.logicalKey == LogicalKeyboardKey.escape) {
+            Navigator.pop(context);
+          }
+        }
+      },
+      child: AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.payment, color: Colors.blue.shade700, size: 28),
+            SizedBox(width: 12),
+            Text(
+              'MÉTODO DE PAGO',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -327,6 +388,7 @@ class _PaymentMethodDialogState extends State<PaymentMethodDialog> {
               SizedBox(height: 16),
               TextField(
                 controller: _efectivoController,
+                focusNode: _efectivoFocusNode,
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(
                   labelText: 'Efectivo',
@@ -338,10 +400,12 @@ class _PaymentMethodDialogState extends State<PaymentMethodDialog> {
                     borderSide: BorderSide(color: Colors.teal.shade600, width: 2),
                   ),
                 ),
+                onSubmitted: (_) => _tarjetaFocusNode.requestFocus(),
               ),
               SizedBox(height: 12),
               TextField(
                 controller: _tarjetaController,
+                focusNode: _tarjetaFocusNode,
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(
                   labelText: 'Tarjeta',
@@ -353,6 +417,11 @@ class _PaymentMethodDialogState extends State<PaymentMethodDialog> {
                     borderSide: BorderSide(color: Colors.purple.shade600, width: 2),
                   ),
                 ),
+                onSubmitted: (_) {
+                  if (errorMessage == null) {
+                    _confirmar();
+                  }
+                },
               ),
               if (errorMessage != null) ...[
                 SizedBox(height: 8),
@@ -365,21 +434,22 @@ class _PaymentMethodDialogState extends State<PaymentMethodDialog> {
           ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text('CANCELAR'),
-        ),
-        ElevatedButton(
-          onPressed: errorMessage == null ? _confirmar : null,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.blue.shade600,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('CANCELAR (ESC)'),
           ),
-          child: Text('CONFIRMAR'),
-        ),
-      ],
+          ElevatedButton(
+            onPressed: errorMessage == null ? _confirmar : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue.shade600,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: Text('CONFIRMAR (ENTER)'),
+          ),
+        ],
+      ),
     );
   }
 }
