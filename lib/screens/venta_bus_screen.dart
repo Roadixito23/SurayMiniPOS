@@ -171,11 +171,15 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
 
     // Determinar qué horarios mostrar según el destino y tipo de día
     String destinoReal = destino == 'Intermedio' ? origenIntermedio : destino;
+
+    // CORRECCIÓN: Usar la fecha seleccionada en lugar de la fecha actual para determinar la categoría
+    final fechaSeleccionadaDate = DateTime.parse(fechaSeleccionada);
     String categoria = tipoDia == 'DOMINGO / FERIADO' ? 'DomingosFeriados' :
-                       (DateTime.now().weekday == 6 ? 'Sabados' : 'LunesViernes');
+                       (fechaSeleccionadaDate.weekday == 6 ? 'Sabados' : 'LunesViernes');
 
     // Obtener TODOS los horarios (fijos + salidas extras del día)
-    List<String> horariosDisponibles = _horarioManager.obtenerHorariosCompletos(destinoReal, categoria);
+    // Pasamos la fecha seleccionada para que solo incluya extras si es hoy
+    List<String> horariosDisponibles = _horarioManager.obtenerHorariosCompletos(destinoReal, categoria, fecha: fechaSeleccionada);
 
     if (horariosDisponibles.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
