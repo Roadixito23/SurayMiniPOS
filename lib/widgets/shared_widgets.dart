@@ -104,11 +104,35 @@ class _PaymentMethodDialogState extends State<PaymentMethodDialog> {
     });
   }
 
+  bool _isUpdatingFromCode = false; // Flag para evitar bucles infinitos
+
   void _onAmountChanged() {
-    if (metodoPago != 'Pago Mixto') return;
+    if (metodoPago != 'Pago Mixto' || _isUpdatingFromCode) return;
 
     double efectivo = double.tryParse(_efectivoController.text) ?? 0;
     double tarjeta = double.tryParse(_tarjetaController.text) ?? 0;
+
+    // Calcular automáticamente el complemento
+    _isUpdatingFromCode = true;
+
+    // Si el focus está en efectivo, calcular tarjeta automáticamente
+    if (_efectivoFocusNode.hasFocus) {
+      double tarjetaCalculada = widget.totalAmount - efectivo;
+      if (tarjetaCalculada < 0) tarjetaCalculada = 0;
+      _tarjetaController.text = tarjetaCalculada.toStringAsFixed(0);
+    }
+    // Si el focus está en tarjeta, calcular efectivo automáticamente
+    else if (_tarjetaFocusNode.hasFocus) {
+      double efectivoCalculado = widget.totalAmount - tarjeta;
+      if (efectivoCalculado < 0) efectivoCalculado = 0;
+      _efectivoController.text = efectivoCalculado.toStringAsFixed(0);
+    }
+
+    _isUpdatingFromCode = false;
+
+    // Validar que la suma sea correcta
+    efectivo = double.tryParse(_efectivoController.text) ?? 0;
+    tarjeta = double.tryParse(_tarjetaController.text) ?? 0;
 
     if (efectivo + tarjeta != widget.totalAmount) {
       setState(() {
@@ -386,12 +410,38 @@ class _PaymentMethodDialogState extends State<PaymentMethodDialog> {
 
             if (metodoPago == 'Pago Mixto') ...[
               SizedBox(height: 16),
+              Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.blue.shade700, size: 20),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Ingrese un monto y el otro se calculará automáticamente',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.blue.shade800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: 12),
               TextField(
                 controller: _efectivoController,
                 focusNode: _efectivoFocusNode,
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(
                   labelText: 'Efectivo',
+                  helperText: 'El monto en tarjeta se calculará automáticamente',
+                  helperStyle: TextStyle(fontSize: 11, color: Colors.teal.shade600),
                   prefixIcon: Icon(Icons.attach_money, color: Colors.teal.shade600),
                   prefixText: '\$',
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
@@ -409,6 +459,8 @@ class _PaymentMethodDialogState extends State<PaymentMethodDialog> {
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(
                   labelText: 'Tarjeta',
+                  helperText: 'El monto en efectivo se calculará automáticamente',
+                  helperStyle: TextStyle(fontSize: 11, color: Colors.purple.shade600),
                   prefixIcon: Icon(Icons.credit_card, color: Colors.purple.shade600),
                   prefixText: '\$',
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
@@ -422,6 +474,49 @@ class _PaymentMethodDialogState extends State<PaymentMethodDialog> {
                     _confirmar();
                   }
                 },
+              ),
+              SizedBox(height: 12),
+              // Indicador visual del total
+              Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: errorMessage == null ? Colors.green.shade50 : Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: errorMessage == null ? Colors.green.shade300 : Colors.red.shade300,
+                    width: 2,
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          errorMessage == null ? Icons.check_circle : Icons.error,
+                          color: errorMessage == null ? Colors.green.shade700 : Colors.red.shade700,
+                          size: 20,
+                        ),
+                        SizedBox(width: 8),
+                        Text(
+                          'Total:',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: errorMessage == null ? Colors.green.shade900 : Colors.red.shade900,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      '\$${((double.tryParse(_efectivoController.text) ?? 0) + (double.tryParse(_tarjetaController.text) ?? 0)).toStringAsFixed(0)} / \$${widget.totalAmount.toStringAsFixed(0)}',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: errorMessage == null ? Colors.green.shade700 : Colors.red.shade700,
+                      ),
+                    ),
+                  ],
+                ),
               ),
               if (errorMessage != null) ...[
                 SizedBox(height: 8),
@@ -657,7 +752,7 @@ class _ExpenseDialogState extends State<ExpenseDialog> {
   }
 }
 
-/// Widget para confirmar venta con animación y colores según tipo de día
+/// Widget para confirmar venta con animación y colores turquesa/morado modernos
 class AnimatedConfirmDialog extends StatefulWidget {
   final String tipoDia;
   final String tarifa;
@@ -688,12 +783,14 @@ class _AnimatedConfirmDialogState extends State<AnimatedConfirmDialog>
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
   late Animation<double> _fadeAnimation;
+  final FocusNode _dialogFocusNode = FocusNode();
+  int _selectedButton = 1; // 0=CANCELAR, 1=CONFIRMAR
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: Duration(milliseconds: 300),
+      duration: Duration(milliseconds: 400),
       vsync: this,
     );
     _scaleAnimation = CurvedAnimation(
@@ -705,11 +802,16 @@ class _AnimatedConfirmDialogState extends State<AnimatedConfirmDialog>
       curve: Curves.easeIn,
     );
     _controller.forward();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _dialogFocusNode.requestFocus();
+    });
   }
 
   @override
   void dispose() {
     _controller.dispose();
+    _dialogFocusNode.dispose();
     super.dispose();
   }
 
@@ -719,153 +821,295 @@ class _AnimatedConfirmDialogState extends State<AnimatedConfirmDialog>
 
   @override
   Widget build(BuildContext context) {
-    final colors = DayThemeHelper.getThemeColors(widget.tipoDia);
-
-    return FadeTransition(
-      opacity: _fadeAnimation,
-      child: ScaleTransition(
-        scale: _scaleAnimation,
-        child: AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: Container(
-            padding: EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [colors['gradient1']!, colors['gradient2']!],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(12),
+    return RawKeyboardListener(
+      focusNode: _dialogFocusNode,
+      autofocus: true,
+      onKey: (RawKeyEvent event) {
+        if (event is RawKeyDownEvent) {
+          if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+            setState(() {
+              _selectedButton = 0; // CANCELAR
+            });
+          } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+            setState(() {
+              _selectedButton = 1; // CONFIRMAR
+            });
+          } else if (event.logicalKey == LogicalKeyboardKey.enter) {
+            _onClose(_selectedButton == 1);
+          } else if (event.logicalKey == LogicalKeyboardKey.escape) {
+            _onClose(false);
+          }
+        }
+      },
+      child: FadeTransition(
+        opacity: _fadeAnimation,
+        child: ScaleTransition(
+          scale: _scaleAnimation,
+          child: AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
             ),
-            child: Row(
-              children: [
-                Icon(Icons.confirmation_number, color: colors['primary'], size: 32),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Confirmar Venta',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: colors['accent'],
-                        ),
-                      ),
-                      Text(
-                        widget.tipoDia,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: colors['primary'],
-                        ),
-                      ),
-                    ],
+            backgroundColor: Colors.white,
+            title: Container(
+              padding: EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.teal.shade400, Colors.purple.shade400],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.teal.withOpacity(0.3),
+                    blurRadius: 12,
+                    offset: Offset(0, 4),
                   ),
-                ),
-              ],
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(Icons.confirmation_number_outlined, color: Colors.white, size: 32),
+                  ),
+                  SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Confirmar Venta',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        Text(
+                          widget.tipoDia,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.white.withOpacity(0.9),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildInfoCard('Tarifa', widget.tarifa, colors),
-                SizedBox(height: 8),
-                if (widget.destino == 'Intermedio' && widget.origen != null)
-                  _buildInfoCard('Origen', widget.origen!, colors),
-                _buildInfoCard(
-                  'Destino',
-                  widget.destino == 'Intermedio' ? '${widget.destino} (Km ${widget.kilometro ?? "?"})' : widget.destino,
-                  colors,
-                ),
-                SizedBox(height: 8),
-                _buildInfoCard('Salida', widget.horario, colors),
-                SizedBox(height: 8),
-                _buildInfoCard('Asiento', widget.asiento, colors),
-                SizedBox(height: 16),
-                Container(
-                  padding: EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: colors['secondary'],
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildModernInfoCard('Tarifa', widget.tarifa, Icons.label_outline),
+                  SizedBox(height: 10),
+                  if (widget.destino == 'Intermedio' && widget.origen != null)
+                    _buildModernInfoCard('Origen', widget.origen!, Icons.location_on_outlined),
+                  _buildModernInfoCard(
+                    'Destino',
+                    widget.destino == 'Intermedio' ? '${widget.destino} (Km ${widget.kilometro ?? "?"})' : widget.destino,
+                    Icons.place_outlined,
+                  ),
+                  SizedBox(height: 10),
+                  _buildModernInfoCard('Salida', widget.horario, Icons.access_time_outlined),
+                  SizedBox(height: 10),
+                  _buildModernInfoCard('Asiento', widget.asiento, Icons.airline_seat_recline_normal_outlined),
+                  SizedBox(height: 20),
+                  Container(
+                    padding: EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.teal.shade50, Colors.purple.shade50],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.teal.shade300, width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.teal.withOpacity(0.1),
+                          blurRadius: 8,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'VALOR TOTAL',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.purple.shade700,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        Text(
+                          '\$${widget.valor}',
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.teal.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: 16),
+                  // Indicador de navegación con teclado
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.keyboard_arrow_left, size: 16, color: Colors.grey.shade600),
+                        Text(
+                          ' / ',
+                          style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                        ),
+                        Icon(Icons.keyboard_arrow_right, size: 16, color: Colors.grey.shade600),
+                        SizedBox(width: 8),
+                        Text(
+                          'Navegar',
+                          style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
+                        ),
+                        SizedBox(width: 12),
+                        Icon(Icons.keyboard_return, size: 16, color: Colors.grey.shade600),
+                        SizedBox(width: 4),
+                        Text(
+                          'Confirmar',
+                          style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
+                        ),
+                        SizedBox(width: 12),
+                        Text(
+                          'ESC',
+                          style: TextStyle(color: Colors.grey.shade600, fontSize: 11, fontWeight: FontWeight.bold),
+                        ),
+                        SizedBox(width: 4),
+                        Text(
+                          'Cancelar',
+                          style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => _onClose(false),
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                  shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: colors['primary']!, width: 2),
+                    side: BorderSide(
+                      color: _selectedButton == 0 ? Colors.purple.shade300 : Colors.grey.shade300,
+                      width: _selectedButton == 0 ? 2 : 1,
+                    ),
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'VALOR TOTAL:',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: colors['accent'],
-                        ),
-                      ),
-                      Text(
-                        '\$${widget.valor}',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: colors['primary'],
-                        ),
-                      ),
-                    ],
-                  ),
+                  backgroundColor: _selectedButton == 0 ? Colors.purple.shade50 : Colors.transparent,
                 ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => _onClose(false),
-              child: Text('CANCELAR', style: TextStyle(color: Colors.grey.shade600)),
-            ),
-            ElevatedButton.icon(
-              onPressed: () => _onClose(true),
-              icon: Icon(Icons.check_circle),
-              label: Text('CONFIRMAR'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: colors['primary'],
-                foregroundColor: Colors.white,
-                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                child: Text(
+                  'CANCELAR',
+                  style: TextStyle(
+                    color: _selectedButton == 0 ? Colors.purple.shade700 : Colors.grey.shade600,
+                    fontWeight: _selectedButton == 0 ? FontWeight.bold : FontWeight.normal,
+                  ),
                 ),
               ),
-            ),
-          ],
+              ElevatedButton.icon(
+                onPressed: () => _onClose(true),
+                icon: Icon(Icons.check_circle_outline, size: 22),
+                label: Text(
+                  'CONFIRMAR',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _selectedButton == 1 ? Colors.teal.shade600 : Colors.teal.shade400,
+                  foregroundColor: Colors.white,
+                  padding: EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                  elevation: _selectedButton == 1 ? 6 : 2,
+                  shadowColor: Colors.teal.withOpacity(0.5),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildInfoCard(String label, String value, Map<String, Color> colors) {
+  Widget _buildModernInfoCard(String label, String value, IconData icon) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: colors['gradient1'],
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors['secondary']!),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              color: Colors.grey.shade700,
-              fontSize: 14,
+          Container(
+            padding: EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.teal.shade100, Colors.purple.shade100],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(8),
             ),
+            child: Icon(icon, color: Colors.teal.shade700, size: 20),
           ),
-          Text(
-            value,
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
-              color: colors['accent'],
+          SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    color: Colors.purple.shade700,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -899,8 +1143,11 @@ class _AnimatedPaymentMethodDialogState extends State<AnimatedPaymentMethodDialo
   String metodoPago = 'Efectivo';
   final TextEditingController _efectivoController = TextEditingController();
   final TextEditingController _tarjetaController = TextEditingController();
+  final FocusNode _efectivoFocusNode = FocusNode();
+  final FocusNode _tarjetaFocusNode = FocusNode();
   String? errorMessage;
   double montoFaltante = 0.0;
+  bool _isUpdatingFromCode = false;
 
   @override
   void initState() {
@@ -927,10 +1174,32 @@ class _AnimatedPaymentMethodDialogState extends State<AnimatedPaymentMethodDialo
   }
 
   void _onAmountChanged() {
-    if (metodoPago != 'Pago Mixto') return;
+    if (metodoPago != 'Pago Mixto' || _isUpdatingFromCode) return;
 
     double efectivo = double.tryParse(_efectivoController.text) ?? 0;
     double tarjeta = double.tryParse(_tarjetaController.text) ?? 0;
+
+    // Calcular automáticamente el complemento
+    _isUpdatingFromCode = true;
+
+    // Si el focus está en efectivo, calcular tarjeta automáticamente
+    if (_efectivoFocusNode.hasFocus) {
+      double tarjetaCalculada = widget.totalAmount - efectivo;
+      if (tarjetaCalculada < 0) tarjetaCalculada = 0;
+      _tarjetaController.text = tarjetaCalculada.toStringAsFixed(0);
+    }
+    // Si el focus está en tarjeta, calcular efectivo automáticamente
+    else if (_tarjetaFocusNode.hasFocus) {
+      double efectivoCalculado = widget.totalAmount - tarjeta;
+      if (efectivoCalculado < 0) efectivoCalculado = 0;
+      _efectivoController.text = efectivoCalculado.toStringAsFixed(0);
+    }
+
+    _isUpdatingFromCode = false;
+
+    // Validar y actualizar el estado
+    efectivo = double.tryParse(_efectivoController.text) ?? 0;
+    tarjeta = double.tryParse(_tarjetaController.text) ?? 0;
     double total = efectivo + tarjeta;
 
     setState(() {
@@ -951,6 +1220,8 @@ class _AnimatedPaymentMethodDialogState extends State<AnimatedPaymentMethodDialo
   void dispose() {
     _efectivoController.dispose();
     _tarjetaController.dispose();
+    _efectivoFocusNode.dispose();
+    _tarjetaFocusNode.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -1089,34 +1360,66 @@ class _AnimatedPaymentMethodDialogState extends State<AnimatedPaymentMethodDialo
                 _buildPaymentOption('Pago Mixto', colors),
                 if (metodoPago == 'Pago Mixto') ...[
                   SizedBox(height: 16),
+                  Container(
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.blue.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline, color: Colors.blue.shade700, size: 20),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Ingrese un monto y el otro se calculará automáticamente',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.blue.shade800,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: 12),
                   TextField(
                     controller: _efectivoController,
+                    focusNode: _efectivoFocusNode,
                     keyboardType: TextInputType.number,
                     decoration: InputDecoration(
                       labelText: 'Efectivo',
+                      helperText: 'El monto en tarjeta se calculará automáticamente',
+                      helperStyle: TextStyle(fontSize: 11, color: Colors.teal.shade600),
                       prefixText: '\$',
+                      prefixIcon: Icon(Icons.attach_money, color: Colors.teal.shade600),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: colors['primary']!, width: 2),
+                        borderSide: BorderSide(color: Colors.teal.shade600, width: 2),
                       ),
                     ),
                   ),
                   SizedBox(height: 12),
                   TextField(
                     controller: _tarjetaController,
+                    focusNode: _tarjetaFocusNode,
                     keyboardType: TextInputType.number,
                     decoration: InputDecoration(
                       labelText: 'Tarjeta',
+                      helperText: 'El monto en efectivo se calculará automáticamente',
+                      helperStyle: TextStyle(fontSize: 11, color: Colors.purple.shade600),
                       prefixText: '\$',
+                      prefixIcon: Icon(Icons.credit_card, color: Colors.purple.shade600),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: colors['primary']!, width: 2),
+                        borderSide: BorderSide(color: Colors.purple.shade600, width: 2),
                       ),
                     ),
                   ),
