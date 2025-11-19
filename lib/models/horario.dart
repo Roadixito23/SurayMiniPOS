@@ -17,6 +17,7 @@ class HorarioManager {
   static const String _keyHorariosAysen = 'horarios_aysen';
   static const String _keyHorariosCoyhaique = 'horarios_coyhaique';
   static const String _keySalidasExtras = 'salidas_extras';
+  static const String _keyHorariosProgramados = 'horarios_programados';
 
   // Salidas Extras (temporales solo del día)
   Map<String, Map<String, dynamic>> _salidasExtras = {};
@@ -27,6 +28,13 @@ class HorarioManager {
   //     'categoria': 'LunesViernes',
   //     'fecha': '2025-01-15',
   //   }
+  // }
+
+  // Horarios Programados (para fechas futuras específicas)
+  Map<String, List<String>> _horariosProgramados = {};
+  // Estructura: {
+  //   '2025-01-20_Aysen_LunesViernes': ['06:55', '08:30', '12:00'],
+  //   '2025-01-21_Coyhaique_Sabados': ['08:40', '10:00'],
   // }
 
   // Datos predeterminados para horarios desde Aysén
@@ -105,15 +113,24 @@ class HorarioManager {
     return salidas;
   }
 
-  // Obtener todos los horarios (fijos + extras del día) para un destino y categoría
+  // Obtener todos los horarios (fijos + programados + extras del día) para un destino y categoría
   // CORRECCIÓN: Agregado parámetro fecha para controlar si se incluyen salidas extras
   List<String> obtenerHorariosCompletos(String destino, String categoria, {String? fecha}) {
     List<String> horariosBase = [];
+    final fechaConsulta = fecha ?? _getFechaHoy();
 
-    if (destino == 'Aysen') {
-      horariosBase = List.from(_horariosAysen[categoria] ?? []);
+    // Verificar si hay horarios programados para esta fecha específica
+    final keyProgramado = '${fechaConsulta}_${destino}_$categoria';
+    if (_horariosProgramados.containsKey(keyProgramado)) {
+      // Si hay horarios programados, usar esos en lugar de los fijos
+      horariosBase = List.from(_horariosProgramados[keyProgramado] ?? []);
     } else {
-      horariosBase = List.from(_horariosCoyhaique[categoria] ?? []);
+      // Si no hay horarios programados, usar los horarios fijos
+      if (destino == 'Aysen') {
+        horariosBase = List.from(_horariosAysen[categoria] ?? []);
+      } else {
+        horariosBase = List.from(_horariosCoyhaique[categoria] ?? []);
+      }
     }
 
     // Solo agregar salidas extras si la fecha es hoy o no se especifica
@@ -174,6 +191,121 @@ class HorarioManager {
       return _salidasExtras[key]!['fecha'] == hoy;
     }
     return false;
+  }
+
+  // ====== MÉTODOS PARA HORARIOS PROGRAMADOS ======
+
+  // Obtener horarios programados para una fecha específica
+  List<String> getHorariosProgramados(String fecha, String destino, String categoria) {
+    final key = '${fecha}_${destino}_$categoria';
+    return List.from(_horariosProgramados[key] ?? []);
+  }
+
+  // Establecer horarios programados para una fecha específica
+  Future<void> setHorariosProgramados(String fecha, String destino, String categoria, List<String> horarios) async {
+    final key = '${fecha}_${destino}_$categoria';
+    if (horarios.isEmpty) {
+      _horariosProgramados.remove(key);
+    } else {
+      _horariosProgramados[key] = List.from(horarios);
+    }
+    await _guardarHorariosProgramados();
+    debugPrint('Horarios programados para $fecha - $destino ($categoria): $horarios');
+  }
+
+  // Agregar un horario a una fecha específica
+  Future<void> agregarHorarioProgramado(String fecha, String destino, String categoria, String horario) async {
+    final key = '${fecha}_${destino}_$categoria';
+    List<String> horarios = _horariosProgramados[key] ?? [];
+
+    if (!horarios.contains(horario)) {
+      horarios.add(horario);
+      horarios.sort((a, b) => _convertirAMinutos(a).compareTo(_convertirAMinutos(b)));
+      _horariosProgramados[key] = horarios;
+      await _guardarHorariosProgramados();
+      debugPrint('Horario $horario agregado para $fecha - $destino ($categoria)');
+    }
+  }
+
+  // Eliminar un horario de una fecha específica
+  Future<void> eliminarHorarioProgramado(String fecha, String destino, String categoria, String horario) async {
+    final key = '${fecha}_${destino}_$categoria';
+    if (_horariosProgramados.containsKey(key)) {
+      _horariosProgramados[key]!.remove(horario);
+      if (_horariosProgramados[key]!.isEmpty) {
+        _horariosProgramados.remove(key);
+      }
+      await _guardarHorariosProgramados();
+      debugPrint('Horario $horario eliminado de $fecha - $destino ($categoria)');
+    }
+  }
+
+  // Verificar si hay horarios programados para una fecha
+  bool tieneHorariosProgramados(String fecha, String destino, String categoria) {
+    final key = '${fecha}_${destino}_$categoria';
+    return _horariosProgramados.containsKey(key) && _horariosProgramados[key]!.isNotEmpty;
+  }
+
+  // Limpiar horarios programados pasados (más de 30 días atrás)
+  Future<void> limpiarHorariosProgramadosPasados() async {
+    final hoy = DateTime.now();
+    final limite = hoy.subtract(Duration(days: 30));
+    final keysToRemove = <String>[];
+
+    _horariosProgramados.forEach((key, horarios) {
+      final fecha = key.split('_')[0];
+      try {
+        final fechaDateTime = DateTime.parse(fecha);
+        if (fechaDateTime.isBefore(limite)) {
+          keysToRemove.add(key);
+        }
+      } catch (e) {
+        // Si hay error al parsear la fecha, eliminarla también
+        keysToRemove.add(key);
+      }
+    });
+
+    keysToRemove.forEach((key) {
+      _horariosProgramados.remove(key);
+    });
+
+    if (keysToRemove.isNotEmpty) {
+      await _guardarHorariosProgramados();
+      debugPrint('Horarios programados pasados limpiados: ${keysToRemove.length}');
+    }
+  }
+
+  // Guardar horarios programados en SharedPreferences
+  Future<void> _guardarHorariosProgramados() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyHorariosProgramados, jsonEncode(_horariosProgramados));
+      debugPrint('Horarios programados guardados correctamente');
+    } catch (e) {
+      debugPrint('Error al guardar horarios programados: $e');
+    }
+  }
+
+  // Cargar horarios programados desde SharedPreferences
+  Future<void> _cargarHorariosProgramados() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      if (prefs.containsKey(_keyHorariosProgramados)) {
+        final String horariosJson = prefs.getString(_keyHorariosProgramados) ?? '';
+        if (horariosJson.isNotEmpty) {
+          final Map<String, dynamic> decodedData = jsonDecode(horariosJson);
+          _horariosProgramados = {
+            for (var key in decodedData.keys)
+              key: List<String>.from(decodedData[key])
+          };
+        }
+      }
+
+      debugPrint('Horarios programados cargados correctamente');
+    } catch (e) {
+      debugPrint('Error al cargar horarios programados: $e');
+    }
   }
 
   // Limpiar salidas extras de días anteriores
@@ -271,9 +403,11 @@ class HorarioManager {
         }
       }
 
-      // Cargar y limpiar salidas extras
+      // Cargar y limpiar salidas extras y horarios programados
       await _cargarSalidasExtras();
       await limpiarSalidasExtrasPasadas();
+      await _cargarHorariosProgramados();
+      await limpiarHorariosProgramadosPasados();
 
       debugPrint('Horarios cargados correctamente');
     } catch (e) {

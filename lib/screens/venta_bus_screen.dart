@@ -9,6 +9,7 @@ import '../widgets/shared_widgets.dart';
 import '../widgets/bus_seat_map.dart';
 import '../widgets/horario_selector_dialog.dart';
 import '../widgets/tarifa_selector_dialog.dart';
+import '../widgets/weekly_schedule_calendar.dart';
 import '../models/tarifa.dart';
 import '../models/auth_provider.dart';
 import '../models/horario.dart';
@@ -887,6 +888,26 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
             ),
           ),
           SizedBox(width: 12),
+
+          // Botón de Calendario de Horarios
+          IconButton(
+            icon: Icon(Icons.calendar_month, color: Colors.white),
+            tooltip: 'Gestionar Horarios Semanales',
+            onPressed: () async {
+              await showDialog(
+                context: context,
+                builder: (context) => WeeklyScheduleCalendar(
+                  horarioManager: _horarioManager,
+                  destino: destino == 'Intermedio' ? origenIntermedio : destino,
+                  tipoDia: tipoDia,
+                ),
+              );
+              // Recargar horarios después de cerrar el calendario
+              await _horarioManager.cargarHorarios();
+              setState(() {});
+            },
+          ),
+          SizedBox(width: 8),
 
           // Switch de tipo de día
           Container(
@@ -1840,60 +1861,417 @@ class _ConfirmDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Row(
-        children: [
-          Icon(Icons.confirmation_number, color: Colors.blue),
-          SizedBox(width: 12),
-          Text('Confirmar Venta'),
-        ],
-      ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildRow('Tipo de día:', tipoDia),
-          _buildRow('Tarifa:', tarifa),
-          Divider(),
-          _buildRow('Origen:', origen),
-          _buildRow('Destino:', destino == 'Intermedio' ? '$destino (Km ${kilometro ?? "?"})' : destino),
-          _buildRow('Salida:', horario),
-          _buildRow('Asiento:', asiento),
-          _buildRow('Valor:', '\$$valor', bold: true),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: Text('CANCELAR'),
+    final isDomingoFeriado = tipoDia == 'DOMINGO / FERIADO';
+    final colorPrimario = isDomingoFeriado ? Colors.red : Colors.blue;
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: Container(
+        width: 450,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              colorPrimario.shade50,
+              Colors.white,
+            ],
+          ),
+          borderRadius: BorderRadius.circular(24),
         ),
-        ElevatedButton.icon(
-          onPressed: () => Navigator.pop(context, true),
-          icon: Icon(Icons.check),
-          label: Text('CONFIRMAR'),
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Encabezado con icono
+            Container(
+              padding: EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [colorPrimario.shade600, colorPrimario.shade700],
+                ),
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(24),
+                  topRight: Radius.circular(24),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.confirmation_number,
+                      color: Colors.white,
+                      size: 32,
+                    ),
+                  ),
+                  SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Confirmar Venta',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        Text(
+                          'Revisa los datos antes de confirmar',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.white.withOpacity(0.9),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Contenido
+            Padding(
+              padding: EdgeInsets.all(24),
+              child: Column(
+                children: [
+                  // Tipo de día y Tarifa
+                  _buildInfoCard(
+                    icon: Icons.calendar_today,
+                    color: colorPrimario,
+                    children: [
+                      _buildInfoRow('Tipo de día:', tipoDia),
+                      Divider(height: 16),
+                      _buildInfoRow('Tarifa:', tarifa),
+                    ],
+                  ),
+                  SizedBox(height: 16),
+
+                  // Ruta
+                  _buildInfoCard(
+                    icon: Icons.route,
+                    color: Colors.purple,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'ORIGEN',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey.shade600,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                SizedBox(height: 4),
+                                Container(
+                                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.purple.shade50,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: Colors.purple.shade200),
+                                  ),
+                                  child: Text(
+                                    origen,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.purple.shade900,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 12),
+                            child: Icon(
+                              Icons.arrow_forward,
+                              color: colorPrimario.shade600,
+                              size: 24,
+                            ),
+                          ),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  'DESTINO',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey.shade600,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                SizedBox(height: 4),
+                                Container(
+                                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.teal.shade50,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: Colors.teal.shade200),
+                                  ),
+                                  child: Text(
+                                    destino == 'Intermedio' ? '$destino (Km ${kilometro ?? "?"})' : destino,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.teal.shade900,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 16),
+
+                  // Detalles del viaje
+                  _buildInfoCard(
+                    icon: Icons.event_seat,
+                    color: Colors.green,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildDetailChip(
+                              Icons.access_time,
+                              'Salida',
+                              horario,
+                              colorPrimario,
+                            ),
+                          ),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: _buildDetailChip(
+                              Icons.event_seat,
+                              'Asiento',
+                              asiento,
+                              Colors.green,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 16),
+
+                  // Valor total
+                  Container(
+                    padding: EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [colorPrimario.shade600, colorPrimario.shade700],
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: colorPrimario.withOpacity(0.3),
+                          blurRadius: 12,
+                          offset: Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.attach_money, color: Colors.white, size: 28),
+                            SizedBox(width: 8),
+                            Text(
+                              'VALOR TOTAL',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Text(
+                          '\$$valor',
+                          style: TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Botones de acción
+            Container(
+              padding: EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(24),
+                  bottomRight: Radius.circular(24),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.grey.shade700,
+                        side: BorderSide(color: Colors.grey.shade400, width: 2),
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(
+                        'CANCELAR',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 16),
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton.icon(
+                      onPressed: () => Navigator.pop(context, true),
+                      icon: Icon(Icons.check_circle, size: 22),
+                      label: Text(
+                        'CONFIRMAR',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: colorPrimario,
+                        foregroundColor: Colors.white,
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        elevation: 4,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoCard({
+    required IconData icon,
+    required MaterialColor color,
+    required List<Widget> children,
+  }) {
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: children,
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            color: Colors.grey.shade600,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        SizedBox(width: 16),
+        Flexible(
+          child: Text(
+            value,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+            textAlign: TextAlign.right,
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildRow(String label, String value, {bool bold = false}) {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: TextStyle(color: Colors.grey.shade600)),
-          SizedBox(width: 16),
-          Text(
-            value,
-            style: TextStyle(
-              fontWeight: bold ? FontWeight.bold : FontWeight.w500,
-              fontSize: bold ? 16 : 14,
-            ),
+  Widget _buildDetailChip(IconData icon, String label, String value, MaterialColor color) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label.toUpperCase(),
+          style: TextStyle(
+            fontSize: 11,
+            color: Colors.grey.shade600,
+            fontWeight: FontWeight.bold,
           ),
-        ],
-      ),
+        ),
+        SizedBox(height: 6),
+        Container(
+          width: double.infinity,
+          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: color.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: color.shade200),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 18, color: color.shade700),
+              SizedBox(width: 6),
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: color.shade900,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
