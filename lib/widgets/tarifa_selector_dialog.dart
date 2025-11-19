@@ -66,7 +66,7 @@ class _TarifaSelectorDialogState extends State<TarifaSelectorDialog> {
     }
   }
 
-  Color _getCategoriaColor(String categoria) {
+  MaterialColor _getCategoriaColor(String categoria) {
     if (categoria.toUpperCase().contains('NORMAL')) {
       return Colors.blue;
     } else if (categoria.toUpperCase().contains('NIÑO') || categoria.toUpperCase().contains('NINO')) {
@@ -206,7 +206,7 @@ class _TarifaSelectorDialogState extends State<TarifaSelectorDialog> {
                                       ),
                                       SizedBox(height: 4),
                                       Text(
-                                        '\$${tarifa.precio.toStringAsFixed(0)}',
+                                        '\$${tarifa.valor.toStringAsFixed(0)}',
                                         style: TextStyle(
                                           fontSize: 20,
                                           fontWeight: FontWeight.bold,

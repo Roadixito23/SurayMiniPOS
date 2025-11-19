@@ -289,7 +289,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
     if (tarifaSeleccionadaResult != null) {
       setState(() {
         tarifaSeleccionada = tarifaSeleccionadaResult;
-        valorBoleto = tarifaSeleccionadaResult.precio.toStringAsFixed(0);
+        valorBoleto = tarifaSeleccionadaResult.valor.toStringAsFixed(0);
         _valorController.text = valorBoleto;
       });
 
@@ -635,7 +635,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
     return null;
   }
 
-  void _confirmarVenta() async {
+  Future<void> _confirmarVenta() async {
     if (!_formKey.currentState!.validate()) return;
 
     if (tarifaSeleccionada == null) {
