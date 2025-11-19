@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../database/caja_database.dart';
 import '../models/auth_provider.dart';
+import '../models/admin_code_manager.dart';
 
 class AnularVentaScreen extends StatefulWidget {
   @override
@@ -182,87 +183,12 @@ class _AnularVentaScreenState extends State<AnularVentaScreen> {
       return;
     }
 
-    // Si es Secretaria y ya tiene 3 o más anulaciones, no permitir más anulaciones
+    // Si es Secretaria y ya tiene 3 o más anulaciones, solicitar código de administrador
     if (isSecretaria && _anulacionesUsuarioHoy >= 3) {
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Row(
-            children: [
-              Icon(Icons.block, color: Colors.red, size: 28),
-              SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Límite Alcanzado',
-                  style: TextStyle(color: Colors.red.shade700),
-                ),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Ha alcanzado el límite máximo de anulaciones del día.',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
-              SizedBox(height: 12),
-              Container(
-                padding: EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.red.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.red.shade200),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.warning_amber_rounded, color: Colors.red.shade700),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Anulaciones realizadas hoy: $_anulacionesUsuarioHoy/3',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.red.shade900,
-                            ),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            'Contacte a un administrador para anular más ventas.',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.red.shade800,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              child: Text('ENTENDIDO'),
-            ),
-          ],
-        ),
-      );
-      return;
+      final codigoValido = await _solicitarCodigoAdministrador();
+      if (codigoValido != true) {
+        return; // No continuar si no se ingresó un código válido
+      }
     }
 
     // Confirmar con diálogo
@@ -352,6 +278,177 @@ class _AnularVentaScreenState extends State<AnularVentaScreen> {
         _procesando = false;
       });
     }
+  }
+
+  /// Solicita el código de administrador para permitir anulaciones adicionales
+  Future<bool?> _solicitarCodigoAdministrador() async {
+    final TextEditingController codigoController = TextEditingController();
+    final adminCodeManager = AdminCodeManager();
+
+    // Verificar si hay un código activo
+    final hasCode = await adminCodeManager.hasActiveCode();
+    if (!hasCode) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Icon(Icons.warning, color: Colors.orange, size: 28),
+              SizedBox(width: 12),
+              Text('Código No Disponible'),
+            ],
+          ),
+          content: Text(
+            'No hay código de administrador generado. Por favor, solicite al administrador que genere un código desde Configuración.',
+            style: TextStyle(fontSize: 14),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('ENTENDIDO'),
+            ),
+          ],
+        ),
+      );
+      return false;
+    }
+
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.lock, color: Colors.orange, size: 28),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Código de Administrador',
+                style: TextStyle(color: Colors.orange.shade700),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.orange.shade700, size: 20),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Ha alcanzado el límite de 3 anulaciones. Ingrese el código de administrador para continuar.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.orange.shade900,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: 16),
+            TextField(
+              controller: codigoController,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              maxLength: 5,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 8,
+              ),
+              decoration: InputDecoration(
+                labelText: 'Código de 5 dígitos',
+                hintText: '12345',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.orange, width: 2),
+                ),
+                counterText: '',
+              ),
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(5),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('CANCELAR'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final codigo = codigoController.text.trim();
+              if (codigo.length != 5) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('El código debe tener 5 dígitos'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+                return;
+              }
+
+              final esValido = await adminCodeManager.verifyCode(codigo);
+              if (esValido) {
+                Navigator.pop(context, true);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Row(
+                      children: [
+                        Icon(Icons.check_circle, color: Colors.white),
+                        SizedBox(width: 12),
+                        Text('Código válido. Puede proceder con la anulación.'),
+                      ],
+                    ),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Row(
+                      children: [
+                        Icon(Icons.error, color: Colors.white),
+                        SizedBox(width: 12),
+                        Text('Código incorrecto. Intente nuevamente.'),
+                      ],
+                    ),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: Text('VERIFICAR'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _mostrarMensaje(String mensaje, {bool error = false, bool success = false}) {
