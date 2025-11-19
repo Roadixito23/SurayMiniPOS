@@ -27,6 +27,9 @@ class _AnularVentaScreenState extends State<AnularVentaScreen> {
   List<Map<String, dynamic>> _anulacionesDelDia = [];
   bool _cargandoHistorial = true;
 
+  // Control de anulaciones para secretaria
+  int _anulacionesUsuarioHoy = 0;
+
   @override
   void initState() {
     super.initState();
@@ -44,8 +47,14 @@ class _AnularVentaScreenState extends State<AnularVentaScreen> {
     });
 
     try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final usuario = authProvider.currentUser?['username'] ?? 'desconocido';
+
       final cajaDb = CajaDatabase();
       final ventas = await cajaDb.getVentasDiarias();
+
+      // Contar anulaciones del usuario hoy
+      final anulacionesHoy = await cajaDb.contarAnulacionesDelDia(usuario);
 
       // Separar ventas activas y anuladas del día de hoy
       List<Map<String, dynamic>> ventasActivas = [];
@@ -67,6 +76,7 @@ class _AnularVentaScreenState extends State<AnularVentaScreen> {
       setState(() {
         _ventasDelDia = ventasActivas;
         _anulacionesDelDia = ventasAnuladas;
+        _anulacionesUsuarioHoy = anulacionesHoy;
         _cargandoHistorial = false;
       });
     } catch (e) {
@@ -160,11 +170,28 @@ class _AnularVentaScreenState extends State<AnularVentaScreen> {
       return;
     }
 
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final isSecretaria = authProvider.isSecretaria;
+
     String motivo = _motivoController.text.trim();
+
+    // Validar motivo obligatorio
     if (motivo.isEmpty) {
       _mostrarMensaje('Debe ingresar un motivo para la anulación', error: true);
       _motivoFocusNode.requestFocus();
       return;
+    }
+
+    // Si es Secretaria y ya tiene 3 o más anulaciones, requiere justificación detallada
+    if (isSecretaria && _anulacionesUsuarioHoy >= 3) {
+      if (motivo.length < 30) {
+        _mostrarMensaje(
+          'Ha alcanzado el límite de 3 anulaciones. Se requiere una justificación detallada (mínimo 30 caracteres)',
+          error: true,
+        );
+        _motivoFocusNode.requestFocus();
+        return;
+      }
     }
 
     // Confirmar con diálogo
@@ -352,6 +379,59 @@ class _AnularVentaScreenState extends State<AnularVentaScreen> {
                         ),
                       ],
                     ),
+                  ),
+
+                  // Contador de anulaciones para secretaria
+                  Consumer<AuthProvider>(
+                    builder: (context, authProvider, _) {
+                      if (!authProvider.isSecretaria) return SizedBox.shrink();
+
+                      final anulacionesRestantes = 3 - _anulacionesUsuarioHoy;
+                      final color = _anulacionesUsuarioHoy >= 3
+                          ? Colors.red
+                          : (_anulacionesUsuarioHoy >= 2 ? Colors.orange : Colors.blue);
+
+                      return Container(
+                        margin: EdgeInsets.only(top: 16),
+                        padding: EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: color.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: color.shade300, width: 2),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline, color: color.shade700, size: 28),
+                            SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Control de Anulaciones',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: color.shade900,
+                                    ),
+                                  ),
+                                  SizedBox(height: 4),
+                                  Text(
+                                    _anulacionesUsuarioHoy >= 3
+                                        ? 'Ha alcanzado el límite de 3 anulaciones. Se requiere justificación detallada.'
+                                        : 'Anulaciones hoy: $_anulacionesUsuarioHoy de 3. Quedan $anulacionesRestantes anulaciones simples.',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: color.shade800,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
                   ),
 
                   SizedBox(height: 32),
