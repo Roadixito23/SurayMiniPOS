@@ -150,7 +150,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              'Punto de venta para carga y transporte de pasajeros',
+                              'Punto de venta',
                               style: TextStyle(
                                 fontSize: isDesktop ? 14 : 12,
                                 color: Colors.grey[600],
