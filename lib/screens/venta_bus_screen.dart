@@ -172,12 +172,8 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
     String categoria = tipoDia == 'DOMINGO / FERIADO' ? 'DomingosFeriados' :
                        (DateTime.now().weekday == 6 ? 'Sabados' : 'LunesViernes');
 
-    List<String> horariosDisponibles = [];
-    if (destinoReal == 'Aysen') {
-      horariosDisponibles = _horarioManager.horariosAysen[categoria] ?? [];
-    } else {
-      horariosDisponibles = _horarioManager.horariosCoyhaique[categoria] ?? [];
-    }
+    // Obtener TODOS los horarios (fijos + salidas extras del día)
+    List<String> horariosDisponibles = _horarioManager.obtenerHorariosCompletos(destinoReal, categoria);
 
     if (horariosDisponibles.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -289,10 +285,13 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                                       itemBuilder: (context, index) {
                                         final horario = horariosManana[index];
                                         final pasado = _horarioPasado(horario);
+                                        final esSalidaExtra = _horarioManager.esSalidaExtra(horario, destinoReal, categoria);
                                         return Padding(
                                           padding: EdgeInsets.symmetric(vertical: 4),
                                           child: Material(
-                                            color: pasado ? Colors.grey.shade300 : Colors.white,
+                                            color: pasado
+                                              ? Colors.grey.shade300
+                                              : (esSalidaExtra ? Colors.amber.shade100 : Colors.white),
                                             borderRadius: BorderRadius.circular(8),
                                             elevation: pasado ? 0 : 2,
                                             child: InkWell(
@@ -302,21 +301,43 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                                                 padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                                                 child: Row(
                                                   children: [
+                                                    if (esSalidaExtra && !pasado) ...[
+                                                      Icon(Icons.star, color: Colors.orange.shade700, size: 18),
+                                                      SizedBox(width: 8),
+                                                    ],
                                                     Icon(
                                                       Icons.access_time,
                                                       color: pasado ? Colors.grey.shade500 : Colors.orange.shade600,
                                                       size: 20,
                                                     ),
                                                     SizedBox(width: 12),
-                                                    Text(
-                                                      horario,
-                                                      style: TextStyle(
-                                                        fontSize: 18,
-                                                        fontWeight: FontWeight.bold,
-                                                        color: pasado ? Colors.grey.shade500 : Colors.orange.shade800,
-                                                        decoration: pasado ? TextDecoration.lineThrough : null,
+                                                    Expanded(
+                                                      child: Text(
+                                                        horario,
+                                                        style: TextStyle(
+                                                          fontSize: 18,
+                                                          fontWeight: FontWeight.bold,
+                                                          color: pasado ? Colors.grey.shade500 : Colors.orange.shade800,
+                                                          decoration: pasado ? TextDecoration.lineThrough : null,
+                                                        ),
                                                       ),
                                                     ),
+                                                    if (esSalidaExtra && !pasado)
+                                                      Container(
+                                                        padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                        decoration: BoxDecoration(
+                                                          color: Colors.orange.shade200,
+                                                          borderRadius: BorderRadius.circular(4),
+                                                        ),
+                                                        child: Text(
+                                                          'EXTRA',
+                                                          style: TextStyle(
+                                                            fontSize: 10,
+                                                            fontWeight: FontWeight.bold,
+                                                            color: Colors.orange.shade900,
+                                                          ),
+                                                        ),
+                                                      ),
                                                   ],
                                                 ),
                                               ),
@@ -380,10 +401,13 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                                       itemBuilder: (context, index) {
                                         final horario = horariosTarde[index];
                                         final pasado = _horarioPasado(horario);
+                                        final esSalidaExtra = _horarioManager.esSalidaExtra(horario, destinoReal, categoria);
                                         return Padding(
                                           padding: EdgeInsets.symmetric(vertical: 4),
                                           child: Material(
-                                            color: pasado ? Colors.grey.shade300 : Colors.white,
+                                            color: pasado
+                                              ? Colors.grey.shade300
+                                              : (esSalidaExtra ? Colors.amber.shade100 : Colors.white),
                                             borderRadius: BorderRadius.circular(8),
                                             elevation: pasado ? 0 : 2,
                                             child: InkWell(
@@ -393,21 +417,43 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                                                 padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                                                 child: Row(
                                                   children: [
+                                                    if (esSalidaExtra && !pasado) ...[
+                                                      Icon(Icons.star, color: Colors.orange.shade700, size: 18),
+                                                      SizedBox(width: 8),
+                                                    ],
                                                     Icon(
                                                       Icons.access_time,
                                                       color: pasado ? Colors.grey.shade500 : Colors.indigo.shade600,
                                                       size: 20,
                                                     ),
                                                     SizedBox(width: 12),
-                                                    Text(
-                                                      horario,
-                                                      style: TextStyle(
-                                                        fontSize: 18,
-                                                        fontWeight: FontWeight.bold,
-                                                        color: pasado ? Colors.grey.shade500 : Colors.indigo.shade800,
-                                                        decoration: pasado ? TextDecoration.lineThrough : null,
+                                                    Expanded(
+                                                      child: Text(
+                                                        horario,
+                                                        style: TextStyle(
+                                                          fontSize: 18,
+                                                          fontWeight: FontWeight.bold,
+                                                          color: pasado ? Colors.grey.shade500 : Colors.indigo.shade800,
+                                                          decoration: pasado ? TextDecoration.lineThrough : null,
+                                                        ),
                                                       ),
                                                     ),
+                                                    if (esSalidaExtra && !pasado)
+                                                      Container(
+                                                        padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                        decoration: BoxDecoration(
+                                                          color: Colors.orange.shade200,
+                                                          borderRadius: BorderRadius.circular(4),
+                                                        ),
+                                                        child: Text(
+                                                          'EXTRA',
+                                                          style: TextStyle(
+                                                            fontSize: 10,
+                                                            fontWeight: FontWeight.bold,
+                                                            color: Colors.orange.shade900,
+                                                          ),
+                                                        ),
+                                                      ),
                                                   ],
                                                 ),
                                               ),
@@ -426,6 +472,52 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
               ),
 
               SizedBox(height: 24),
+
+              // Botón Agregar Nuevo Horario
+              ElevatedButton.icon(
+                onPressed: () async {
+                  Navigator.pop(context); // Cerrar el diálogo actual
+                  // Abrir diálogo de reloj digital para agregar salida extra
+                  final nuevoHorario = await _mostrarDialogoRelojDigitalVenta(destinoReal, categoria);
+                  if (nuevoHorario != null) {
+                    // Agregar la salida extra
+                    await _horarioManager.agregarSalidaExtra(nuevoHorario, destinoReal, categoria);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Row(
+                          children: [
+                            Icon(Icons.star, color: Colors.white),
+                            SizedBox(width: 12),
+                            Expanded(
+                              child: Text('Salida extra $nuevoHorario agregada (solo para hoy)'),
+                            ),
+                          ],
+                        ),
+                        backgroundColor: Colors.orange.shade700,
+                      ),
+                    );
+                    // Reabrir el selector de horarios para que el usuario pueda seleccionar
+                    await Future.delayed(Duration(milliseconds: 300));
+                    _mostrarSelectorHorarios();
+                  }
+                },
+                icon: Icon(Icons.add_alarm, size: 20),
+                label: Text(
+                  'AGREGAR NUEVO HORARIO',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange.shade600,
+                  foregroundColor: Colors.white,
+                  padding: EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+              SizedBox(height: 12),
+
               TextButton(
                 onPressed: () => Navigator.pop(context),
                 child: Text('CANCELAR', style: TextStyle(fontSize: 16)),
@@ -444,6 +536,291 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
       _cargarAsientosOcupados();
       _asientoFocusNode.requestFocus();
     }
+  }
+
+  // Mostrar diálogo de reloj digital para agregar horario (desde venta de pasajes)
+  Future<String?> _mostrarDialogoRelojDigitalVenta(String destino, String categoria) async {
+    int horaSeleccionada = 12;
+    int minutoSeleccionado = 0;
+
+    final isDomingoFeriado = categoria == 'DomingosFeriados';
+    final colorPrimario = isDomingoFeriado ? Colors.red : Colors.blue;
+
+    return await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Container(
+                width: 500,
+                padding: EdgeInsets.all(32),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      colorPrimario.shade50,
+                      Colors.white,
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Título
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.add_alarm,
+                          color: colorPrimario.shade700,
+                          size: 32,
+                        ),
+                        SizedBox(width: 12),
+                        Text(
+                          'Agregar Salida Extra',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: colorPrimario.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      'Origen: ${destino == 'Aysen' ? 'Aysén' : 'Coyhaique'}',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                    Text(
+                      categoria == 'LunesViernes'
+                          ? 'Lunes a Viernes'
+                          : (categoria == 'Sabados' ? 'Sábado' : 'Domingo / Feriado'),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade100,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.orange.shade300),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.info_outline, size: 16, color: Colors.orange.shade800),
+                          SizedBox(width: 6),
+                          Text(
+                            'Solo válida para hoy',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.orange.shade800,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: 32),
+
+                    // Reloj Digital
+                    Container(
+                      padding: EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: Colors.black87,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: colorPrimario.withOpacity(0.3),
+                            blurRadius: 20,
+                            spreadRadius: 2,
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Selector de Hora
+                          _buildDigitalTimePickerVenta(
+                            value: horaSeleccionada,
+                            maxValue: 23,
+                            onChanged: (value) {
+                              setStateDialog(() {
+                                horaSeleccionada = value;
+                              });
+                            },
+                            color: colorPrimario,
+                          ),
+                          // Separador ":"
+                          Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 12),
+                            child: Text(
+                              ':',
+                              style: TextStyle(
+                                fontSize: 64,
+                                fontWeight: FontWeight.bold,
+                                color: colorPrimario.shade300,
+                                height: 1.0,
+                              ),
+                            ),
+                          ),
+                          // Selector de Minuto
+                          _buildDigitalTimePickerVenta(
+                            value: minutoSeleccionado,
+                            maxValue: 59,
+                            step: 5,
+                            onChanged: (value) {
+                              setStateDialog(() {
+                                minutoSeleccionado = value;
+                              });
+                            },
+                            color: colorPrimario,
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: 32),
+
+                    // Botones
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(context),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.grey.shade700,
+                              side: BorderSide(color: Colors.grey.shade400),
+                              padding: EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: Text(
+                              'CANCELAR',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 16),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () {
+                              final horario = '${horaSeleccionada.toString().padLeft(2, '0')}:${minutoSeleccionado.toString().padLeft(2, '0')}';
+                              Navigator.pop(context, horario);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: colorPrimario,
+                              foregroundColor: Colors.white,
+                              padding: EdgeInsets.symmetric(vertical: 16),
+                              elevation: 4,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: Text(
+                              'AGREGAR',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // Widget para construir el selector digital de tiempo (para venta)
+  Widget _buildDigitalTimePickerVenta({
+    required int value,
+    required int maxValue,
+    int step = 1,
+    required ValueChanged<int> onChanged,
+    required Color color,
+  }) {
+    return Column(
+      children: [
+        // Botón incrementar
+        InkWell(
+          onTap: () {
+            int newValue = value + step;
+            if (newValue > maxValue) newValue = 0;
+            onChanged(newValue);
+          },
+          child: Container(
+            padding: EdgeInsets.all(8),
+            child: Icon(
+              Icons.arrow_drop_up,
+              color: color.shade300,
+              size: 40,
+            ),
+          ),
+        ),
+        // Valor actual
+        Container(
+          width: 100,
+          height: 80,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: Colors.black,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: color.shade700, width: 2),
+          ),
+          child: Text(
+            value.toString().padLeft(2, '0'),
+            style: TextStyle(
+              fontSize: 56,
+              fontWeight: FontWeight.bold,
+              color: color.shade300,
+              fontFeatures: [FontFeature.tabularFigures()],
+              height: 1.0,
+            ),
+          ),
+        ),
+        // Botón decrementar
+        InkWell(
+          onTap: () {
+            int newValue = value - step;
+            if (newValue < 0) newValue = maxValue - (maxValue % step);
+            onChanged(newValue);
+          },
+          child: Container(
+            padding: EdgeInsets.all(8),
+            child: Icon(
+              Icons.arrow_drop_down,
+              color: color.shade300,
+              size: 40,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   // Manejar eventos de teclado para scroll con flechas

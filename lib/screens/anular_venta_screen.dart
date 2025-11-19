@@ -182,16 +182,87 @@ class _AnularVentaScreenState extends State<AnularVentaScreen> {
       return;
     }
 
-    // Si es Secretaria y ya tiene 3 o más anulaciones, requiere justificación detallada
+    // Si es Secretaria y ya tiene 3 o más anulaciones, no permitir más anulaciones
     if (isSecretaria && _anulacionesUsuarioHoy >= 3) {
-      if (motivo.length < 30) {
-        _mostrarMensaje(
-          'Ha alcanzado el límite de 3 anulaciones. Se requiere una justificación detallada (mínimo 30 caracteres)',
-          error: true,
-        );
-        _motivoFocusNode.requestFocus();
-        return;
-      }
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Icon(Icons.block, color: Colors.red, size: 28),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Límite Alcanzado',
+                  style: TextStyle(color: Colors.red.shade700),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Ha alcanzado el límite máximo de anulaciones del día.',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              SizedBox(height: 12),
+              Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.red.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.warning_amber_rounded, color: Colors.red.shade700),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Anulaciones realizadas hoy: $_anulacionesUsuarioHoy/3',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.red.shade900,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Contacte a un administrador para anular más ventas.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.red.shade800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: Text('ENTENDIDO'),
+            ),
+          ],
+        ),
+      );
+      return;
     }
 
     // Confirmar con diálogo
@@ -418,11 +489,12 @@ class _AnularVentaScreenState extends State<AnularVentaScreen> {
                                   SizedBox(height: 4),
                                   Text(
                                     _anulacionesUsuarioHoy >= 3
-                                        ? 'Ha alcanzado el límite de 3 anulaciones. Se requiere justificación detallada.'
-                                        : 'Anulaciones hoy: $_anulacionesUsuarioHoy de 3. Quedan $anulacionesRestantes anulaciones simples.',
+                                        ? 'Ha alcanzado el límite máximo de 3 anulaciones del día. Contacte a un administrador.'
+                                        : 'Anulaciones realizadas hoy: $_anulacionesUsuarioHoy de 3. Le quedan $anulacionesRestantes.',
                                     style: TextStyle(
                                       fontSize: 13,
                                       color: color.shade800,
+                                      fontWeight: _anulacionesUsuarioHoy >= 3 ? FontWeight.bold : FontWeight.normal,
                                     ),
                                   ),
                                 ],

@@ -336,61 +336,84 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ],
                   ),
                   SizedBox(height: 16),
-                  Text(
-                    'Simular Estado del Servidor:',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey[700],
-                    ),
-                  ),
+                  Divider(height: 1, color: Colors.grey.shade300),
                   SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () async {
-                            await serverStatus.simulateServerStatus(true);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Servidor simulado: ONLINE'),
-                                backgroundColor: Colors.green,
-                                duration: Duration(seconds: 2),
-                              ),
-                            );
-                          },
-                          icon: Icon(Icons.cloud_done, size: 18),
-                          label: Text('Online', style: TextStyle(fontSize: 12)),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            foregroundColor: Colors.white,
-                            padding: EdgeInsets.symmetric(vertical: 8),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: serverStatus.isSimulated
+                        ? (serverStatus.isOnline ? Colors.green.shade50 : Colors.red.shade50)
+                        : Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: SwitchListTile(
+                      value: serverStatus.isSimulated ? serverStatus.isOnline : true,
+                      onChanged: (bool value) async {
+                        await serverStatus.simulateServerStatus(value);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Row(
+                              children: [
+                                Icon(
+                                  value ? Icons.cloud_done : Icons.cloud_off,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                                SizedBox(width: 12),
+                                Text(
+                                  value
+                                    ? 'Servidor simulado: ONLINE'
+                                    : 'Servidor simulado: OFFLINE',
+                                  style: TextStyle(fontWeight: FontWeight.w500),
+                                ),
+                              ],
+                            ),
+                            backgroundColor: value ? Colors.green : Colors.red,
+                            duration: Duration(seconds: 2),
                           ),
-                        ),
-                      ),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () async {
-                            await serverStatus.simulateServerStatus(false);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Servidor simulado: OFFLINE'),
-                                backgroundColor: Colors.red,
-                                duration: Duration(seconds: 2),
-                              ),
-                            );
-                          },
-                          icon: Icon(Icons.cloud_off, size: 18),
-                          label: Text('Offline', style: TextStyle(fontSize: 12)),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red,
-                            foregroundColor: Colors.white,
-                            padding: EdgeInsets.symmetric(vertical: 8),
+                        );
+                      },
+                      title: Row(
+                        children: [
+                          Icon(
+                            serverStatus.isSimulated
+                              ? (serverStatus.isOnline ? Icons.cloud_done : Icons.cloud_off)
+                              : Icons.cloud_queue,
+                            color: serverStatus.isSimulated
+                              ? (serverStatus.isOnline ? Colors.green : Colors.red)
+                              : Colors.grey,
+                            size: 24,
                           ),
-                        ),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Simular Estado del Servidor',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  serverStatus.isSimulated
+                                    ? (serverStatus.isOnline ? 'Servidor ONLINE' : 'Servidor OFFLINE')
+                                    : 'Sin simulación',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                      activeColor: Colors.green,
+                      inactiveThumbColor: Colors.red,
+                      inactiveTrackColor: Colors.red.shade200,
+                    ),
                   ),
                   if (serverStatus.isSimulated) ...[
                     SizedBox(height: 12),

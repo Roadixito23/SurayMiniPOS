@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:sqflite/sqflite.dart';
+import 'package:intl/intl.dart';
 import '../models/horario.dart';
 import '../models/auth_provider.dart';
-import '../database/app_database.dart';
-import '../widgets/shared_widgets.dart';
 
 class HorarioScreen extends StatefulWidget {
   @override
@@ -19,18 +17,18 @@ class _HorarioScreenState extends State<HorarioScreen> with SingleTickerProvider
   final FocusNode _focusNode = FocusNode();
 
   bool _isLoading = true;
-  bool _isEditing = false;
   String _currentDestino = 'Aysen';
-  String _currentCategoria = 'LunesViernes';
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _tabController.addListener(() {
-      setState(() {
-        _currentDestino = _tabController.index == 0 ? 'Aysen' : 'Coyhaique';
-      });
+      if (!_tabController.indexIsChanging) {
+        setState(() {
+          _currentDestino = _tabController.index == 0 ? 'Aysen' : 'Coyhaique';
+        });
+      }
     });
     _cargarHorarios();
   }
@@ -55,11 +53,10 @@ class _HorarioScreenState extends State<HorarioScreen> with SingleTickerProvider
     super.dispose();
   }
 
-  // Manejar eventos de teclado para scroll con flechas
+  // Manejar eventos de teclado para scroll
   void _handleKeyEvent(RawKeyEvent event) {
     if (event is RawKeyDownEvent) {
       const scrollAmount = 50.0;
-
       if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
         _scrollController.animateTo(
           _scrollController.offset + scrollAmount,
@@ -76,267 +73,334 @@ class _HorarioScreenState extends State<HorarioScreen> with SingleTickerProvider
     }
   }
 
-  List<String> _getHorarios(String destino, String categoria) {
-    if (destino == 'Aysen') {
-      return _horarioManager.horariosAysen[categoria] ?? [];
-    } else {
-      return _horarioManager.horariosCoyhaique[categoria] ?? [];
-    }
-  }
+  // Mostrar diálogo de reloj digital para agregar horario
+  Future<String?> _mostrarDialogoRelojDigital(
+    String destino,
+    String categoria,
+    bool esSalidaExtra,
+  ) async {
+    int horaSeleccionada = 12;
+    int minutoSeleccionado = 0;
 
-  // Ordenar horarios por tiempo
-  List<String> _ordenarHorarios(List<String> horarios) {
-    horarios.sort((a, b) {
-      int minutosA = _convertirAMinutos(a);
-      int minutosB = _convertirAMinutos(b);
-      return minutosA.compareTo(minutosB);
-    });
-    return horarios;
-  }
+    final isDomingoFeriado = categoria == 'DomingosFeriados';
+    final colorPrimario = isDomingoFeriado ? Colors.red : Colors.blue;
 
-  // Convertir horario (HH:MM) a minutos
-  int _convertirAMinutos(String horario) {
-    List<String> partes = horario.split(':');
-    if (partes.length != 2) return 0;
-
-    int horas = int.tryParse(partes[0]) ?? 0;
-    int minutos = int.tryParse(partes[1]) ?? 0;
-
-    return horas * 60 + minutos;
-  }
-
-  // Eliminar un horario
-  Future<void> _eliminarHorario(String horario) async {
-    String destino = _currentDestino;
-    String categoria = _currentCategoria;
-
-    List<String> horarios = List.from(_getHorarios(destino, categoria));
-    horarios.remove(horario);
-
-    await _actualizarHorarios(destino, categoria, horarios);
-  }
-
-  // Agregar un nuevo horario desde dropdown
-  Future<void> _agregarHorarioDesdeDropdown() async {
-    // Generar lista de horarios disponibles (de 05:00 a 23:00 cada 5 minutos)
-    List<String> horariosDisponibles = [];
-    for (int hora = 5; hora <= 23; hora++) {
-      for (int minuto = 0; minuto < 60; minuto += 5) {
-        String horario = '${hora.toString().padLeft(2, '0')}:${minuto.toString().padLeft(2, '0')}';
-        horariosDisponibles.add(horario);
-      }
-    }
-
-    // Filtrar horarios que ya existen
-    List<String> horariosActuales = _getHorarios(_currentDestino, _currentCategoria);
-    horariosDisponibles = horariosDisponibles.where((h) => !horariosActuales.contains(h)).toList();
-
-    if (horariosDisponibles.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('No hay más horarios disponibles para agregar'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
-    // Mostrar diálogo con dropdown
-    String? horarioSeleccionado = await showDialog<String>(
+    return await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Seleccionar Horario'),
-        content: Container(
-          width: double.maxFinite,
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: horariosDisponibles.length,
-            itemBuilder: (context, index) {
-              final horario = horariosDisponibles[index];
-              return ListTile(
-                leading: Icon(Icons.schedule, color: Colors.blue),
-                title: Text(
-                  horario,
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Container(
+                width: 500,
+                padding: EdgeInsets.all(32),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      colorPrimario.shade50,
+                      Colors.white,
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(20),
                 ),
-                onTap: () => Navigator.pop(context, horario),
-              );
-            },
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('CANCELAR'),
-          ),
-        ],
-      ),
-    );
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Título
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          esSalidaExtra ? Icons.add_alarm : Icons.access_time,
+                          color: colorPrimario.shade700,
+                          size: 32,
+                        ),
+                        SizedBox(width: 12),
+                        Text(
+                          esSalidaExtra ? 'Agregar Salida Extra' : 'Agregar Horario',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: colorPrimario.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      'Origen: ${destino == 'Aysen' ? 'Aysén' : 'Coyhaique'}',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                    Text(
+                      categoria == 'LunesViernes'
+                          ? 'Lunes a Viernes'
+                          : (categoria == 'Sabados' ? 'Sábado' : 'Domingo / Feriado'),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    if (esSalidaExtra) ...[
+                      SizedBox(height: 8),
+                      Container(
+                        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.shade100,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.orange.shade300),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.info_outline, size: 16, color: Colors.orange.shade800),
+                            SizedBox(width: 6),
+                            Text(
+                              'Solo válida para hoy',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.orange.shade800,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    SizedBox(height: 32),
 
-    if (horarioSeleccionado != null) {
-      List<String> horarios = List.from(_getHorarios(_currentDestino, _currentCategoria));
-      horarios.add(horarioSeleccionado);
-      horarios = _ordenarHorarios(horarios);
+                    // Reloj Digital
+                    Container(
+                      padding: EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: Colors.black87,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: colorPrimario.withOpacity(0.3),
+                            blurRadius: 20,
+                            spreadRadius: 2,
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Selector de Hora
+                          _buildDigitalTimePicker(
+                            value: horaSeleccionada,
+                            maxValue: 23,
+                            onChanged: (value) {
+                              setStateDialog(() {
+                                horaSeleccionada = value;
+                              });
+                            },
+                            color: colorPrimario,
+                          ),
+                          // Separador ":"
+                          Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 12),
+                            child: Text(
+                              ':',
+                              style: TextStyle(
+                                fontSize: 64,
+                                fontWeight: FontWeight.bold,
+                                color: colorPrimario.shade300,
+                                height: 1.0,
+                              ),
+                            ),
+                          ),
+                          // Selector de Minuto
+                          _buildDigitalTimePicker(
+                            value: minutoSeleccionado,
+                            maxValue: 59,
+                            step: 5,
+                            onChanged: (value) {
+                              setStateDialog(() {
+                                minutoSeleccionado = value;
+                              });
+                            },
+                            color: colorPrimario,
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: 32),
 
-      await _actualizarHorarios(_currentDestino, _currentCategoria, horarios);
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Horario $horarioSeleccionado agregado exitosamente'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    }
-  }
-
-  // Actualizar horarios en memoria, SharedPreferences y DB
-  Future<void> _actualizarHorarios(String destino, String categoria, List<String> horarios) async {
-    if (destino == 'Aysen') {
-      await _horarioManager.actualizarHorariosAysen(categoria, horarios);
-    } else {
-      await _horarioManager.actualizarHorariosCoyhaique(categoria, horarios);
-    }
-
-    // Guardar en la base de datos SQLite
-    await _guardarHorariosEnDB(destino, categoria, horarios);
-
-    setState(() {});
-  }
-
-  // Guardar horarios en la base de datos SQLite
-  Future<void> _guardarHorariosEnDB(String destino, String categoria, List<String> horarios) async {
-    try {
-      final db = AppDatabase.instance;
-      final database = await db.database;
-
-      // Primero, marcar como inactivos los horarios existentes para este destino y categoría
-      await database.update(
-        'horarios',
-        {'activo': 0},
-        where: 'activo = 1',
-      );
-
-      // Insertar los nuevos horarios
-      int orden = 1;
-      for (String horario in horarios) {
-        await database.insert(
-          'horarios',
-          {
-            'horario': horario,
-            'activo': 1,
-            'orden': orden,
+                    // Botones
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(context),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.grey.shade700,
+                              side: BorderSide(color: Colors.grey.shade400),
+                              padding: EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: Text(
+                              'CANCELAR',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 16),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () {
+                              final horario = '${horaSeleccionada.toString().padLeft(2, '0')}:${minutoSeleccionado.toString().padLeft(2, '0')}';
+                              Navigator.pop(context, horario);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: colorPrimario,
+                              foregroundColor: Colors.white,
+                              padding: EdgeInsets.symmetric(vertical: 16),
+                              elevation: 4,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: Text(
+                              'AGREGAR',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
           },
-          conflictAlgorithm: ConflictAlgorithm.replace,
         );
-        orden++;
-      }
-
-      debugPrint('Horarios guardados en DB: $destino - $categoria');
-    } catch (e) {
-      debugPrint('Error al guardar horarios en DB: $e');
-    }
+      },
+    );
   }
 
-  // Restaurar valores por defecto
-  Future<void> _restaurarValoresPorDefecto() async {
-    final confirmar = await showDialog<bool>(
-      context: context,
-      builder: (_) => ConfirmationDialog(
-        title: 'Restaurar Horarios',
-        content: '¿Está seguro que desea restaurar todos los horarios a sus valores originales? Esta acción no se puede deshacer.',
-      ),
-    );
-
-    if (confirmar == true) {
-      await _horarioManager.restaurarValoresPorDefecto();
-
-      // Guardar en DB los valores restaurados
-      for (String destino in ['Aysen', 'Coyhaique']) {
-        for (String categoria in ['LunesViernes', 'Sabados', 'DomingosFeriados']) {
-          List<String> horarios = _getHorarios(destino, categoria);
-          await _guardarHorariosEnDB(destino, categoria, horarios);
-        }
-      }
-
-      setState(() {});
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Horarios restaurados a valores por defecto'),
-          backgroundColor: Colors.green,
+  // Widget para construir el selector digital de tiempo
+  Widget _buildDigitalTimePicker({
+    required int value,
+    required int maxValue,
+    int step = 1,
+    required ValueChanged<int> onChanged,
+    required Color color,
+  }) {
+    return Column(
+      children: [
+        // Botón incrementar
+        InkWell(
+          onTap: () {
+            int newValue = value + step;
+            if (newValue > maxValue) newValue = 0;
+            onChanged(newValue);
+          },
+          child: Container(
+            padding: EdgeInsets.all(8),
+            child: Icon(
+              Icons.arrow_drop_up,
+              color: color.shade300,
+              size: 40,
+            ),
+          ),
         ),
-      );
-    }
+        // Valor actual
+        Container(
+          width: 100,
+          height: 80,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: Colors.black,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: color.shade700, width: 2),
+          ),
+          child: Text(
+            value.toString().padLeft(2, '0'),
+            style: TextStyle(
+              fontSize: 56,
+              fontWeight: FontWeight.bold,
+              color: color.shade300,
+              fontFeatures: [FontFeature.tabularFigures()],
+              height: 1.0,
+            ),
+          ),
+        ),
+        // Botón decrementar
+        InkWell(
+          onTap: () {
+            int newValue = value - step;
+            if (newValue < 0) newValue = maxValue - (maxValue % step);
+            onChanged(newValue);
+          },
+          child: Container(
+            padding: EdgeInsets.all(8),
+            child: Icon(
+              Icons.arrow_drop_down,
+              color: color.shade300,
+              size: 40,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
-    final bool puedeEditar = authProvider.isAdmin || authProvider.isSecretaria;
+    final puedeEditar = authProvider.isAdmin || authProvider.isSecretaria;
 
     return RawKeyboardListener(
       focusNode: _focusNode,
-      onKey: _handleKeyEvent,
       autofocus: true,
+      onKey: _handleKeyEvent,
       child: Scaffold(
         appBar: AppBar(
           title: Row(
             children: [
               Icon(Icons.schedule, size: 28),
               SizedBox(width: 12),
-              Text('Gestión de Horarios'),
+              Text('Horarios de Salida'),
             ],
           ),
           centerTitle: true,
+          backgroundColor: Colors.indigo.shade700,
           elevation: 2,
-          actions: [
-            if (puedeEditar)
-              IconButton(
-                icon: Icon(_isEditing ? Icons.check_circle : Icons.edit),
-                onPressed: () {
-                  setState(() {
-                    _isEditing = !_isEditing;
-                  });
-                },
-                tooltip: _isEditing ? 'Finalizar edición' : 'Editar horarios',
-              ),
-            if (!puedeEditar)
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Chip(
-                  avatar: Icon(Icons.lock, size: 18, color: Colors.white),
-                  label: Text(
-                    'Solo lectura',
-                    style: TextStyle(color: Colors.white, fontSize: 12),
-                  ),
-                  backgroundColor: Colors.grey.shade600,
-                ),
-              ),
-          ],
           bottom: TabBar(
             controller: _tabController,
             indicatorColor: Colors.white,
             indicatorWeight: 3,
+            labelStyle: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
             tabs: [
               Tab(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.location_on, size: 18),
-                    SizedBox(width: 8),
-                    Text('Aysén'),
-                  ],
-                ),
+                icon: Icon(Icons.location_on),
+                text: 'ORIGEN AYSÉN',
               ),
               Tab(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.location_on, size: 18),
-                    SizedBox(width: 8),
-                    Text('Coyhaique'),
-                  ],
-                ),
+                icon: Icon(Icons.location_on),
+                text: 'ORIGEN COYHAIQUE',
               ),
             ],
           ),
@@ -348,389 +412,690 @@ class _HorarioScreenState extends State<HorarioScreen> with SingleTickerProvider
                   children: [
                     CircularProgressIndicator(),
                     SizedBox(height: 16),
-                    Text('Cargando horarios...', style: TextStyle(fontSize: 16)),
+                    Text('Cargando horarios...'),
                   ],
                 ),
               )
-            : Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.blue.shade50.withOpacity(0.3),
-                      Colors.white,
-                    ],
-                  ),
-                ),
-                child: TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildHorarioTab('Aysen'),
-                    _buildHorarioTab('Coyhaique'),
-                  ],
-                ),
-              ),
-        floatingActionButton: _isEditing && puedeEditar
-            ? Column(
-                mainAxisAlignment: MainAxisAlignment.end,
+            : TabBarView(
+                controller: _tabController,
                 children: [
-                  FloatingActionButton.extended(
-                    onPressed: _agregarHorarioDesdeDropdown,
-                    icon: Icon(Icons.add),
-                    label: Text('Agregar Horario'),
-                    backgroundColor: Colors.green,
-                    heroTag: 'add_horario',
-                  ),
-                  SizedBox(height: 12),
-                  FloatingActionButton(
-                    onPressed: _restaurarValoresPorDefecto,
-                    child: Icon(Icons.restore),
-                    tooltip: 'Restaurar valores predeterminados',
-                    backgroundColor: Colors.orange,
-                    heroTag: 'restore_horarios',
-                  ),
+                  _buildOrigenTab('Aysen', puedeEditar),
+                  _buildOrigenTab('Coyhaique', puedeEditar),
                 ],
-              )
-            : null,
+              ),
       ),
     );
   }
 
-  Widget _buildHorarioTab(String destino) {
+  // Construir tab de origen
+  Widget _buildOrigenTab(String destino, bool puedeEditar) {
     return Scrollbar(
       controller: _scrollController,
       thumbVisibility: true,
-      thickness: 8,
-      radius: Radius.circular(4),
       child: SingleChildScrollView(
         controller: _scrollController,
-        padding: EdgeInsets.all(24),
+        padding: EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Encabezado modernizado
-            Container(
-              padding: EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.blue.shade700, Colors.blue.shade500],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.blue.withOpacity(0.3),
-                    blurRadius: 15,
-                    offset: Offset(0, 5),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.directions_bus,
-                    size: 48,
-                    color: Colors.white,
-                  ),
-                  SizedBox(height: 12),
-                  Text(
-                    'Horarios desde ${destino == 'Aysen' ? 'Aysén' : 'Coyhaique'}',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      letterSpacing: 0.5,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  SizedBox(height: 8),
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      'Actualizado y optimizado',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            SizedBox(height: 32),
+            // Información de contacto
+            _buildInfoCard(destino),
+            SizedBox(height: 24),
 
             // Lunes a Viernes
-            _buildHorarioSection(
-              'LunesViernes',
-              'Lunes a Viernes',
-              Icons.calendar_today,
-              Colors.amber.shade700,
-              destino,
+            _buildCategoriaCard(
+              destino: destino,
+              categoria: 'LunesViernes',
+              titulo: 'LUNES A VIERNES',
+              icono: Icons.calendar_month,
+              colorPrimario: Colors.blue,
+              puedeEditar: puedeEditar,
             ),
-
-            SizedBox(height: 24),
+            SizedBox(height: 16),
 
             // Sábados
-            _buildHorarioSection(
-              'Sabados',
-              'Sábados',
-              Icons.weekend,
-              Colors.blue.shade400,
-              destino,
+            _buildCategoriaCard(
+              destino: destino,
+              categoria: 'Sabados',
+              titulo: 'SÁBADOS',
+              icono: Icons.weekend,
+              colorPrimario: Colors.blue,
+              puedeEditar: puedeEditar,
             ),
-
-            SizedBox(height: 24),
+            SizedBox(height: 16),
 
             // Domingos y Feriados
-            _buildHorarioSection(
-              'DomingosFeriados',
-              'Domingos y Feriados',
-              Icons.event,
-              Colors.red.shade400,
-              destino,
+            _buildCategoriaCard(
+              destino: destino,
+              categoria: 'DomingosFeriados',
+              titulo: 'DOMINGOS Y FERIADOS',
+              icono: Icons.event,
+              colorPrimario: Colors.red,
+              puedeEditar: puedeEditar,
             ),
-
-            SizedBox(height: 32),
-
-            // Nota informativa
-            Container(
-              padding: EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.blue.shade200),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.info_outline, color: Colors.blue.shade700),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Los horarios están sujetos a cambios por condiciones climáticas o fuerza mayor',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.blue.shade800,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
             SizedBox(height: 16),
+
+            // Botón restaurar valores por defecto (solo admin)
+            if (puedeEditar) _buildRestaurarButton(),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildHorarioSection(
-    String categoria,
-    String titulo,
-    IconData icono,
-    Color color,
-    String destino,
-  ) {
-    List<String> horarios = _getHorarios(destino, categoria);
+  // Tarjeta de información de contacto
+  Widget _buildInfoCard(String destino) {
+    final contacto = destino == 'Aysen'
+        ? _horarioManager.contactoAysen
+        : _horarioManager.contactoCoyhaique;
 
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 10,
-            offset: Offset(0, 4),
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Container(
+        padding: EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.indigo.shade50, Colors.white],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Encabezado de sección
-          Container(
-            padding: EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          children: [
+            Icon(Icons.info_outline, size: 40, color: Colors.indigo.shade700),
+            SizedBox(height: 12),
+            Text(
+              'Información de Terminal',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.indigo.shade900,
               ),
             ),
-            child: Row(
+            SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Container(
-                  padding: EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(
-                    icono,
-                    color: Colors.white,
-                    size: 24,
-                  ),
-                ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    titulo,
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ),
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    '${horarios.length} horarios',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                Icon(Icons.location_city, size: 16, color: Colors.grey.shade700),
+                SizedBox(width: 8),
+                Text(
+                  contacto['direccion'] ?? '',
+                  style: TextStyle(fontSize: 14),
                 ),
               ],
             ),
-          ),
-
-          // Contenido de horarios
-          Container(
-            padding: EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(16),
-                bottomRight: Radius.circular(16),
-              ),
-              border: Border.all(color: color.withOpacity(0.3), width: 2),
+            SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.phone, size: 16, color: Colors.grey.shade700),
+                SizedBox(width: 8),
+                Text(
+                  contacto['telefono'] ?? '',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                ),
+              ],
             ),
-            child: horarios.isEmpty
-                ? Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Column(
-                        children: [
-                          Icon(Icons.schedule_outlined, size: 48, color: Colors.grey.shade400),
-                          SizedBox(height: 12),
-                          Text(
-                            'No hay horarios configurados',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                        ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Tarjeta de categoría de horarios
+  Widget _buildCategoriaCard({
+    required String destino,
+    required String categoria,
+    required String titulo,
+    required IconData icono,
+    required Color colorPrimario,
+    required bool puedeEditar,
+  }) {
+    // Obtener horarios fijos
+    final horariosBase = destino == 'Aysen'
+        ? (_horarioManager.horariosAysen[categoria] ?? [])
+        : (_horarioManager.horariosCoyhaique[categoria] ?? []);
+
+    // Obtener salidas extras del día
+    final salidasExtras = _horarioManager.getSalidasExtrasDelDia(destino, categoria);
+
+    // Combinar y ordenar
+    final todosLosHorarios = _horarioManager.obtenerHorariosCompletos(destino, categoria);
+
+    return Card(
+      elevation: 6,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: colorPrimario.shade200, width: 2),
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [colorPrimario.shade50, Colors.white],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          children: [
+            // Encabezado
+            Container(
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: colorPrimario.shade700,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(14),
+                  topRight: Radius.circular(14),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(icono, color: Colors.white, size: 28),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      titulo,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
                       ),
                     ),
-                  )
-                : Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: horarios.map((horario) {
-                      return _isEditing && _currentDestino == destino && _currentCategoria == categoria
-                          ? _buildEditableHorarioChip(horario, color)
-                          : _buildHorarioChip(horario, color);
-                    }).toList(),
                   ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHorarioChip(String horario, Color color) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [color.withOpacity(0.15), color.withOpacity(0.05)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        border: Border.all(color: color.withOpacity(0.4), width: 2),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.access_time, size: 18, color: color),
-          SizedBox(width: 8),
-          Text(
-            horario,
-            style: TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey.shade800,
+                  if (puedeEditar) ...[
+                    // Botón agregar horario fijo
+                    IconButton(
+                      icon: Icon(Icons.add_circle, color: Colors.white),
+                      tooltip: 'Agregar Horario Fijo',
+                      onPressed: () => _agregarHorarioFijo(destino, categoria, colorPrimario),
+                    ),
+                    // Botón agregar salida extra
+                    IconButton(
+                      icon: Icon(Icons.add_alarm, color: Colors.amber.shade300),
+                      tooltip: 'Agregar Salida Extra (Solo hoy)',
+                      onPressed: () => _agregarSalidaExtra(destino, categoria, colorPrimario),
+                    ),
+                  ],
+                ],
+              ),
             ),
-          ),
-        ],
+
+            // Lista de horarios
+            Padding(
+              padding: EdgeInsets.all(16),
+              child: todosLosHorarios.isEmpty
+                  ? Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(32),
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.schedule_outlined,
+                              size: 48,
+                              color: Colors.grey.shade400,
+                            ),
+                            SizedBox(height: 12),
+                            Text(
+                              'No hay horarios configurados',
+                              style: TextStyle(
+                                color: Colors.grey.shade600,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  : Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: todosLosHorarios.map((horario) {
+                        final esSalidaExtra = _horarioManager.esSalidaExtra(
+                          horario,
+                          destino,
+                          categoria,
+                        );
+
+                        return _buildHorarioChip(
+                          horario: horario,
+                          esSalidaExtra: esSalidaExtra,
+                          colorPrimario: colorPrimario,
+                          puedeEditar: puedeEditar,
+                          onEliminar: () {
+                            _eliminarHorario(
+                              destino,
+                              categoria,
+                              horario,
+                              esSalidaExtra,
+                            );
+                          },
+                        );
+                      }).toList(),
+                    ),
+            ),
+
+            // Indicadores de salidas extras
+            if (salidasExtras.isNotEmpty)
+              Container(
+                margin: EdgeInsets.only(left: 16, right: 16, bottom: 16),
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange.shade300),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, size: 18, color: Colors.orange.shade800),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '${salidasExtras.length} salida${salidasExtras.length != 1 ? 's' : ''} extra${salidasExtras.length != 1 ? 's' : ''} para hoy',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.orange.shade900,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildEditableHorarioChip(String horario, Color color) {
+  // Chip de horario individual
+  Widget _buildHorarioChip({
+    required String horario,
+    required bool esSalidaExtra,
+    required Color colorPrimario,
+    required bool puedeEditar,
+    required VoidCallback onEliminar,
+  }) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.red.shade50,
-        border: Border.all(color: Colors.red.shade300, width: 2),
+        gradient: esSalidaExtra
+            ? LinearGradient(
+                colors: [Colors.orange.shade400, Colors.amber.shade300],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              )
+            : LinearGradient(
+                colors: [colorPrimario.shade600, colorPrimario.shade500],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.red.withOpacity(0.1),
+            color: (esSalidaExtra ? Colors.orange : colorPrimario).withOpacity(0.3),
             blurRadius: 4,
             offset: Offset(0, 2),
           ),
         ],
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.access_time, size: 18, color: Colors.red.shade700),
-          SizedBox(width: 8),
-          Text(
-            horario,
-            style: TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey.shade800,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onLongPress: puedeEditar ? onEliminar : null,
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (esSalidaExtra)
+                  Icon(Icons.star, size: 16, color: Colors.white),
+                if (esSalidaExtra) SizedBox(width: 6),
+                Text(
+                  horario,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    fontFeatures: [FontFeature.tabularFigures()],
+                  ),
+                ),
+                if (puedeEditar) ...[
+                  SizedBox(width: 8),
+                  Icon(
+                    Icons.close,
+                    size: 16,
+                    color: Colors.white70,
+                  ),
+                ],
+              ],
             ),
           ),
-          SizedBox(width: 8),
-          InkWell(
-            onTap: () => _eliminarHorario(horario),
-            child: Container(
-              padding: EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: Colors.red,
-                shape: BoxShape.circle,
+        ),
+      ),
+    );
+  }
+
+  // Botón restaurar valores por defecto
+  Widget _buildRestaurarButton() {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    if (!authProvider.isAdmin) return SizedBox.shrink();
+
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      color: Colors.orange.shade50,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: _restaurarValoresPorDefecto,
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.restore, color: Colors.orange.shade700),
+              SizedBox(width: 12),
+              Text(
+                'RESTAURAR VALORES POR DEFECTO',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.orange.shade700,
+                ),
               ),
-              child: Icon(
-                Icons.close,
-                size: 16,
-                color: Colors.white,
-              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Agregar horario fijo
+  Future<void> _agregarHorarioFijo(String destino, String categoria, Color colorPrimario) async {
+    final horario = await _mostrarDialogoRelojDigital(destino, categoria, false);
+
+    if (horario == null) return;
+
+    // Verificar si ya existe
+    final horariosActuales = destino == 'Aysen'
+        ? (_horarioManager.horariosAysen[categoria] ?? [])
+        : (_horarioManager.horariosCoyhaique[categoria] ?? []);
+
+    if (horariosActuales.contains(horario)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('El horario $horario ya existe en esta categoría'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    // Agregar el nuevo horario
+    final nuevosHorarios = List<String>.from(horariosActuales)..add(horario);
+    nuevosHorarios.sort((a, b) {
+      int minutosA = _convertirAMinutos(a);
+      int minutosB = _convertirAMinutos(b);
+      return minutosA.compareTo(minutosB);
+    });
+
+    if (destino == 'Aysen') {
+      await _horarioManager.actualizarHorariosAysen(categoria, nuevosHorarios);
+    } else {
+      await _horarioManager.actualizarHorariosCoyhaique(categoria, nuevosHorarios);
+    }
+
+    setState(() {});
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Horario $horario agregado exitosamente'),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  // Agregar salida extra
+  Future<void> _agregarSalidaExtra(String destino, String categoria, Color colorPrimario) async {
+    final horario = await _mostrarDialogoRelojDigital(destino, categoria, true);
+
+    if (horario == null) return;
+
+    // Verificar si ya existe (fijo o extra)
+    final todosLosHorarios = _horarioManager.obtenerHorariosCompletos(destino, categoria);
+
+    if (todosLosHorarios.contains(horario)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('El horario $horario ya existe en esta categoría'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    await _horarioManager.agregarSalidaExtra(horario, destino, categoria);
+
+    setState(() {});
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.star, color: Colors.white),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text('Salida extra $horario agregada (solo para hoy)'),
             ),
+          ],
+        ),
+        backgroundColor: Colors.orange.shade700,
+      ),
+    );
+  }
+
+  // Eliminar horario
+  Future<void> _eliminarHorario(
+    String destino,
+    String categoria,
+    String horario,
+    bool esSalidaExtra,
+  ) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.warning, color: Colors.orange),
+            SizedBox(width: 12),
+            Text('Confirmar Eliminación'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '¿Desea eliminar el horario $horario?',
+              style: TextStyle(fontSize: 16),
+            ),
+            SizedBox(height: 12),
+            if (esSalidaExtra)
+              Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.orange.shade700),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Salida extra (solo hoy)',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.orange.shade900,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('CANCELAR'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: Text('ELIMINAR'),
           ),
         ],
       ),
     );
+
+    if (confirmar != true) return;
+
+    if (esSalidaExtra) {
+      // Eliminar salida extra
+      await _horarioManager.eliminarSalidaExtra(horario, destino, categoria);
+    } else {
+      // Eliminar horario fijo
+      final horariosActuales = destino == 'Aysen'
+          ? (_horarioManager.horariosAysen[categoria] ?? [])
+          : (_horarioManager.horariosCoyhaique[categoria] ?? []);
+
+      final nuevosHorarios = List<String>.from(horariosActuales)..remove(horario);
+
+      if (destino == 'Aysen') {
+        await _horarioManager.actualizarHorariosAysen(categoria, nuevosHorarios);
+      } else {
+        await _horarioManager.actualizarHorariosCoyhaique(categoria, nuevosHorarios);
+      }
+    }
+
+    setState(() {});
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Horario $horario eliminado'),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+
+  // Restaurar valores por defecto
+  Future<void> _restaurarValoresPorDefecto() async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.warning, color: Colors.orange, size: 32),
+            SizedBox(width: 12),
+            Expanded(child: Text('Confirmar Restauración')),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '¿Está seguro de restaurar los horarios a los valores por defecto?',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ),
+            SizedBox(height: 16),
+            Container(
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.error_outline, color: Colors.red.shade700),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Advertencia:',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.red.shade900,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Se perderán todos los cambios personalizados.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.red.shade800,
+                    ),
+                  ),
+                  Text(
+                    'Las salidas extras del día se mantendrán.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.red.shade800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('CANCELAR'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+            ),
+            child: Text('RESTAURAR'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar != true) return;
+
+    await _horarioManager.restaurarValoresPorDefecto();
+    setState(() {});
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Horarios restaurados a valores por defecto'),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  // Convertir horario a minutos
+  int _convertirAMinutos(String horario) {
+    List<String> partes = horario.split(':');
+    if (partes.length != 2) return 0;
+    int horas = int.tryParse(partes[0]) ?? 0;
+    int minutos = int.tryParse(partes[1]) ?? 0;
+    return horas * 60 + minutos;
   }
 }
