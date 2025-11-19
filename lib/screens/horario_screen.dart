@@ -859,6 +859,33 @@ class _HorarioScreenState extends State<HorarioScreen> with SingleTickerProvider
 
   // Agregar salida extra
   Future<void> _agregarSalidaExtra(String destino, String categoria, Color colorPrimario) async {
+    // Obtener el origen del usuario
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final sucursalOrigen = authProvider.sucursalOrigen; // "AYS" o "COY"
+
+    // Mapear el código de sucursal al nombre del destino
+    final origenUsuario = sucursalOrigen == 'AYS' ? 'Aysen' : 'Coyhaique';
+
+    // Validar que el usuario solo pueda agregar salidas desde su origen
+    if (destino != origenUsuario) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.block, color: Colors.white),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text('Solo puedes agregar salidas extra desde tu sucursal de origen ($origenUsuario)'),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.red.shade700,
+          duration: Duration(seconds: 4),
+        ),
+      );
+      return;
+    }
+
     final horario = await _mostrarDialogoRelojDigital(destino, categoria, true);
 
     if (horario == null) return;
