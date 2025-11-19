@@ -22,6 +22,7 @@ import 'screens/estadisticas_screen.dart'; // Nueva importación para la pantall
 import 'screens/anular_venta_screen.dart'; // Nueva importación para anular ventas
 import 'models/comprobante.dart';
 import 'models/auth_provider.dart';
+import 'models/server_status_provider.dart';
 import 'database/caja_database.dart';
 import 'database/app_database.dart';
 import 'package:path_provider/path_provider.dart';
@@ -69,8 +70,11 @@ void main() async {
   await _ensureDirectoriesExist();
 
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => AuthProvider(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => ServerStatusProvider()),
+      ],
       child: MyApp(),
     ),
   );

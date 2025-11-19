@@ -143,6 +143,30 @@ class CajaDatabase {
     await _guardarGasto(gasto);
   }
 
+  /// Obtiene el número de anulaciones realizadas por un usuario en el día actual
+  Future<int> contarAnulacionesDelDia(String usuario) async {
+    try {
+      await _ensureInitialized();
+
+      final hoy = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      List<Map<String, dynamic>> ventas = await getVentasDiarias();
+
+      int contador = 0;
+      for (var venta in ventas) {
+        if (venta['anulada'] == true &&
+            venta['usuarioAnulacion'] == usuario &&
+            venta['fechaAnulacion'] == hoy) {
+          contador++;
+        }
+      }
+
+      return contador;
+    } catch (e) {
+      debugPrint('Error al contar anulaciones del día: $e');
+      return 0;
+    }
+  }
+
   /// Anula una venta por su número de comprobante
   /// Retorna true si se anuló exitosamente, false si no se encontró la venta
   Future<bool> anularVenta({
@@ -398,6 +422,7 @@ class CajaDatabase {
   Future<Map<String, dynamic>> realizarCierreCaja({
     required String usuario,
     String? observaciones,
+    List<String>? archivosAdjuntos,
   }) async {
     try {
       await _ensureInitialized();
@@ -489,6 +514,31 @@ class CajaDatabase {
       // Efectivo final (restar gastos)
       double efectivoFinal = totalEfectivo - totalGastos;
 
+      // Copiar archivos adjuntos al directorio de cierres si existen
+      List<String> archivosCopiados = [];
+      if (archivosAdjuntos != null && archivosAdjuntos.isNotEmpty) {
+        final cierresDir = Directory('${_appDirectory!.path}/cierres_adjuntos');
+        if (!await cierresDir.exists()) {
+          await cierresDir.create(recursive: true);
+        }
+
+        final cierreFecha = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+        for (int i = 0; i < archivosAdjuntos.length; i++) {
+          try {
+            final archivoOriginal = File(archivosAdjuntos[i]);
+            if (await archivoOriginal.exists()) {
+              final extension = archivoOriginal.path.split('.').last;
+              final nombreNuevo = 'cierre_${cierreFecha}_adjunto_$i.$extension';
+              final rutaDestino = '${cierresDir.path}/$nombreNuevo';
+              await archivoOriginal.copy(rutaDestino);
+              archivosCopiados.add(rutaDestino);
+            }
+          } catch (e) {
+            debugPrint('Error al copiar archivo adjunto: $e');
+          }
+        }
+      }
+
       // Crear informe de cierre
       final cierre = {
         'timestamp': timestamp,
@@ -510,7 +560,8 @@ class CajaDatabase {
         'destinosCargo': destinosCargo,
         'controlCaja': controlCaja.values.toList(),
         'gastos': gastos,
-        'ventas': ventas
+        'ventas': ventas,
+        'archivosAdjuntos': archivosCopiados,
       };
 
       // Guardar cierre de caja

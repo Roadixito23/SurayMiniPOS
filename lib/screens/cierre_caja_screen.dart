@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:file_picker/file_picker.dart';
 import '../database/caja_database.dart';
 import '../models/auth_provider.dart';
 import '../services/cierre_caja_report_generator.dart';
@@ -40,6 +42,14 @@ class _CierreCajaScreenState extends State<CierreCajaScreen> {
   // Control de caja
   List<Map<String, dynamic>> _controlCaja = [];
 
+  // Anulaciones
+  List<Map<String, dynamic>> _anulacionesDelDia = [];
+  int _cantidadAnulaciones = 0;
+  double _totalAnulaciones = 0;
+
+  // Archivos adjuntos
+  List<File> _archivosAdjuntos = [];
+
   @override
   void initState() {
     super.initState();
@@ -74,10 +84,18 @@ class _CierreCajaScreenState extends State<CierreCajaScreen> {
       // Control de caja por tipo de boleto
       Map<String, Map<String, dynamic>> controlCaja = {};
 
+      // Recopilar anulaciones
+      List<Map<String, dynamic>> anulaciones = [];
+      int cantidadAnulaciones = 0;
+      double totalAnulaciones = 0;
+
       for (var venta in ventas) {
-        // Excluir ventas anuladas del cálculo de totales
+        // Recopilar anulaciones del día
         if (venta['anulada'] == true) {
-          continue;
+          anulaciones.add(venta);
+          cantidadAnulaciones++;
+          totalAnulaciones += (venta['valor'] ?? 0.0);
+          continue; // Excluir ventas anuladas del cálculo de totales activos
         }
 
         // Sumar métodos de pago
@@ -151,6 +169,9 @@ class _CierreCajaScreenState extends State<CierreCajaScreen> {
         _totalGastos = totalGastos;
         _efectivoFinal = efectivoFinal;
         _controlCaja = controlCaja.values.toList();
+        _anulacionesDelDia = anulaciones;
+        _cantidadAnulaciones = cantidadAnulaciones;
+        _totalAnulaciones = totalAnulaciones;
         _isLoading = false;
       });
     } catch (e) {
@@ -194,6 +215,7 @@ class _CierreCajaScreenState extends State<CierreCajaScreen> {
       final cierre = await _cajaDatabase.realizarCierreCaja(
         usuario: 'Administrador', // En un sistema real, se obtendría el usuario actual
         observaciones: _observacionesController.text,
+        archivosAdjuntos: _archivosAdjuntos.map((f) => f.path).toList(),
       );
 
       // Generar reporte PDF con datos del secretario
@@ -207,8 +229,11 @@ class _CierreCajaScreenState extends State<CierreCajaScreen> {
       // Refrescar datos
       await _cargarDatos();
 
-      // Limpiar campo de observaciones
+      // Limpiar campo de observaciones y archivos adjuntos
       _observacionesController.clear();
+      setState(() {
+        _archivosAdjuntos.clear();
+      });
 
       // Mostrar mensaje de éxito
       ScaffoldMessenger.of(context).showSnackBar(
@@ -228,6 +253,51 @@ class _CierreCajaScreenState extends State<CierreCajaScreen> {
         ),
       );
     }
+  }
+
+  Future<void> _seleccionarArchivos() async {
+    try {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
+        allowMultiple: true,
+      );
+
+      if (result != null) {
+        setState(() {
+          _archivosAdjuntos.addAll(
+            result.paths.where((path) => path != null).map((path) => File(path!)),
+          );
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${result.files.length} archivo(s) adjuntado(s)'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al seleccionar archivos: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  void _eliminarArchivo(int index) {
+    setState(() {
+      _archivosAdjuntos.removeAt(index);
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Archivo eliminado'),
+        backgroundColor: Colors.orange,
+      ),
+    );
   }
 
   Future<void> _agregarGasto() async {
@@ -318,6 +388,13 @@ class _CierreCajaScreenState extends State<CierreCajaScreen> {
 
             SizedBox(height: 24),
 
+            // Anulaciones
+            if (_anulacionesDelDia.isNotEmpty)
+              _buildAnulacionesCard(),
+
+            if (_anulacionesDelDia.isNotEmpty)
+              SizedBox(height: 24),
+
             // Control de Caja
             if (_controlCaja.isNotEmpty)
               _buildControlCajaCard(),
@@ -326,6 +403,11 @@ class _CierreCajaScreenState extends State<CierreCajaScreen> {
 
             // Observaciones
             _buildObservacionesCard(),
+
+            SizedBox(height: 24),
+
+            // Archivos adjuntos
+            _buildArchivosAdjuntosCard(),
 
             SizedBox(height: 32),
 
@@ -863,6 +945,321 @@ class _CierreCajaScreenState extends State<CierreCajaScreen> {
     if (comprobante.isEmpty) return '';
     final parts = comprobante.split('-');
     return parts.length >= 3 ? parts[2] : comprobante;
+  }
+
+  Widget _buildAnulacionesCard() {
+    return Card(
+      elevation: 3,
+      child: Padding(
+        padding: EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.cancel, color: Colors.red.shade700, size: 28),
+                    SizedBox(width: 12),
+                    Text(
+                      'Anulaciones del Día',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue.shade700,
+                      ),
+                    ),
+                  ],
+                ),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade100,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '$_cantidadAnulaciones',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red.shade700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 16),
+            Container(
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.shade200),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Total de ventas anuladas:',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    '\$${NumberFormat('#,###').format(_totalAnulaciones)}',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red.shade700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: 16),
+            ..._anulacionesDelDia.map((anulacion) => _buildAnulacionItem(anulacion)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildArchivosAdjuntosCard() {
+    return Card(
+      elevation: 3,
+      child: Padding(
+        padding: EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.attach_file, color: Colors.blue.shade700, size: 28),
+                    SizedBox(width: 12),
+                    Text(
+                      'Archivos Adjuntos',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue.shade700,
+                      ),
+                    ),
+                  ],
+                ),
+                ElevatedButton.icon(
+                  onPressed: _seleccionarArchivos,
+                  icon: Icon(Icons.add, size: 18),
+                  label: Text('Adjuntar'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue.shade600,
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 12),
+            Container(
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.blue.shade700, size: 16),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Adjunte imágenes de boletos anulados u otros documentos relacionados con el cierre.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.blue.shade800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: 16),
+            if (_archivosAdjuntos.isEmpty)
+              Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: Text(
+                    'No hay archivos adjuntos',
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ),
+              )
+            else
+              Column(
+                children: _archivosAdjuntos.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final file = entry.value;
+                  final fileName = file.path.split('/').last;
+                  final extension = fileName.split('.').last.toLowerCase();
+
+                  IconData fileIcon = Icons.insert_drive_file;
+                  if (extension == 'pdf') {
+                    fileIcon = Icons.picture_as_pdf;
+                  } else if (['jpg', 'jpeg', 'png'].contains(extension)) {
+                    fileIcon = Icons.image;
+                  }
+
+                  return Container(
+                    margin: EdgeInsets.only(bottom: 8),
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.blue.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(fileIcon, color: Colors.blue.shade700, size: 24),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                fileName,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                '${(file.lengthSync() / 1024).toStringAsFixed(1)} KB',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.delete, color: Colors.red.shade600),
+                          onPressed: () => _eliminarArchivo(index),
+                          tooltip: 'Eliminar archivo',
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAnulacionItem(Map<String, dynamic> anulacion) {
+    final comprobante = anulacion['comprobante'] ?? '';
+    final valor = anulacion['valor'] ?? 0.0;
+    final fechaAnulacion = anulacion['fechaAnulacion'] ?? '';
+    final horaAnulacion = anulacion['horaAnulacion'] ?? '';
+    final usuarioAnulacion = anulacion['usuarioAnulacion'] ?? '';
+    final motivoAnulacion = anulacion['motivoAnulacion'] ?? '';
+    final tipo = anulacion['tipo'] ?? '';
+
+    return Container(
+      margin: EdgeInsets.only(bottom: 12),
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.red.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.red.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    tipo == 'bus' ? Icons.directions_bus : Icons.inventory,
+                    color: Colors.red.shade700,
+                    size: 20,
+                  ),
+                  SizedBox(width: 8),
+                  Text(
+                    comprobante,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+              Text(
+                '\$${NumberFormat('#,###').format(valor)}',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  color: Colors.red.shade700,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 8),
+          Text(
+            'Anulada: $fechaAnulacion $horaAnulacion',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+          ),
+          Text(
+            'Usuario: $usuarioAnulacion',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+          ),
+          SizedBox(height: 4),
+          Container(
+            padding: EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: Colors.red.shade100),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Motivo:',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  motivoAnulacion,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade800,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
