@@ -303,7 +303,7 @@ class _HorarioScreenState extends State<HorarioScreen> with SingleTickerProvider
     required int maxValue,
     int step = 1,
     required ValueChanged<int> onChanged,
-    required Color color,
+    required MaterialColor color,
   }) {
     return Column(
       children: [
@@ -550,7 +550,7 @@ class _HorarioScreenState extends State<HorarioScreen> with SingleTickerProvider
     required String categoria,
     required String titulo,
     required IconData icono,
-    required Color colorPrimario,
+    required MaterialColor colorPrimario,
     required bool puedeEditar,
   }) {
     // Obtener horarios fijos
@@ -714,7 +714,7 @@ class _HorarioScreenState extends State<HorarioScreen> with SingleTickerProvider
   Widget _buildHorarioChip({
     required String horario,
     required bool esSalidaExtra,
-    required Color colorPrimario,
+    required MaterialColor colorPrimario,
     required bool puedeEditar,
     required VoidCallback onEliminar,
   }) {

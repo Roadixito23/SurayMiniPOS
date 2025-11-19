@@ -762,7 +762,7 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
     required int maxValue,
     int step = 1,
     required ValueChanged<int> onChanged,
-    required Color color,
+    required MaterialColor color,
   }) {
     return Column(
       children: [
