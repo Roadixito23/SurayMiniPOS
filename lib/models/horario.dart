@@ -106,7 +106,8 @@ class HorarioManager {
   }
 
   // Obtener todos los horarios (fijos + extras del día) para un destino y categoría
-  List<String> obtenerHorariosCompletos(String destino, String categoria) {
+  // CORRECCIÓN: Agregado parámetro fecha para controlar si se incluyen salidas extras
+  List<String> obtenerHorariosCompletos(String destino, String categoria, {String? fecha}) {
     List<String> horariosBase = [];
 
     if (destino == 'Aysen') {
@@ -115,8 +116,11 @@ class HorarioManager {
       horariosBase = List.from(_horariosCoyhaique[categoria] ?? []);
     }
 
-    // Agregar salidas extras del día
-    horariosBase.addAll(getSalidasExtrasDelDia(destino, categoria));
+    // Solo agregar salidas extras si la fecha es hoy o no se especifica
+    final hoy = _getFechaHoy();
+    if (fecha == null || fecha == hoy) {
+      horariosBase.addAll(getSalidasExtrasDelDia(destino, categoria));
+    }
 
     // Ordenar por hora
     horariosBase.sort((a, b) {
