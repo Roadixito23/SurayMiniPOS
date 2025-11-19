@@ -49,7 +49,7 @@ class _WeeklyScheduleCalendarState extends State<WeeklyScheduleCalendar> {
     }
   }
 
-  Color _getColorForDayType(String categoria) {
+  MaterialColor _getColorForDayType(String categoria) {
     switch (categoria) {
       case 'DomingosFeriados':
         return Colors.red;
