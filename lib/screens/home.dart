@@ -6,13 +6,7 @@ import 'package:window_manager/window_manager.dart';
 import '../models/auth_provider.dart';
 import '../database/app_database.dart';
 import 'dart:math' as math;
-
-// Imports añadidos para la simulación de datos
-import 'dart:math';
-import 'package:intl/intl.dart';
-import '../database/caja_database.dart';
-import '../models/comprobante.dart';
-import '../models/tarifa.dart';
+import '../widgets/debug_popup.dart';
 
 class HomeScreen extends StatelessWidget {
   @override
@@ -421,8 +415,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   final FocusNode _focusNode = FocusNode();
 
   String _secretCode = '';
-  bool _showDebugButtons = false;
-  bool _isLoading = false; // Variable de estado para la carga de la DB
   bool _isFullScreen = false; // Estado de pantalla completa
 
   @override
@@ -537,11 +529,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             _secretCode = '';
           }
 
-          // Verificar si se escribió "debug" para mostrar botones de base de datos
+          // Verificar si se escribió "debug" para abrir el panel de desarrollo
           if (_secretCode.contains('debug')) {
-            setState(() {
-              _showDebugButtons = !_showDebugButtons;
-            });
+            DebugPopup.show(context);
             _secretCode = '';
           }
         });
@@ -671,7 +661,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       SizedBox(height: 16),
                       _buildShortcutCategory('Códigos Especiales', [
                         _buildShortcutItem('administrador', 'Acceso a Configuración', Icons.settings, Colors.green),
-                        _buildShortcutItem('debug', 'Mostrar/Ocultar Herramientas de Debug', Icons.bug_report, Colors.orange),
+                        _buildShortcutItem('debug', 'Abrir Panel de Desarrollo', Icons.bug_report, Colors.orange),
                       ]),
                     ],
                   ),
@@ -775,227 +765,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
-  /// REEMPLAZADO: Método para poblar la base de datos con datos de simulación
-  Future<void> _poblarBaseDatos() async {
-    try {
-      // Mostrar diálogo de confirmación
-      final confirmar = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Row(
-            children: [
-              Icon(Icons.warning, color: Colors.orange),
-              SizedBox(width: 12),
-              Text('Poblar Base de Datos'),
-            ],
-          ),
-          content: Text('¿Está seguro de agregar datos de simulación? Esto generará ~100 ventas y gastos ficticios para el día de hoy.'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text('CANCELAR'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: Text('CONFIRMAR'),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-            ),
-          ],
-        ),
-      );
-
-      if (confirmar != true) return;
-
-      setState(() => _isLoading = true);
-
-      final cajaDb = CajaDatabase();
-      final appDb = AppDatabase.instance;
-      final comprobanteManager = ComprobanteManager();
-      await comprobanteManager.initialize(); // Asegurar que esté inicializado
-      final random = Random();
-
-      final String fechaHoy = DateFormat('yyyy-MM-dd').format(DateTime.now());
-      final String tipoDiaHoy = DateTime.now().weekday >= 6 ? 'DOMINGO / FERIADO' : 'LUNES A SÁBADO';
-
-      // Obtener tarifas disponibles para hoy
-      final tarifasMap = await appDb.getTarifasByTipoDia(tipoDiaHoy);
-      final tarifas = tarifasMap.map((t) => Tarifa.fromMap(t)).toList();
-
-      if (tarifas.isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('No hay tarifas configuradas para poblar datos.'), backgroundColor: Colors.orange),
-          );
-        }
-        setState(() => _isLoading = false);
-        return;
-      }
-
-      final List<String> horariosSalida = ['08:30', '09:45', '11:00', '12:00', '14:10', '15:40', '17:00', '19:50'];
-      final List<String> destinos = ['Aysen', 'Coyhaique'];
-      final List<String> nombres = ['Ana', 'Bruno', 'Carla', 'David', 'Elena', 'Felipe', 'Gala', 'Hugo', 'Ines', 'Juan'];
-
-      // 1. Poblar Ventas de Bus (Simulamos 80 ventas)
-      int ventasBusGeneradas = 0;
-      for (int i = 0; i < 80; i++) {
-        // Seleccionar una tarifa al azar (omitir intermedios para este bucle simple)
-        final tarifa = tarifas[random.nextInt(tarifas.length)];
-        if (tarifa.categoria.toUpperCase().contains('INTERMEDIO')) continue;
-
-        final horario = horariosSalida[random.nextInt(horariosSalida.length)];
-        final destino = destinos[random.nextInt(destinos.length)];
-        final asiento = random.nextInt(45) + 1; // Asiento aleatorio 1-45
-        final esEfectivo = random.nextBool();
-        final valor = tarifa.valor;
-
-        // Generar comprobante real
-        final String numeroComprobante = await comprobanteManager.getNextBusComprobante(tarifa.categoria);
-
-        // Registrar en CajaDatabase
-        await cajaDb.registrarVentaBus(
-          destino: destino,
-          horario: horario,
-          asiento: asiento.toString().padLeft(2, '0'),
-          valor: valor,
-          comprobante: numeroComprobante,
-          tipoBoleto: tarifa.categoria,
-          metodoPago: esEfectivo ? 'Efectivo' : 'Tarjeta',
-          montoEfectivo: esEfectivo ? valor : 0,
-          montoTarjeta: esEfectivo ? 0 : valor,
-        );
-
-        // Registrar en AppDatabase (mapa de asientos)
-        final salidaId = await appDb.crearObtenerSalida(
-          fecha: fechaHoy,
-          horario: horario,
-          destino: destino,
-          tipoDia: tipoDiaHoy,
-        );
-
-        try {
-          // Intentar reservar el asiento
-          await appDb.reservarAsiento(
-            salidaId: salidaId,
-            numeroAsiento: asiento,
-            comprobante: numeroComprobante,
-          );
-        } catch (e) {
-          // Ignorar error de asiento duplicado (UNIQUE constraint)
-          // Esto es normal y esperado en una simulación aleatoria
-        }
-        ventasBusGeneradas++;
-      }
-
-      // 2. Poblar Ventas de Carga (Simulamos 15 ventas)
-      for (int i = 0; i < 15; i++) {
-        final String numeroComprobante = await comprobanteManager.getNextCargoComprobante();
-        final valor = (random.nextInt(20) + 5) * 1000.0; // 5000 a 25000
-        await cajaDb.registrarVentaCargo(
-          remitente: '${nombres[random.nextInt(nombres.length)]} ${nombres[random.nextInt(nombres.length)]}',
-          destinatario: '${nombres[random.nextInt(nombres.length)]} ${nombres[random.nextInt(nombres.length)]}',
-          destino: destinos[random.nextInt(destinos.length)],
-          articulo: 'Caja N°${random.nextInt(100)}',
-          valor: valor,
-          comprobante: numeroComprobante,
-          metodoPago: 'Efectivo',
-          montoEfectivo: valor,
-          montoTarjeta: 0,
-        );
-      }
-
-      // 3. Poblar Gastos (Simulamos 2 gastos)
-      await cajaDb.registrarGasto(
-        tipoGasto: 'Combustible',
-        monto: 75000.0,
-        numeroMaquina: 'AB-123',
-        chofer: 'Juan Perez',
-      );
-      await cajaDb.registrarGasto(
-        tipoGasto: 'Otros',
-        monto: 15000.0,
-        descripcion: 'Insumos oficina',
-      );
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Base de datos poblada con $ventasBusGeneradas ventas de bus, 15 de carga y 2 gastos.'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al poblar base de datos: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _limpiarBaseDatos() async {
-    try {
-      // Mostrar diálogo de confirmación
-      final confirmar = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Row(
-            children: [
-              Icon(Icons.warning_amber, color: Colors.red),
-              SizedBox(width: 12),
-              Text('Limpiar Base de Datos'),
-            ],
-          ),
-          content: Text(
-            '¿Está COMPLETAMENTE SEGURO de eliminar TODOS los datos?\n\nEsta acción NO se puede deshacer.',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text('CANCELAR'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: Text('ELIMINAR TODO'),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            ),
-          ],
-        ),
-      );
-
-      if (confirmar != true) return;
-
-      final db = AppDatabase.instance;
-      await db.limpiarTodasLasTablas();
-
-      // Adicionalmente, limpiar los archivos JSON de caja
-      final cajaDb = CajaDatabase();
-      await cajaDb.limpiarDatos();
-
-      // Reiniciar comprobantes
-      await ComprobanteManager().resetCounter();
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Base de datos limpiada exitosamente'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error al limpiar base de datos: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -1358,41 +1127,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 heroTag: 'keyboard_shortcuts',
               ),
             ),
-
-            // Botones de debug (aparecen al escribir "debug")
-            if (_showDebugButtons)
-              Positioned(
-                bottom: 20,
-                right: 20,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    FloatingActionButton.extended(
-                      onPressed: _isLoading ? null : _poblarBaseDatos, // MODIFICADO
-                      backgroundColor: Colors.green.shade600,
-                      icon: Icon(Icons.add_circle, color: Colors.white),
-                      label: _isLoading // MODIFICADO
-                          ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                          : Text(
-                        'Poblar DB',
-                        style: TextStyle(color: Colors.white),
-                      ),
-                      heroTag: 'populate_db',
-                    ),
-                    SizedBox(height: 12),
-                    FloatingActionButton.extended(
-                      onPressed: _isLoading ? null : _limpiarBaseDatos, // MODIFICADO
-                      backgroundColor: Colors.red.shade600,
-                      icon: Icon(Icons.delete_forever, color: Colors.white),
-                      label: Text(
-                        'Limpiar DB',
-                        style: TextStyle(color: Colors.white),
-                      ),
-                      heroTag: 'clear_db',
-                    ),
-                  ],
-                ),
-              ),
           ],
         ),
       ),
