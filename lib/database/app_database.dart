@@ -19,7 +19,7 @@ class AppDatabase {
 
     return await openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -93,6 +93,31 @@ class AppDatabase {
         fecha_reserva TEXT NOT NULL,
         FOREIGN KEY (salida_id) REFERENCES salidas (id) ON DELETE CASCADE,
         UNIQUE(salida_id, numero_asiento)
+      )
+    ''');
+
+    // Tabla de boletos vendidos (historial completo)
+    await db.execute('''
+      CREATE TABLE boletos_vendidos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        comprobante TEXT NOT NULL UNIQUE,
+        tipo TEXT NOT NULL,
+        fecha_venta TEXT NOT NULL,
+        hora_venta TEXT NOT NULL,
+        fecha_salida TEXT,
+        hora_salida TEXT,
+        destino TEXT,
+        asiento INTEGER,
+        valor REAL NOT NULL,
+        id_vendedor TEXT NOT NULL,
+        sucursal TEXT NOT NULL,
+        usuario TEXT NOT NULL,
+        datos_completos TEXT NOT NULL,
+        anulado INTEGER NOT NULL DEFAULT 0,
+        fecha_anulacion TEXT,
+        hora_anulacion TEXT,
+        usuario_anulacion TEXT,
+        motivo_anulacion TEXT
       )
     ''');
 
@@ -404,6 +429,33 @@ class AppDatabase {
         WHERE id_secretario IS NULL
       ''');
     }
+
+    if (oldVersion < 4) {
+      // Agregar tabla de boletos vendidos
+      await db.execute('''
+        CREATE TABLE boletos_vendidos (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          comprobante TEXT NOT NULL UNIQUE,
+          tipo TEXT NOT NULL,
+          fecha_venta TEXT NOT NULL,
+          hora_venta TEXT NOT NULL,
+          fecha_salida TEXT,
+          hora_salida TEXT,
+          destino TEXT,
+          asiento INTEGER,
+          valor REAL NOT NULL,
+          id_vendedor TEXT NOT NULL,
+          sucursal TEXT NOT NULL,
+          usuario TEXT NOT NULL,
+          datos_completos TEXT NOT NULL,
+          anulado INTEGER NOT NULL DEFAULT 0,
+          fecha_anulacion TEXT,
+          hora_anulacion TEXT,
+          usuario_anulacion TEXT,
+          motivo_anulacion TEXT
+        )
+      ''');
+    }
   }
 
   // MÉTODOS PARA SALIDAS
@@ -493,6 +545,199 @@ class AppDatabase {
     // Si existen otras tablas de transacciones, eliminarlas también
     // await db.delete('comprobantes'); // Descomentar si existe
     // await db.delete('cierres_caja'); // Descomentar si existe
+  }
+
+  // MÉTODOS PARA BOLETOS VENDIDOS
+
+  /// Inserta un nuevo boleto vendido en el historial
+  Future<int> insertarBoleto({
+    required String comprobante,
+    required String tipo,
+    required String fechaVenta,
+    required String horaVenta,
+    String? fechaSalida,
+    String? horaSalida,
+    String? destino,
+    int? asiento,
+    required double valor,
+    required String idVendedor,
+    required String sucursal,
+    required String usuario,
+    required String datosCompletos,
+  }) async {
+    final db = await database;
+    return await db.insert('boletos_vendidos', {
+      'comprobante': comprobante,
+      'tipo': tipo,
+      'fecha_venta': fechaVenta,
+      'hora_venta': horaVenta,
+      'fecha_salida': fechaSalida,
+      'hora_salida': horaSalida,
+      'destino': destino,
+      'asiento': asiento,
+      'valor': valor,
+      'id_vendedor': idVendedor,
+      'sucursal': sucursal,
+      'usuario': usuario,
+      'datos_completos': datosCompletos,
+      'anulado': 0,
+    });
+  }
+
+  /// Obtiene boletos con filtros opcionales
+  Future<List<Map<String, dynamic>>> getBoletos({
+    String? fechaInicio,
+    String? fechaFin,
+    String? sucursal,
+    String? idVendedor,
+    String? comprobante,
+    bool? soloActivos,
+    int? limit,
+  }) async {
+    final db = await database;
+
+    String whereClause = '1=1';
+    List<dynamic> whereArgs = [];
+
+    if (fechaInicio != null && fechaFin != null) {
+      whereClause += ' AND fecha_venta >= ? AND fecha_venta <= ?';
+      whereArgs.addAll([fechaInicio, fechaFin]);
+    }
+
+    if (sucursal != null) {
+      whereClause += ' AND sucursal = ?';
+      whereArgs.add(sucursal);
+    }
+
+    if (idVendedor != null) {
+      whereClause += ' AND id_vendedor = ?';
+      whereArgs.add(idVendedor);
+    }
+
+    if (comprobante != null) {
+      whereClause += ' AND comprobante LIKE ?';
+      whereArgs.add('%$comprobante%');
+    }
+
+    if (soloActivos == true) {
+      whereClause += ' AND anulado = 0';
+    }
+
+    return await db.query(
+      'boletos_vendidos',
+      where: whereClause,
+      whereArgs: whereArgs,
+      orderBy: 'fecha_venta DESC, hora_venta DESC',
+      limit: limit,
+    );
+  }
+
+  /// Busca un boleto por su comprobante
+  Future<Map<String, dynamic>?> buscarBoletoPorComprobante(String comprobante) async {
+    final db = await database;
+    final result = await db.query(
+      'boletos_vendidos',
+      where: 'comprobante = ?',
+      whereArgs: [comprobante],
+    );
+
+    if (result.isNotEmpty) {
+      return result.first;
+    }
+    return null;
+  }
+
+  /// Verifica si un boleto puede ser anulado (más de 4 horas antes de la salida)
+  Future<bool> verificarBoletoAnulable(String comprobante) async {
+    final boleto = await buscarBoletoPorComprobante(comprobante);
+
+    if (boleto == null) return false;
+    if (boleto['anulado'] == 1) return false;
+    if (boleto['tipo'] != 'bus') return true; // Carga se puede anular siempre
+
+    // Para boletos de bus, verificar que falten más de 4 horas
+    final fechaSalida = boleto['fecha_salida'] as String?;
+    final horaSalida = boleto['hora_salida'] as String?;
+
+    if (fechaSalida == null || horaSalida == null) return true;
+
+    try {
+      final fechaHoraSalida = DateTime.parse('$fechaSalida $horaSalida');
+      final ahora = DateTime.now();
+      final diferencia = fechaHoraSalida.difference(ahora);
+
+      // Debe faltar más de 4 horas
+      return diferencia.inHours >= 4;
+    } catch (e) {
+      return true; // En caso de error, permitir anulación
+    }
+  }
+
+  /// Anula un boleto
+  Future<int> anularBoleto({
+    required String comprobante,
+    required String usuario,
+    required String motivo,
+  }) async {
+    final db = await database;
+    final ahora = DateTime.now();
+
+    return await db.update(
+      'boletos_vendidos',
+      {
+        'anulado': 1,
+        'fecha_anulacion': ahora.toString().split(' ')[0],
+        'hora_anulacion': ahora.toString().split(' ')[1].substring(0, 8),
+        'usuario_anulacion': usuario,
+        'motivo_anulacion': motivo,
+      },
+      where: 'comprobante = ?',
+      whereArgs: [comprobante],
+    );
+  }
+
+  /// Limpia boletos expirados (salidas pasadas o próximas a expirar en 4 horas)
+  Future<int> limpiarBoletosExpirados() async {
+    final db = await database;
+    final ahora = DateTime.now();
+    final limiteExpiracion = ahora.add(Duration(hours: 4));
+
+    final fechaActual = ahora.toString().split(' ')[0];
+    final horaActual = ahora.toString().split(' ')[1].substring(0, 8);
+    final fechaLimite = limiteExpiracion.toString().split(' ')[0];
+    final horaLimite = limiteExpiracion.toString().split(' ')[1].substring(0, 8);
+
+    // Eliminar boletos de bus cuya salida ya pasó o está próxima a pasar (4 horas)
+    // Solo elimina boletos activos (no anulados) para mantener historial de anulaciones
+    return await db.delete(
+      'boletos_vendidos',
+      where: '''
+        tipo = 'bus' AND anulado = 0 AND (
+          (fecha_salida < ?) OR
+          (fecha_salida = ? AND hora_salida < ?) OR
+          (fecha_salida = ? AND hora_salida <= ? AND fecha_salida <= ?)
+        )
+      ''',
+      whereArgs: [
+        fechaActual,
+        fechaActual,
+        horaActual,
+        fechaLimite,
+        horaLimite,
+        fechaLimite,
+      ],
+    );
+  }
+
+  /// Cuenta boletos anulados por un usuario en una fecha específica
+  Future<int> contarAnulacionesUsuario(String usuario, String fecha) async {
+    final db = await database;
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) as total FROM boletos_vendidos WHERE usuario_anulacion = ? AND fecha_anulacion = ?',
+      [usuario, fecha],
+    );
+
+    return result.first['total'] as int? ?? 0;
   }
 
   // Cerrar la base de datos

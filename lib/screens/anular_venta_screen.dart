@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../database/caja_database.dart';
+import '../database/app_database.dart';
 import '../models/auth_provider.dart';
 import '../models/admin_code_manager.dart';
 
@@ -183,8 +184,25 @@ class _AnularVentaScreenState extends State<AnularVentaScreen> {
       return;
     }
 
-    // Si es Secretaria y ya tiene 3 o más anulaciones, solicitar código de administrador
-    if (isSecretaria && _anulacionesUsuarioHoy >= 3) {
+    // Verificar si el boleto puede ser anulado (validación de 4 horas para boletos de bus)
+    try {
+      final appDb = AppDatabase.instance;
+      final puedeAnular = await appDb.verificarBoletoAnulable(_ventaEncontrada!['comprobante']);
+
+      if (!puedeAnular) {
+        _mostrarMensaje(
+          'No se puede anular este boleto. Los boletos de bus solo pueden anularse si faltan más de 4 horas para la salida.',
+          error: true,
+        );
+        return;
+      }
+    } catch (e) {
+      debugPrint('Error al verificar boleto anulable: $e');
+      // En caso de error, continuar con la anulación (por compatibilidad)
+    }
+
+    // Si es Secretaria y ya tiene 6 o más anulaciones, solicitar código de administrador
+    if (isSecretaria && _anulacionesUsuarioHoy >= 6) {
       final codigoValido = await _solicitarCodigoAdministrador();
       if (codigoValido != true) {
         return; // No continuar si no se ingresó un código válido
@@ -348,7 +366,7 @@ class _AnularVentaScreenState extends State<AnularVentaScreen> {
                   SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'Ha alcanzado el límite de 3 anulaciones. Ingrese el código de administrador para continuar.',
+                      'Ha alcanzado el límite de 6 anulaciones. Ingrese el código de administrador para continuar.',
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.orange.shade900,
@@ -554,10 +572,10 @@ class _AnularVentaScreenState extends State<AnularVentaScreen> {
                     builder: (context, authProvider, _) {
                       if (!authProvider.isSecretaria) return SizedBox.shrink();
 
-                      final anulacionesRestantes = 3 - _anulacionesUsuarioHoy;
-                      final color = _anulacionesUsuarioHoy >= 3
+                      final anulacionesRestantes = 6 - _anulacionesUsuarioHoy;
+                      final color = _anulacionesUsuarioHoy >= 6
                           ? Colors.red
-                          : (_anulacionesUsuarioHoy >= 2 ? Colors.orange : Colors.blue);
+                          : (_anulacionesUsuarioHoy >= 4 ? Colors.orange : Colors.blue);
 
                       return Container(
                         margin: EdgeInsets.only(top: 16),
@@ -585,13 +603,13 @@ class _AnularVentaScreenState extends State<AnularVentaScreen> {
                                   ),
                                   SizedBox(height: 4),
                                   Text(
-                                    _anulacionesUsuarioHoy >= 3
-                                        ? 'Ha alcanzado el límite máximo de 3 anulaciones del día. Contacte a un administrador.'
-                                        : 'Anulaciones realizadas hoy: $_anulacionesUsuarioHoy de 3. Le quedan $anulacionesRestantes.',
+                                    _anulacionesUsuarioHoy >= 6
+                                        ? 'Ha alcanzado el límite máximo de 6 anulaciones del día. Contacte a un administrador.'
+                                        : 'Anulaciones realizadas hoy: $_anulacionesUsuarioHoy de 6. Le quedan $anulacionesRestantes.',
                                     style: TextStyle(
                                       fontSize: 13,
                                       color: color.shade800,
-                                      fontWeight: _anulacionesUsuarioHoy >= 3 ? FontWeight.bold : FontWeight.normal,
+                                      fontWeight: _anulacionesUsuarioHoy >= 6 ? FontWeight.bold : FontWeight.normal,
                                     ),
                                   ),
                                 ],
