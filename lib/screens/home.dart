@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
+import '../database/caja_database.dart';
 import '../models/auth_provider.dart';
 import '../database/app_database.dart';
 import 'dart:math' as math;
