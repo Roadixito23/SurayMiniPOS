@@ -1,5 +1,6 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'package:flutter/foundation.dart';
 
 class AppDatabase {
   static final AppDatabase instance = AppDatabase._init();
@@ -592,6 +593,8 @@ class AppDatabase {
     String? idVendedor,
     String? comprobante,
     bool? soloActivos,
+    bool? soloAnulados,
+    String? usuario,
     int? limit,
   }) async {
     final db = await database;
@@ -614,6 +617,11 @@ class AppDatabase {
       whereArgs.add(idVendedor);
     }
 
+    if (usuario != null) {
+      whereClause += ' AND usuario = ?';
+      whereArgs.add(usuario);
+    }
+
     if (comprobante != null) {
       whereClause += ' AND comprobante LIKE ?';
       whereArgs.add('%$comprobante%');
@@ -621,6 +629,10 @@ class AppDatabase {
 
     if (soloActivos == true) {
       whereClause += ' AND anulado = 0';
+    }
+
+    if (soloAnulados == true) {
+      whereClause += ' AND anulado = 1';
     }
 
     return await db.query(
@@ -697,19 +709,24 @@ class AppDatabase {
   }
 
   /// Limpia boletos expirados (salidas pasadas o próximas a expirar en 4 horas)
+  /// También limpia boletos anulados con más de 7 días de antigüedad
   Future<int> limpiarBoletosExpirados() async {
     final db = await database;
     final ahora = DateTime.now();
     final limiteExpiracion = ahora.add(Duration(hours: 4));
+    final limiteAnulados = ahora.subtract(Duration(days: 7));
 
     final fechaActual = ahora.toString().split(' ')[0];
     final horaActual = ahora.toString().split(' ')[1].substring(0, 8);
     final fechaLimite = limiteExpiracion.toString().split(' ')[0];
     final horaLimite = limiteExpiracion.toString().split(' ')[1].substring(0, 8);
+    final fechaLimiteAnulados = limiteAnulados.toString().split(' ')[0];
 
-    // Eliminar boletos de bus cuya salida ya pasó o está próxima a pasar (4 horas)
-    // Solo elimina boletos activos (no anulados) para mantener historial de anulaciones
-    return await db.delete(
+    int totalEliminados = 0;
+
+    // 1. Eliminar boletos de bus cuya salida ya pasó o está próxima a pasar (4 horas)
+    // Solo elimina boletos activos (no anulados)
+    final eliminadosExpirados = await db.delete(
       'boletos_vendidos',
       where: '''
         tipo = 'bus' AND anulado = 0 AND (
@@ -727,6 +744,48 @@ class AppDatabase {
         fechaLimite,
       ],
     );
+    totalEliminados += eliminadosExpirados;
+
+    // 2. Eliminar boletos anulados con más de 7 días de antigüedad
+    // (mantener historial reciente de anulaciones para auditoría)
+    final eliminadosAnulados = await db.delete(
+      'boletos_vendidos',
+      where: 'anulado = 1 AND fecha_anulacion < ?',
+      whereArgs: [fechaLimiteAnulados],
+    );
+    totalEliminados += eliminadosAnulados;
+
+    // 3. Eliminar salidas antiguas sin asientos reservados (limpieza de salidas vacías)
+    // Primero, obtener IDs de salidas con fecha anterior a hoy
+    final salidasAntiguas = await db.query(
+      'salidas',
+      columns: ['id'],
+      where: 'fecha < ?',
+      whereArgs: [fechaActual],
+    );
+
+    for (var salida in salidasAntiguas) {
+      final salidaId = salida['id'] as int;
+      // Verificar si hay asientos reservados
+      final asientos = await db.query(
+        'asientos_reservados',
+        where: 'salida_id = ?',
+        whereArgs: [salidaId],
+      );
+
+      // Si no hay asientos reservados, eliminar la salida
+      if (asientos.isEmpty) {
+        await db.delete(
+          'salidas',
+          where: 'id = ?',
+          whereArgs: [salidaId],
+        );
+      }
+    }
+
+    debugPrint('Limpieza de boletos: $eliminadosExpirados expirados, $eliminadosAnulados anulados antiguos eliminados');
+
+    return totalEliminados;
   }
 
   /// Cuenta boletos anulados por un usuario en una fecha específica

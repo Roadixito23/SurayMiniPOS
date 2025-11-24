@@ -72,7 +72,7 @@ class _GestionAnulacionesScreenState extends State<GestionAnulacionesScreen> {
         ),
         content: Text(
           '¿Está seguro de reiniciar el contador de anulaciones de $username?\n\n'
-          'Esto permitirá que el usuario realice hasta 6 anulaciones nuevamente el día de hoy.',
+          'Esto permitirá que el usuario realice hasta 3 anulaciones nuevamente el día de hoy.',
         ),
         actions: [
           TextButton(
@@ -223,8 +223,8 @@ class _GestionAnulacionesScreenState extends State<GestionAnulacionesScreen> {
                             ),
                             SizedBox(height: 12),
                             Text(
-                              '• Las secretarias pueden realizar hasta 6 anulaciones por día\n'
-                              '• Después de 6 anulaciones, necesitan código de administrador\n'
+                              '• Las secretarias pueden realizar hasta 3 anulaciones por día\n'
+                              '• Después de 3 anulaciones, necesitan código de administrador\n'
                               '• Puede reiniciar el contador de un usuario si es necesario\n'
                               '• Los boletos solo se pueden anular si faltan más de 4 horas para la salida',
                               style: TextStyle(
@@ -274,7 +274,7 @@ class _GestionAnulacionesScreenState extends State<GestionAnulacionesScreen> {
                           final idSecretario = usuario['id_secretario'] as String? ?? 'N/A';
                           final sucursal = usuario['sucursal_origen'] as String? ?? 'N/A';
                           final contador = _contadoresAnulaciones[username] ?? 0;
-                          final limiteAlcanzado = contador >= 6;
+                          final limiteAlcanzado = contador >= 3;
 
                           return Container(
                             margin: EdgeInsets.only(bottom: 16),
@@ -359,17 +359,17 @@ class _GestionAnulacionesScreenState extends State<GestionAnulacionesScreen> {
                                       decoration: BoxDecoration(
                                         color: limiteAlcanzado
                                             ? Colors.red.shade100
-                                            : (contador >= 4 ? Colors.orange.shade100 : Colors.green.shade100),
+                                            : (contador >= 2 ? Colors.orange.shade100 : Colors.green.shade100),
                                         borderRadius: BorderRadius.circular(20),
                                       ),
                                       child: Text(
-                                        '$contador / 6',
+                                        '$contador / 3',
                                         style: TextStyle(
                                           fontSize: 18,
                                           fontWeight: FontWeight.bold,
                                           color: limiteAlcanzado
                                               ? Colors.red.shade700
-                                              : (contador >= 4 ? Colors.orange.shade700 : Colors.green.shade700),
+                                              : (contador >= 2 ? Colors.orange.shade700 : Colors.green.shade700),
                                         ),
                                       ),
                                     ),
@@ -384,7 +384,7 @@ class _GestionAnulacionesScreenState extends State<GestionAnulacionesScreen> {
                                       child: Text(
                                         limiteAlcanzado
                                             ? 'Límite alcanzado - Requiere código admin'
-                                            : 'Anulaciones disponibles: ${6 - contador}',
+                                            : 'Anulaciones disponibles: ${3 - contador}',
                                         style: TextStyle(
                                           fontSize: 14,
                                           color: limiteAlcanzado ? Colors.red.shade700 : Colors.grey.shade700,
