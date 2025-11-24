@@ -250,7 +250,6 @@ class _LogoutButton extends StatelessWidget {
   }
 
   Future<void> _handleLogout(BuildContext context, AuthProvider authProvider) async {
-    // Verificar si hay cierres pendientes
     final cajaDb = CajaDatabase();
     final ventasPendientes = await cajaDb.getVentasDiarias();
     final tieneCierresPendientes = ventasPendientes.isNotEmpty;
