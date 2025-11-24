@@ -138,6 +138,11 @@ class _Sidebar extends StatelessWidget {
                           onTap: () => Navigator.pushNamed(context, '/usuarios'),
                         ),
                         _SidebarMenuItem(
+                          icon: Icons.manage_accounts,
+                          label: 'Gestión de Anulaciones',
+                          onTap: () => Navigator.pushNamed(context, '/gestion_anulaciones'),
+                        ),
+                        _SidebarMenuItem(
                           icon: Icons.settings,
                           label: 'Configuración',
                           onTap: () => Navigator.pushNamed(context, '/settings'),

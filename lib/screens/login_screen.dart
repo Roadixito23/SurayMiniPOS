@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/auth_provider.dart';
+import '../database/app_database.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -53,6 +54,15 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     setState(() => _isLoading = false);
 
     if (success && mounted) {
+      // Ejecutar limpieza de boletos expirados en segundo plano
+      AppDatabase.instance.limpiarBoletosExpirados().then((eliminados) {
+        if (eliminados > 0) {
+          debugPrint('Limpieza automática: $eliminados boletos expirados eliminados');
+        }
+      }).catchError((e) {
+        debugPrint('Error en limpieza automática: $e');
+      });
+
       // Mostrar selector de sucursal antes de navegar al home
       final sucursalSeleccionada = await showDialog<String>(
         context: context,
