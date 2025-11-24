@@ -1168,7 +1168,8 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                           _buildLabel('Fecha del viaje'),
                           InkWell(
                             onTap: () async {
-                              final fechaLimite = DateTime.now().add(Duration(days: 35));
+                              // Límite de 2 semanas (14 días) para venta de boletos
+                              final fechaLimite = DateTime.now().add(Duration(days: 14));
                               final fechaPick = await showDatePicker(
                                 context: context,
                                 initialDate: DateTime.parse(fechaSeleccionada),

@@ -70,7 +70,12 @@ class CajaDatabase {
     String metodoPago = 'Efectivo', // Efectivo, Tarjeta, Personalizar
     double? montoEfectivo, // Para método personalizado
     double? montoTarjeta, // Para método personalizado
+    String? fechaSalida, // Fecha de la salida del bus
+    String? usuario, // Usuario que realizó la venta
+    String? idVendedor, // ID del vendedor
+    String? sucursal, // Sucursal de origen
   }) async {
+    final now = DateTime.now();
     final venta = {
       'tipo': 'bus',
       'destino': destino,
@@ -82,12 +87,35 @@ class CajaDatabase {
       'metodoPago': metodoPago,
       'montoEfectivo': metodoPago == 'Personalizar' ? (montoEfectivo ?? 0) : (metodoPago == 'Efectivo' ? valor : 0),
       'montoTarjeta': metodoPago == 'Personalizar' ? (montoTarjeta ?? 0) : (metodoPago == 'Tarjeta' ? valor : 0),
-      'timestamp': DateTime.now().millisecondsSinceEpoch,
-      'fecha': DateFormat('yyyy-MM-dd').format(DateTime.now()),
-      'hora': DateFormat('HH:mm:ss').format(DateTime.now()),
+      'timestamp': now.millisecondsSinceEpoch,
+      'fecha': DateFormat('yyyy-MM-dd').format(now),
+      'hora': DateFormat('HH:mm:ss').format(now),
     };
 
     await _guardarVenta(venta);
+
+    // Guardar también en la tabla SQLite de boletos vendidos
+    try {
+      final appDb = AppDatabase.instance;
+      await appDb.insertarBoleto(
+        comprobante: comprobante,
+        tipo: 'bus',
+        fechaVenta: DateFormat('yyyy-MM-dd').format(now),
+        horaVenta: DateFormat('HH:mm:ss').format(now),
+        fechaSalida: fechaSalida,
+        horaSalida: horario,
+        destino: destino,
+        asiento: int.tryParse(asiento),
+        valor: valor,
+        idVendedor: idVendedor ?? 'N/A',
+        sucursal: sucursal ?? 'N/A',
+        usuario: usuario ?? 'N/A',
+        datosCompletos: jsonEncode(venta),
+      );
+    } catch (e) {
+      debugPrint('Error al guardar boleto en SQLite: $e');
+      // No lanzar excepción para no interrumpir la venta
+    }
   }
 
   /// Registra una venta de cargo
@@ -101,7 +129,11 @@ class CajaDatabase {
     String metodoPago = 'Efectivo', // Efectivo, Tarjeta, Personalizar
     double? montoEfectivo, // Para método personalizado
     double? montoTarjeta, // Para método personalizado
+    String? usuario, // Usuario que realizó la venta
+    String? idVendedor, // ID del vendedor
+    String? sucursal, // Sucursal de origen
   }) async {
+    final now = DateTime.now();
     final venta = {
       'tipo': 'cargo',
       'remitente': remitente,
@@ -113,12 +145,32 @@ class CajaDatabase {
       'metodoPago': metodoPago,
       'montoEfectivo': metodoPago == 'Personalizar' ? (montoEfectivo ?? 0) : (metodoPago == 'Efectivo' ? valor : 0),
       'montoTarjeta': metodoPago == 'Personalizar' ? (montoTarjeta ?? 0) : (metodoPago == 'Tarjeta' ? valor : 0),
-      'timestamp': DateTime.now().millisecondsSinceEpoch,
-      'fecha': DateFormat('yyyy-MM-dd').format(DateTime.now()),
-      'hora': DateFormat('HH:mm:ss').format(DateTime.now()),
+      'timestamp': now.millisecondsSinceEpoch,
+      'fecha': DateFormat('yyyy-MM-dd').format(now),
+      'hora': DateFormat('HH:mm:ss').format(now),
     };
 
     await _guardarVenta(venta);
+
+    // Guardar también en la tabla SQLite de boletos vendidos
+    try {
+      final appDb = AppDatabase.instance;
+      await appDb.insertarBoleto(
+        comprobante: comprobante,
+        tipo: 'cargo',
+        fechaVenta: DateFormat('yyyy-MM-dd').format(now),
+        horaVenta: DateFormat('HH:mm:ss').format(now),
+        destino: destino,
+        valor: valor,
+        idVendedor: idVendedor ?? 'N/A',
+        sucursal: sucursal ?? 'N/A',
+        usuario: usuario ?? 'N/A',
+        datosCompletos: jsonEncode(venta),
+      );
+    } catch (e) {
+      debugPrint('Error al guardar boleto en SQLite: $e');
+      // No lanzar excepción para no interrumpir la venta
+    }
   }
 
   /// Registra un gasto
@@ -251,6 +303,19 @@ class CajaDatabase {
 
       // Guardar la lista actualizada
       await _saveJsonToFile(_ventasFileName, ventas);
+
+      // Anular también en la tabla SQLite de boletos vendidos
+      try {
+        final appDb = AppDatabase.instance;
+        await appDb.anularBoleto(
+          comprobante: comprobante,
+          usuario: usuario,
+          motivo: motivo ?? 'Sin motivo especificado',
+        );
+      } catch (e) {
+        debugPrint('Error al anular boleto en SQLite: $e');
+        // No lanzar excepción, la anulación en JSON ya se hizo
+      }
 
       debugPrint('Venta $comprobante anulada exitosamente');
       return true;
