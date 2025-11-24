@@ -26,6 +26,7 @@ dependencies:
   crypto: ^3.0.3
   window_manager: ^0.3.7
   file_picker: ^8.1.4
+  flutter_colorpicker: ^1.1.0
 
 flutter_launcher_icons:
   android: "launcher_icon"

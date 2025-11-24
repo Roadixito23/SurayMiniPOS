@@ -19,7 +19,7 @@ class AppDatabase {
 
     return await openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -56,7 +56,8 @@ class AppDatabase {
         tipo_dia TEXT NOT NULL,
         categoria TEXT NOT NULL,
         valor REAL NOT NULL,
-        activo INTEGER NOT NULL DEFAULT 1
+        activo INTEGER NOT NULL DEFAULT 1,
+        color TEXT
       )
     ''');
 
@@ -118,30 +119,35 @@ class AppDatabase {
       'categoria': 'PUBLICO GENERAL',
       'valor': 3600.0,
       'activo': 1,
+      'color': 'FF2196F3', // Azul
     });
     await db.insert('tarifas', {
       'tipo_dia': 'LUNES A SÁBADO',
       'categoria': 'ESCOLAR',
       'valor': 2500.0,
       'activo': 1,
+      'color': 'FF4CAF50', // Verde
     });
     await db.insert('tarifas', {
       'tipo_dia': 'LUNES A SÁBADO',
       'categoria': 'ADULTO MAYOR',
       'valor': 1800.0,
       'activo': 1,
+      'color': 'FF9C27B0', // Púrpura
     });
     await db.insert('tarifas', {
       'tipo_dia': 'LUNES A SÁBADO',
       'categoria': 'INTERMEDIO 15KM',
       'valor': 1800.0,
       'activo': 1,
+      'color': 'FFFF9800', // Naranja
     });
     await db.insert('tarifas', {
       'tipo_dia': 'LUNES A SÁBADO',
       'categoria': 'INTERMEDIO 50KM',
       'valor': 2500.0,
       'activo': 1,
+      'color': 'FFFF5722', // Naranja oscuro
     });
 
     // Insertar tarifas por defecto - Domingo o Feriado
@@ -150,24 +156,28 @@ class AppDatabase {
       'categoria': 'PUBLICO GENERAL',
       'valor': 4300.0,
       'activo': 1,
+      'color': 'FF2196F3', // Azul
     });
     await db.insert('tarifas', {
       'tipo_dia': 'DOMINGO / FERIADO',
       'categoria': 'ESCOLAR',
       'valor': 3000.0,
       'activo': 1,
+      'color': 'FF4CAF50', // Verde
     });
     await db.insert('tarifas', {
       'tipo_dia': 'DOMINGO / FERIADO',
       'categoria': 'ADULTO MAYOR',
       'valor': 2150.0,
       'activo': 1,
+      'color': 'FF9C27B0', // Púrpura
     });
     await db.insert('tarifas', {
       'tipo_dia': 'DOMINGO / FERIADO',
       'categoria': 'INTERMEDIO',
       'valor': 3000.0,
       'activo': 1,
+      'color': 'FFFF9800', // Naranja
     });
   }
 
@@ -402,6 +412,24 @@ class AppDatabase {
         UPDATE usuarios
         SET id_secretario = '01', sucursal_origen = 'AYS'
         WHERE id_secretario IS NULL
+      ''');
+    }
+
+    if (oldVersion < 4) {
+      // Agregar columna color a tarifas
+      await db.execute('ALTER TABLE tarifas ADD COLUMN color TEXT');
+
+      // Asignar colores por defecto según categoría
+      await db.execute('''
+        UPDATE tarifas
+        SET color = CASE
+          WHEN categoria = 'PUBLICO GENERAL' THEN 'FF2196F3'
+          WHEN categoria = 'ESCOLAR' THEN 'FF4CAF50'
+          WHEN categoria = 'ADULTO MAYOR' THEN 'FF9C27B0'
+          WHEN categoria LIKE '%INTERMEDIO%' THEN 'FFFF9800'
+          ELSE 'FF9E9E9E'
+        END
+        WHERE color IS NULL
       ''');
     }
   }

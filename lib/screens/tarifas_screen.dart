@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../database/app_database.dart';
 import '../models/tarifa.dart';
 import '../models/comprobante.dart';
+import '../widgets/color_picker_dialog.dart';
 
 class TarifasScreen extends StatefulWidget {
   const TarifasScreen({super.key});
@@ -12,12 +13,9 @@ class TarifasScreen extends StatefulWidget {
 }
 
 class _TarifasScreenState extends State<TarifasScreen> {
-  List<Tarifa> _tarifasLunesASabado = [];
-  List<Tarifa> _tarifasDomingoFeriado = [];
-  int _currentIndexLunes = 0;
-  int _currentIndexDomingo = 0;
+  List<Tarifa> _tarifasPuntoAPunto = [];
+  List<Tarifa> _tarifasIntermedios = [];
   bool _isLoading = true;
-  String _tipoDiaActual = 'LUNES A SÁBADO';
 
   @override
   void initState() {
@@ -28,12 +26,17 @@ class _TarifasScreenState extends State<TarifasScreen> {
   Future<void> _loadTarifas() async {
     setState(() => _isLoading = true);
     try {
-      final tarifasLunes = await AppDatabase.instance.getTarifasByTipoDia('LUNES A SÁBADO');
-      final tarifasDomingo = await AppDatabase.instance.getTarifasByTipoDia('DOMINGO / FERIADO');
+      final todasTarifas = await AppDatabase.instance.getAllTarifas();
+      final tarifas = todasTarifas.map((map) => Tarifa.fromMap(map)).toList();
 
       setState(() {
-        _tarifasLunesASabado = tarifasLunes.map((map) => Tarifa.fromMap(map)).toList();
-        _tarifasDomingoFeriado = tarifasDomingo.map((map) => Tarifa.fromMap(map)).toList();
+        // Separar punto a punto de intermedios
+        _tarifasPuntoAPunto = tarifas
+            .where((t) => !t.categoria.toUpperCase().contains('INTERMEDIO'))
+            .toList();
+        _tarifasIntermedios = tarifas
+            .where((t) => t.categoria.toUpperCase().contains('INTERMEDIO'))
+            .toList();
         _isLoading = false;
       });
     } catch (e) {
@@ -46,49 +49,13 @@ class _TarifasScreenState extends State<TarifasScreen> {
     }
   }
 
-  List<Tarifa> get _currentList =>
-      _tipoDiaActual == 'LUNES A SÁBADO' ? _tarifasLunesASabado : _tarifasDomingoFeriado;
-
-  int get _currentIndex =>
-      _tipoDiaActual == 'LUNES A SÁBADO' ? _currentIndexLunes : _currentIndexDomingo;
-
-  set _currentIndex(int value) {
-    if (_tipoDiaActual == 'LUNES A SÁBADO') {
-      _currentIndexLunes = value;
-    } else {
-      _currentIndexDomingo = value;
-    }
-  }
-
-  void _navigatePrevious() {
-    if (_currentIndex > 0) {
-      setState(() {
-        _currentIndex = _currentIndex - 1;
-      });
-    }
-  }
-
-  void _navigateNext() {
-    if (_currentIndex < _currentList.length - 1) {
-      setState(() {
-        _currentIndex = _currentIndex + 1;
-      });
-    }
-  }
-
-  void _toggleTipoDia() {
-    setState(() {
-      _tipoDiaActual = _tipoDiaActual == 'LUNES A SÁBADO' ? 'DOMINGO / FERIADO' : 'LUNES A SÁBADO';
-    });
-  }
-
-  Future<void> _editarTarifa(Tarifa tarifa) async {
+  Future<void> _editarValor(Tarifa tarifa) async {
     final controller = TextEditingController(text: tarifa.valor.toStringAsFixed(0));
 
     final result = await showDialog<double>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Editar ${tarifa.categoria}'),
+        title: Text('Editar Valor - ${tarifa.categoria}'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -150,6 +117,56 @@ class _TarifasScreenState extends State<TarifasScreen> {
     }
   }
 
+  Future<void> _editarColor(Tarifa tarifa) async {
+    // Color inicial: si tiene color asignado, usarlo; si no, azul por defecto
+    Color initialColor = tarifa.color != null
+        ? Color(int.parse(tarifa.color!, radix: 16))
+        : Colors.blue;
+
+    final result = await showDialog<Color>(
+      context: context,
+      builder: (context) => ColorPickerDialog(initialColor: initialColor),
+    );
+
+    if (result != null && tarifa.id != null) {
+      try {
+        // Convertir color a string hex
+        String colorHex = result.value.toRadixString(16).padLeft(8, '0').toUpperCase();
+
+        await AppDatabase.instance.updateTarifa(
+          tarifa.id!,
+          tarifa.copyWith(color: colorHex).toMap(),
+        );
+        await _loadTarifas();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Color actualizado correctamente'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error al actualizar color: $e')),
+          );
+        }
+      }
+    }
+  }
+
+  Color _getColorFromHex(String? hexColor) {
+    if (hexColor == null || hexColor.isEmpty) {
+      return Colors.blue;
+    }
+    try {
+      return Color(int.parse(hexColor, radix: 16));
+    } catch (e) {
+      return Colors.blue;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -159,252 +176,23 @@ class _TarifasScreenState extends State<TarifasScreen> {
       );
     }
 
-    if (_currentList.isEmpty) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Gestión de Tarifas')),
-        body: const Center(
-          child: Text('No hay tarifas disponibles'),
-        ),
-      );
-    }
-
-    final currentTarifa = _currentList[_currentIndex];
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Gestión de Tarifas'),
+        centerTitle: true,
         actions: [
-          // Botón para cambiar entre tipos de día
           IconButton(
-            icon: const Icon(Icons.calendar_today),
-            tooltip: 'Cambiar tipo de día',
-            onPressed: _toggleTipoDia,
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Actualizar',
+            onPressed: _loadTarifas,
           ),
         ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(60),
-          child: Container(
-            color: Colors.white.withOpacity(0.1),
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Botón Anterior
-                IconButton(
-                  icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-                  onPressed: _currentIndex > 0 ? _navigatePrevious : null,
-                  tooltip: 'Anterior',
-                ),
-                const SizedBox(width: 16),
-                // Indicador de posición y tipo de día
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      _tipoDiaActual,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${_currentIndex + 1} / ${_currentList.length}',
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(width: 16),
-                // Botón Siguiente
-                IconButton(
-                  icon: const Icon(Icons.arrow_forward_ios, color: Colors.white),
-                  onPressed: _currentIndex < _currentList.length - 1 ? _navigateNext : null,
-                  tooltip: 'Siguiente',
-                ),
-              ],
-            ),
-          ),
-        ),
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Card principal con información de la tarifa
-            Card(
-              elevation: 8,
-              child: Padding(
-                padding: const EdgeInsets.all(32.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Tipo de día
-                    Row(
-                      children: [
-                        const Icon(Icons.calendar_today, color: Color(0xFF1976D2)),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'TIPO DE DÍA',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                currentTarifa.tipoDia,
-                                style: const TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const Divider(height: 32),
-                    // Categoría
-                    Row(
-                      children: [
-                        const Icon(Icons.category, color: Color(0xFF1976D2)),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'CATEGORÍA',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                currentTarifa.categoria,
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const Divider(height: 32),
-                    // Valor
-                    Row(
-                      children: [
-                        const Icon(Icons.attach_money, color: Color(0xFF1976D2)),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'VALOR',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '\$${currentTarifa.valor.toStringAsFixed(0)}',
-                                style: const TextStyle(
-                                  fontSize: 32,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF1976D2),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        // Botón de editar
-                        ElevatedButton.icon(
-                          onPressed: () => _editarTarifa(currentTarifa),
-                          icon: const Icon(Icons.edit),
-                          label: const Text('EDITAR'),
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 16,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const Divider(height: 32),
-                    // Último comprobante vendido
-                    Row(
-                      children: [
-                        const Icon(Icons.receipt_long, color: Color(0xFF1976D2)),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'ÚLTIMO N° DE COMPROBANTE',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              FutureBuilder<String>(
-                                future: ComprobanteManager().getLastSoldComprobante(currentTarifa.categoria),
-                                builder: (context, snapshot) {
-                                  if (snapshot.connectionState == ConnectionState.waiting) {
-                                    return const Text(
-                                      'Cargando...',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        color: Colors.grey,
-                                        fontStyle: FontStyle.italic,
-                                      ),
-                                    );
-                                  }
-
-                                  final comprobante = snapshot.data ?? 'Sin ventas';
-                                  final color = comprobante == 'Sin ventas'
-                                      ? Colors.grey
-                                      : const Color(0xFF1976D2);
-
-                                  return Text(
-                                    comprobante,
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w600,
-                                      color: color,
-                                    ),
-                                  );
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
             // Instrucciones
             Container(
               padding: const EdgeInsets.all(16),
@@ -419,16 +207,307 @@ class _TarifasScreenState extends State<TarifasScreen> {
                   SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'Use las flechas en la parte superior para navegar entre tarifas. '
-                      'Use el ícono de calendario para cambiar entre días laborales y feriados.',
+                      'Configure los precios para cada tipo de boleto y día de la semana. '
+                      'Puede personalizar el color de cada tarifa para identificarlas fácilmente en estadísticas.',
                       style: TextStyle(fontSize: 13),
                     ),
                   ),
                 ],
               ),
             ),
+            const SizedBox(height: 32),
+
+            // Sección: Boletos Punto a Punto
+            _buildSeccionTarifas(
+              titulo: 'Boletos Punto a Punto',
+              icono: Icons.route,
+              color: Colors.blue,
+              tarifas: _tarifasPuntoAPunto,
+            ),
+
+            const SizedBox(height: 32),
+
+            // Sección: Boletos Intermedios
+            _buildSeccionTarifas(
+              titulo: 'Boletos de Oferta Intermedio',
+              icono: Icons.location_on,
+              color: Colors.orange,
+              tarifas: _tarifasIntermedios,
+            ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildSeccionTarifas({
+    required String titulo,
+    required IconData icono,
+    required Color color,
+    required List<Tarifa> tarifas,
+  }) {
+    if (tarifas.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    // Agrupar por categoría
+    Map<String, List<Tarifa>> tarifasPorCategoria = {};
+    for (var tarifa in tarifas) {
+      if (!tarifasPorCategoria.containsKey(tarifa.categoria)) {
+        tarifasPorCategoria[tarifa.categoria] = [];
+      }
+      tarifasPorCategoria[tarifa.categoria]!.add(tarifa);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Título de la sección
+        Row(
+          children: [
+            Icon(icono, color: color, size: 32),
+            const SizedBox(width: 12),
+            Text(
+              titulo,
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        // Cards de tarifas por categoría
+        ...tarifasPorCategoria.entries.map((entry) {
+          String categoria = entry.key;
+          List<Tarifa> tarifasCategoria = entry.value;
+
+          // Separar por tipo de día
+          Tarifa? tarifaLunesASabado = tarifasCategoria.firstWhere(
+            (t) => t.tipoDia == 'LUNES A SÁBADO',
+            orElse: () => tarifasCategoria.first,
+          );
+          Tarifa? tarifaDomingoFeriado = tarifasCategoria.firstWhere(
+            (t) => t.tipoDia == 'DOMINGO / FERIADO',
+            orElse: () => tarifasCategoria.first,
+          );
+
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: _buildTarifaCard(
+              categoria: categoria,
+              tarifaLunesASabado: tarifaLunesASabado,
+              tarifaDomingoFeriado: tarifaDomingoFeriado,
+            ),
+          );
+        }).toList(),
+      ],
+    );
+  }
+
+  Widget _buildTarifaCard({
+    required String categoria,
+    required Tarifa tarifaLunesASabado,
+    required Tarifa tarifaDomingoFeriado,
+  }) {
+    Color categoriaColor = _getColorFromHex(tarifaLunesASabado.color);
+
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Column(
+        children: [
+          // Header con categoría y selector de color
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: categoriaColor.withOpacity(0.1),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(12),
+                topRight: Radius.circular(12),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: categoriaColor,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.white, width: 2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.2),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    categoria,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: categoriaColor,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.palette),
+                  tooltip: 'Cambiar color',
+                  onPressed: () => _editarColor(tarifaLunesASabado),
+                  color: categoriaColor,
+                ),
+              ],
+            ),
+          ),
+
+          // Contenido con los dos tipos de día
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                // Lunes a Sábado
+                Expanded(
+                  child: _buildDiaCard(
+                    tipoDia: 'LUNES A SÁBADO',
+                    tarifa: tarifaLunesASabado,
+                    icon: Icons.calendar_today,
+                    iconColor: Colors.blue,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                // Domingo / Feriado
+                Expanded(
+                  child: _buildDiaCard(
+                    tipoDia: 'DOMINGO / FERIADO',
+                    tarifa: tarifaDomingoFeriado,
+                    icon: Icons.event,
+                    iconColor: Colors.red,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDiaCard({
+    required String tipoDia,
+    required Tarifa tarifa,
+    required IconData icon,
+    required Color iconColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: iconColor, size: 16),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  tipoDia,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: iconColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Valor
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'VALOR',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Colors.grey,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '\$${tarifa.valor.toStringAsFixed(0)}',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: iconColor,
+                    ),
+                  ),
+                ],
+              ),
+              IconButton(
+                icon: const Icon(Icons.edit, size: 20),
+                tooltip: 'Editar valor',
+                onPressed: () => _editarValor(tarifa),
+                color: iconColor,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Último comprobante
+          const Text(
+            'ÚLTIMO COMPROBANTE',
+            style: TextStyle(
+              fontSize: 10,
+              color: Colors.grey,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          FutureBuilder<String>(
+            future: ComprobanteManager().getLastSoldComprobante(tarifa.categoria),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Text(
+                  'Cargando...',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey,
+                    fontStyle: FontStyle.italic,
+                  ),
+                );
+              }
+
+              final comprobante = snapshot.data ?? 'Sin ventas';
+              final color = comprobante == 'Sin ventas' ? Colors.grey : iconColor;
+
+              return Text(
+                comprobante,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: color,
+                ),
+              );
+            },
+          ),
+        ],
       ),
     );
   }

@@ -4,6 +4,7 @@ class Tarifa {
   final String categoria; // "PUBLICO GENERAL", "ESCOLAR", "ADULTO MAYOR", "INTERMEDIO 15KM", etc.
   final double valor;
   final bool activo;
+  final String? color; // Color en formato HEX (ej: "FF4286F4")
 
   Tarifa({
     this.id,
@@ -11,6 +12,7 @@ class Tarifa {
     required this.categoria,
     required this.valor,
     this.activo = true,
+    this.color,
   });
 
   Map<String, dynamic> toMap() {
@@ -20,6 +22,7 @@ class Tarifa {
       'categoria': categoria,
       'valor': valor,
       'activo': activo ? 1 : 0,
+      'color': color,
     };
   }
 
@@ -30,6 +33,7 @@ class Tarifa {
       categoria: map['categoria'] as String,
       valor: (map['valor'] as num).toDouble(),
       activo: (map['activo'] as int) == 1,
+      color: map['color'] as String?,
     );
   }
 
@@ -39,6 +43,7 @@ class Tarifa {
     String? categoria,
     double? valor,
     bool? activo,
+    String? color,
   }) {
     return Tarifa(
       id: id ?? this.id,
@@ -46,6 +51,7 @@ class Tarifa {
       categoria: categoria ?? this.categoria,
       valor: valor ?? this.valor,
       activo: activo ?? this.activo,
+      color: color ?? this.color,
     );
   }
 

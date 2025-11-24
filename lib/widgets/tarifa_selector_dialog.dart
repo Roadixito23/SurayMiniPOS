@@ -66,14 +66,22 @@ class _TarifaSelectorDialogState extends State<TarifaSelectorDialog> {
     }
   }
 
-  MaterialColor _getCategoriaColor(String categoria) {
-    if (categoria.toUpperCase().contains('NORMAL')) {
+  Color _getCategoriaColor(Tarifa tarifa) {
+    if (tarifa.color != null && tarifa.color!.isNotEmpty) {
+      try {
+        return Color(int.parse(tarifa.color!, radix: 16));
+      } catch (e) {
+        return Colors.blue;
+      }
+    }
+    // Colores por defecto si no hay color asignado
+    if (tarifa.categoria.toUpperCase().contains('GENERAL')) {
       return Colors.blue;
-    } else if (categoria.toUpperCase().contains('NIÑO') || categoria.toUpperCase().contains('NINO')) {
+    } else if (tarifa.categoria.toUpperCase().contains('ESCOLAR')) {
       return Colors.green;
-    } else if (categoria.toUpperCase().contains('EXENTO')) {
+    } else if (tarifa.categoria.toUpperCase().contains('ADULTO')) {
       return Colors.purple;
-    } else if (categoria.toUpperCase().contains('INTERMEDIO')) {
+    } else if (tarifa.categoria.toUpperCase().contains('INTERMEDIO')) {
       return Colors.orange;
     }
     return Colors.grey;
@@ -155,14 +163,14 @@ class _TarifaSelectorDialogState extends State<TarifaSelectorDialog> {
                   itemBuilder: (context, index) {
                     final tarifa = widget.tarifas[index];
                     final isSelected = index == _selectedIndex;
-                    final categoriaColor = _getCategoriaColor(tarifa.categoria);
+                    final categoriaColor = _getCategoriaColor(tarifa);
                     final categoriaIcon = _getCategoriaIcon(tarifa.categoria);
 
                     return Padding(
                       padding: EdgeInsets.symmetric(vertical: 4),
                       child: Material(
                         color: isSelected
-                            ? categoriaColor.shade100
+                            ? categoriaColor.withOpacity(0.1)
                             : Colors.white,
                         borderRadius: BorderRadius.circular(12),
                         elevation: isSelected ? 4 : 1,
@@ -175,18 +183,25 @@ class _TarifaSelectorDialogState extends State<TarifaSelectorDialog> {
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
                                 color: isSelected
-                                    ? categoriaColor.shade400
+                                    ? categoriaColor
                                     : Colors.grey.shade200,
                                 width: isSelected ? 3 : 1,
                               ),
                             ),
                             child: Row(
                               children: [
+                                Container(
+                                  width: 8,
+                                  height: 60,
+                                  decoration: BoxDecoration(
+                                    color: categoriaColor,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                ),
+                                SizedBox(width: 16),
                                 Icon(
                                   categoriaIcon,
-                                  color: isSelected
-                                      ? categoriaColor.shade700
-                                      : categoriaColor.shade400,
+                                  color: categoriaColor,
                                   size: 28,
                                 ),
                                 SizedBox(width: 16),
@@ -199,9 +214,7 @@ class _TarifaSelectorDialogState extends State<TarifaSelectorDialog> {
                                         style: TextStyle(
                                           fontSize: 16,
                                           fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                                          color: isSelected
-                                              ? categoriaColor.shade900
-                                              : Colors.black87,
+                                          color: Colors.black87,
                                         ),
                                       ),
                                       SizedBox(height: 4),
@@ -210,7 +223,7 @@ class _TarifaSelectorDialogState extends State<TarifaSelectorDialog> {
                                         style: TextStyle(
                                           fontSize: 20,
                                           fontWeight: FontWeight.bold,
-                                          color: categoriaColor.shade700,
+                                          color: categoriaColor,
                                         ),
                                       ),
                                     ],
@@ -219,7 +232,7 @@ class _TarifaSelectorDialogState extends State<TarifaSelectorDialog> {
                                 if (isSelected)
                                   Icon(
                                     Icons.check_circle,
-                                    color: categoriaColor.shade700,
+                                    color: categoriaColor,
                                     size: 24,
                                   ),
                               ],

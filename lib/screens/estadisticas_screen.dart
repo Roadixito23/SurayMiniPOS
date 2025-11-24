@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'dart:convert';
 import '../database/caja_database.dart';
+import '../database/app_database.dart';
+import '../models/tarifa.dart';
 import '../widgets/pie_chart_widget.dart';
 
 enum FiltroTemporal { hoy, semanal, mensual }
@@ -26,11 +28,52 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
   Map<String, int> _pasajerosPorTipo = {};
   double _totalVentas = 0;
   int _totalPasajeros = 0;
+  Map<String, Color> _coloresTarifas = {};
 
   @override
   void initState() {
     super.initState();
+    _cargarColoresTarifas();
     _cargarEstadisticas();
+  }
+
+  Future<void> _cargarColoresTarifas() async {
+    try {
+      final tarifasData = await AppDatabase.instance.getAllTarifas();
+      final tarifas = tarifasData.map((map) => Tarifa.fromMap(map)).toList();
+
+      Map<String, Color> colores = {};
+      for (var tarifa in tarifas) {
+        if (tarifa.color != null && tarifa.color!.isNotEmpty) {
+          try {
+            colores[tarifa.categoria] = Color(int.parse(tarifa.color!, radix: 16));
+          } catch (e) {
+            colores[tarifa.categoria] = _getColorPorDefecto(tarifa.categoria);
+          }
+        } else {
+          colores[tarifa.categoria] = _getColorPorDefecto(tarifa.categoria);
+        }
+      }
+
+      setState(() {
+        _coloresTarifas = colores;
+      });
+    } catch (e) {
+      print('Error cargando colores de tarifas: $e');
+    }
+  }
+
+  Color _getColorPorDefecto(String categoria) {
+    if (categoria.toUpperCase().contains('GENERAL')) {
+      return Colors.blue.shade400;
+    } else if (categoria.toUpperCase().contains('ESCOLAR')) {
+      return Colors.green.shade400;
+    } else if (categoria.toUpperCase().contains('ADULTO')) {
+      return Colors.purple.shade400;
+    } else if (categoria.toUpperCase().contains('INTERMEDIO')) {
+      return Colors.orange.shade400;
+    }
+    return Colors.grey.shade400;
   }
 
   Future<void> _cargarEstadisticas() async {
@@ -637,7 +680,8 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
       );
     }
 
-    List<Color> colores = [
+    // Colores por defecto si no se han cargado
+    List<Color> coloresPorDefecto = [
       Colors.blue.shade400,
       Colors.green.shade400,
       Colors.orange.shade400,
@@ -652,10 +696,13 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
     int colorIndex = 0;
 
     _pasajerosPorTipo.forEach((tipo, cantidad) {
+      // Usar color de tarifa si está disponible, sino usar color por defecto
+      Color color = _coloresTarifas[tipo] ?? coloresPorDefecto[colorIndex % coloresPorDefecto.length];
+
       chartData.add(PieChartData(
         label: tipo,
         value: cantidad.toDouble(),
-        color: colores[colorIndex % colores.length],
+        color: color,
       ));
       colorIndex++;
     });
