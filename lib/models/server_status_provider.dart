@@ -68,6 +68,12 @@ class ServerStatusProvider with ChangeNotifier {
 
   /// Obtiene un mensaje descriptivo del estado actual
   String get statusMessage {
+    // No mencionar "simulado" para hacer la experiencia más realista
+    return _isOnline ? '🟢 Servidor ONLINE' : '🔴 Servidor OFFLINE';
+  }
+
+  /// Obtiene un mensaje descriptivo del estado actual con indicador de simulación
+  String get statusMessageWithSimulation {
     if (_isSimulated) {
       return _isOnline
           ? '🟢 Servidor ONLINE (Simulado)'

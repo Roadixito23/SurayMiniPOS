@@ -1000,7 +1000,13 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                                       setState(() {
                                         origenViaje = value;
                                         horarioSeleccionado = null;
+
+                                        // Si el destino es igual al nuevo origen, cambiar el destino
+                                        if (destino == value && destino != 'Intermedio') {
+                                          destino = value == 'Aysen' ? 'Coyhaique' : 'Aysen';
+                                        }
                                       });
+                                      _cargarTarifas();
                                     },
                                     Colors.purple,
                                   ),
@@ -1044,11 +1050,12 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                                       destino = value;
                                       if (value != 'Intermedio') kilometroIntermedio = null;
 
-                                      // Ajustar origen automáticamente según destino
-                                      if (value == 'Aysen') {
-                                        origenViaje = 'Coyhaique';
-                                      } else if (value == 'Coyhaique') {
-                                        origenViaje = 'Aysen';
+                                      // Si el nuevo destino es igual al origen, cambiar el origen
+                                      if (value != 'Intermedio') {
+                                        if (value == origenViaje) {
+                                          // Cambiar el origen al otro valor
+                                          origenViaje = value == 'Aysen' ? 'Coyhaique' : 'Aysen';
+                                        }
                                       }
                                     });
                                     _cargarTarifas();

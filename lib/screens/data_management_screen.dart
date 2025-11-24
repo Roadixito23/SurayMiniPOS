@@ -145,31 +145,6 @@ class _DataManagementScreenState extends State<DataManagementScreen>
               ),
               textAlign: TextAlign.center,
             ),
-            if (serverStatus.isSimulated) ...[
-              SizedBox(height: 12),
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.bug_report, color: Colors.white, size: 16),
-                    SizedBox(width: 6),
-                    Text(
-                      'Modo Debug Activo',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
           ],
         ),
       ),
