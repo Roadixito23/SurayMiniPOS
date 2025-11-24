@@ -847,48 +847,6 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
         centerTitle: false,
         backgroundColor: _getColorPrimario(),
         actions: [
-          // Selector de fecha en AppBar
-          InkWell(
-            onTap: () async {
-              final fechaLimite = DateTime.now().add(Duration(days: 35));
-              final fechaPick = await showDatePicker(
-                context: context,
-                initialDate: DateTime.parse(fechaSeleccionada),
-                firstDate: DateTime.now(),
-                lastDate: fechaLimite,
-                locale: const Locale('es', 'ES'),
-              );
-              if (fechaPick != null) {
-                setState(() {
-                  fechaSeleccionada = DateFormat('yyyy-MM-dd').format(fechaPick);
-                  horarioSeleccionado = null;
-                  asientoSeleccionado = null;
-                  salidaId = null;
-                  asientosOcupados.clear();
-                });
-              }
-            },
-            child: Container(
-              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              margin: EdgeInsets.symmetric(vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.calendar_today, size: 16, color: Colors.white),
-                  SizedBox(width: 8),
-                  Text(
-                    DateFormat('dd/MM/yy', 'es_ES').format(DateTime.parse(fechaSeleccionada)),
-                    style: TextStyle(fontSize: 14, color: Colors.white),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          SizedBox(width: 12),
-
           // Botón de Calendario de Horarios
           IconButton(
             icon: Icon(Icons.calendar_month, color: Colors.white),
@@ -980,29 +938,14 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                 flex: 2,
                 child: Container(
                   color: _getColorSecundario(),
-                  padding: EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildSectionTitle('Mapa de Asientos', isDomingoFeriado),
-                      SizedBox(height: 12),
-
-                      // Mapa de asientos con tamaño controlado
-                      Expanded(
-                        child: SingleChildScrollView(
-                          child: Center(
-                            child: BusSeatMap(
-                              selectedSeat: asientoSeleccionado != null && asientoSeleccionado!.isNotEmpty
-                                  ? int.tryParse(asientoSeleccionado!)
-                                  : null,
-                              occupiedSeats: asientosOcupados,
-                              onSeatTap: _onAsientoSeleccionado,
-                              tipoDia: tipoDia,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+                  padding: EdgeInsets.all(8),
+                  child: BusSeatMap(
+                    selectedSeat: asientoSeleccionado != null && asientoSeleccionado!.isNotEmpty
+                        ? int.tryParse(asientoSeleccionado!)
+                        : null,
+                    occupiedSeats: asientosOcupados,
+                    onSeatTap: _onAsientoSeleccionado,
+                    tipoDia: tipoDia,
                   ),
                 ),
               ),
@@ -1214,44 +1157,48 @@ class _VentaBusScreenState extends State<VentaBusScreen> {
                           _buildSectionTitle('DATOS DEL BOLETO', isDomingoFeriado),
                           SizedBox(height: 16),
 
-                          // CAMPO DE FECHA ESCRITA (050825 -> 05/08/25)
-                          _buildLabel('Fecha'),
-                          TextFormField(
-                            controller: _fechaController,
-                            focusNode: _fechaFocusNode,
-                            keyboardType: TextInputType.number,
-                            inputFormatters: [
-                              FilteringTextInputFormatter.digitsOnly,
-                              LengthLimitingTextInputFormatter(6),
-                              _DateInputFormatter(),
-                            ],
-                            decoration: InputDecoration(
-                              hintText: 'DD/MM/AA',
-                              border: OutlineInputBorder(
+                          // Selector de fecha (movido desde AppBar)
+                          _buildLabel('Fecha del viaje'),
+                          InkWell(
+                            onTap: () async {
+                              final fechaLimite = DateTime.now().add(Duration(days: 35));
+                              final fechaPick = await showDatePicker(
+                                context: context,
+                                initialDate: DateTime.parse(fechaSeleccionada),
+                                firstDate: DateTime.now(),
+                                lastDate: fechaLimite,
+                                locale: const Locale('es', 'ES'),
+                              );
+                              if (fechaPick != null) {
+                                setState(() {
+                                  fechaSeleccionada = DateFormat('yyyy-MM-dd').format(fechaPick);
+                                  _fechaController.text = DateFormat('dd/MM/yy').format(fechaPick);
+                                  horarioSeleccionado = null;
+                                  asientoSeleccionado = null;
+                                  salidaId = null;
+                                  asientosOcupados.clear();
+                                });
+                                // Abrir automáticamente el selector de horarios
+                                await _mostrarSelectorHorarios();
+                              }
+                            },
+                            child: Container(
+                              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey.shade400),
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.calendar_today, color: _getColorPrimario()),
+                                  SizedBox(width: 12),
+                                  Text(
+                                    DateFormat('EEEE, dd/MM/yyyy', 'es_ES').format(DateTime.parse(fechaSeleccionada)),
+                                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                                  ),
+                                ],
+                              ),
                             ),
-                            onTap: () {
-                              // Seleccionar todo el texto al hacer click
-                              _fechaController.selection = TextSelection(
-                                baseOffset: 0,
-                                extentOffset: _fechaController.text.length,
-                              );
-                            },
-                            validator: (value) {
-                              if (value == null || value.isEmpty) return null; // Opcional
-                              String cleaned = value.replaceAll('/', '');
-                              if (cleaned.length != 6) return 'Formato: DD/MM/AA';
-                              return null;
-                            },
-                            onChanged: (value) {
-                              setState(() => fechaEscrita = value.replaceAll('/', ''));
-                            },
-                            onFieldSubmitted: (_) async {
-                              // Abrir automáticamente el selector de horarios
-                              await _mostrarSelectorHorarios();
-                            },
                           ),
 
                           SizedBox(height: 24),

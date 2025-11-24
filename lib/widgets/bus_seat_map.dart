@@ -46,22 +46,16 @@ class _BusSeatMapState extends State<BusSeatMap> {
   }
 
   Color _getSeatColor(SeatStatus status) {
-    final isDomingoFeriado = widget.tipoDia == 'DOMINGO / FERIADO';
-
     switch (status) {
       case SeatStatus.available:
-        // Colores pastel según tipo de día
-        return isDomingoFeriado
-          ? Colors.red.shade100
-          : Colors.blue.shade100;
+        // Asientos disponibles siempre verde (mismo tono para LUN-SAB y DOM/FER)
+        return Colors.green.shade400;
       case SeatStatus.occupied:
-        // Asientos ocupados siempre en gris
-        return Colors.grey.shade400;
+        // Asientos ocupados siempre rojo
+        return Colors.red.shade600;
       case SeatStatus.selected:
-        // Asientos seleccionados en tono más oscuro de los colores pastel
-        return isDomingoFeriado
-          ? Colors.red.shade300
-          : Colors.blue.shade300;
+        // Asientos seleccionados en verde (se mostrará X blanca)
+        return Colors.green.shade400;
     }
   }
 
@@ -69,7 +63,7 @@ class _BusSeatMapState extends State<BusSeatMap> {
     final status = _getSeatStatus(seatNumber);
     final color = _getSeatColor(status);
     final isOccupied = status == SeatStatus.occupied;
-    final isDomingoFeriado = widget.tipoDia == 'DOMINGO / FERIADO';
+    final isSelected = status == SeatStatus.selected;
 
     return GestureDetector(
       onTap: isOccupied ? null : () => widget.onSeatTap(seatNumber),
@@ -83,33 +77,48 @@ class _BusSeatMapState extends State<BusSeatMap> {
           borderRadius: BorderRadius.circular(8),
           border: isWindowSeat
             ? Border.all(
-                color: isDomingoFeriado
-                  ? Colors.red.shade400
-                  : Colors.blue.shade400,
+                color: Colors.grey.shade400,
                 width: 2,
               )
             : null,
-          boxShadow: status == SeatStatus.available
-            ? [
-                BoxShadow(
-                  color: (isDomingoFeriado ? Colors.red : Colors.blue).withOpacity(0.2),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                ),
-              ]
-            : null,
         ),
         child: Center(
-          child: Text(
-            seatNumber.toString().padLeft(2, '0'),
-            style: TextStyle(
-              color: status == SeatStatus.occupied
-                ? Colors.white
-                : (isDomingoFeriado ? Colors.red.shade800 : Colors.blue.shade800),
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
-            ),
-          ),
+          child: isSelected
+            ? Stack(
+                alignment: Alignment.center,
+                children: [
+                  // X blanca con bordes negros
+                  Text(
+                    'X',
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      foreground: Paint()
+                        ..style = PaintingStyle.stroke
+                        ..strokeWidth = 3
+                        ..color = Colors.black,
+                    ),
+                  ),
+                  Text(
+                    'X',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 32,
+                    ),
+                  ),
+                ],
+              )
+            : Text(
+                seatNumber.toString().padLeft(2, '0'),
+                style: TextStyle(
+                  color: status == SeatStatus.occupied
+                    ? Colors.white
+                    : Colors.green.shade900,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
         ),
       ),
     );
@@ -135,20 +144,24 @@ class _BusSeatMapState extends State<BusSeatMap> {
         break;
 
       case 35:
-        // 35 asientos: 7 filas de 4 (28) + penúltima fila de 2 (29, 30) + última fila de 5 (31, 32, 35, 33, 34)
-        for (int i = 0; i < 7; i++) {
+        // 35 asientos: Layout especial para simular espacio del chofer
+        // Primera fila: solo lado izquierdo (asientos 1, 2)
+        rows.add(_buildRow2SeatsLeft(1, 2));
+        // Siguientes 6 filas: 4 asientos normales
+        for (int i = 1; i < 7; i++) {
           rows.add(_buildRow4Seats(
-            i * 4 + 1,
-            i * 4 + 2,
-            i * 4 + 3,
-            i * 4 + 4,
+            i * 4 - 1,  // 3, 7, 11, 15, 19, 23
+            i * 4,      // 4, 8, 12, 16, 20, 24
+            i * 4 + 1,  // 5, 9, 13, 17, 21, 25
+            i * 4 + 2,  // 6, 10, 14, 18, 22, 26
           ));
         }
-        rows.add(const SizedBox(height: 8));
-        rows.add(_buildPenultimateRow35());
+        // Última fila con 27, 28
+        rows.add(_buildRow2SeatsLeft(27, 28));
         rows.add(const SizedBox(height: 12));
         rows.add(const Divider());
         rows.add(const SizedBox(height: 8));
+        // Fila final: 29, 30, 31, 32, 33
         rows.add(_buildLastRow35());
         break;
 
@@ -229,27 +242,31 @@ class _BusSeatMapState extends State<BusSeatMap> {
     );
   }
 
-  Widget _buildPenultimateRow35() {
-    // Penúltima fila para 35 asientos: 29, 30
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        _buildSeat(29),
-        _buildSeat(30),
-      ],
+  Widget _buildRow2SeatsLeft(int seat1, int seat2) {
+    // Dos asientos solo en el lado izquierdo (para simular espacio del chofer)
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _buildSeat(seat1, isWindowSeat: true),
+          _buildSeat(seat2),
+          const SizedBox(width: 136), // Espacio para el lado derecho vacío
+        ],
+      ),
     );
   }
 
   Widget _buildLastRow35() {
-    // Última fila para 35 asientos: 31, 32, 35 (centro), 33, 34
+    // Última fila para 35 asientos: 29, 30, 31 (centro), 32, 33
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        _buildSeat(31, isWindowSeat: true),
+        _buildSeat(29, isWindowSeat: true),
+        _buildSeat(30),
+        _buildSeat(31), // Asiento 31 en el medio
         _buildSeat(32),
-        _buildSeat(35), // Asiento 35 en el medio
-        _buildSeat(33),
-        _buildSeat(34, isWindowSeat: true),
+        _buildSeat(33, isWindowSeat: true),
       ],
     );
   }
@@ -336,108 +353,72 @@ class _BusSeatMapState extends State<BusSeatMap> {
 
   @override
   Widget build(BuildContext context) {
-    final isDomingoFeriado = widget.tipoDia == 'DOMINGO / FERIADO';
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Hacer el mapa dinámico según el tamaño disponible
+        final availableHeight = constraints.maxHeight;
+        final availableWidth = constraints.maxWidth;
 
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: (isDomingoFeriado ? Colors.red : Colors.blue).withOpacity(0.15),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+        return Container(
+          width: availableWidth,
+          height: availableHeight,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // Título y selector de capacidad
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.directions_bus,
-                    color: isDomingoFeriado ? Colors.red.shade600 : Colors.blue.shade600,
-                    size: 24,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Selector de capacidad (compacto en la parte superior)
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey.shade300),
                   ),
-                  const SizedBox(width: 10),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'MAPA DE ASIENTOS',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: isDomingoFeriado ? Colors.red.shade700 : Colors.blue.shade700,
-                        ),
-                      ),
-                      Text(
-                        'Bus de $_capacity asientos',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              // Selector de capacidad
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: isDomingoFeriado ? Colors.red.shade50 : Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: isDomingoFeriado ? Colors.red.shade200 : Colors.blue.shade200,
-                  ),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<int>(
-                    value: _capacity,
-                    isDense: true,
-                    items: [20, 35, 41, 45, 46].map((int value) {
-                      return DropdownMenuItem<int>(
-                        value: value,
-                        child: Text(
-                          '$value asientos',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            color: isDomingoFeriado ? Colors.red.shade700 : Colors.blue.shade700,
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<int>(
+                      value: _capacity,
+                      isDense: true,
+                      items: [20, 35, 41, 45, 46].map((int value) {
+                        return DropdownMenuItem<int>(
+                          value: value,
+                          child: Text(
+                            '$value asientos',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey.shade700,
+                            ),
                           ),
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: (int? newValue) {
-                      if (newValue != null) {
-                        setState(() {
-                          _capacity = newValue;
-                        });
-                      }
-                    },
+                        );
+                      }).toList(),
+                      onChanged: (int? newValue) {
+                        if (newValue != null) {
+                          setState(() {
+                            _capacity = newValue;
+                          });
+                        }
+                      },
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _buildLegend(),
-          const SizedBox(height: 16),
+                const SizedBox(height: 12),
 
-          // Mapa de asientos
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: _buildSeatRows(),
+                // Mapa de asientos (sin título ni leyenda)
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: _buildSeatRows(),
+                ),
+              ],
+            ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
