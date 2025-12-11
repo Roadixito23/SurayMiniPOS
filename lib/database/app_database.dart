@@ -19,7 +19,7 @@ class AppDatabase {
 
     return await openDatabase(
       path,
-      version: 4,
+      version: 5,
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -117,7 +117,8 @@ class AppDatabase {
         fecha_anulacion TEXT,
         hora_anulacion TEXT,
         usuario_anulacion TEXT,
-        motivo_anulacion TEXT
+        motivo_anulacion TEXT,
+        sincronizado INTEGER NOT NULL DEFAULT 0
       )
     ''');
 
@@ -456,6 +457,11 @@ class AppDatabase {
         )
       ''');
     }
+
+    if (oldVersion < 5) {
+      // Agregar campo sincronizado a boletos_vendidos
+      await db.execute('ALTER TABLE boletos_vendidos ADD COLUMN sincronizado INTEGER NOT NULL DEFAULT 0');
+    }
   }
 
   // MÉTODOS PARA SALIDAS
@@ -738,6 +744,156 @@ class AppDatabase {
     );
 
     return result.first['total'] as int? ?? 0;
+  }
+
+  // MÉTODOS PARA SINCRONIZACIÓN CON CLOUD
+
+  /// Obtiene todas las ventas no sincronizadas con el cloud
+  Future<List<Map<String, dynamic>>> obtenerVentasNoSincronizadas() async {
+    final db = await database;
+    return await db.query(
+      'boletos_vendidos',
+      where: 'sincronizado = 0',
+      orderBy: 'fecha_venta ASC, hora_venta ASC',
+    );
+  }
+
+  /// Marca una venta como sincronizada
+  Future<int> marcarComoSincronizado(String comprobante) async {
+    final db = await database;
+    return await db.update(
+      'boletos_vendidos',
+      {'sincronizado': 1},
+      where: 'comprobante = ?',
+      whereArgs: [comprobante],
+    );
+  }
+
+  /// Obtiene cierres de caja no sincronizados (placeholder - implementar según tu estructura)
+  Future<List<Map<String, dynamic>>> obtenerCierresNoSincronizados() async {
+    // TODO: Implementar según la estructura de tu tabla de cierres
+    // Por ahora retorna lista vacía
+    return [];
+  }
+
+  /// Marca un cierre como sincronizado (placeholder - implementar según tu estructura)
+  Future<int> marcarCierreComoSincronizado(int id) async {
+    // TODO: Implementar según la estructura de tu tabla de cierres
+    // Por ahora retorna 0
+    return 0;
+  }
+
+  /// Actualiza o inserta una tarifa desde el cloud
+  Future<void> actualizarTarifaDesdeCloud(Map<String, dynamic> tarifa) async {
+    final db = await database;
+
+    // Buscar si ya existe la tarifa
+    final existente = await db.query(
+      'tarifas',
+      where: 'tipo_dia = ? AND categoria = ?',
+      whereArgs: [tarifa['tipo_dia'], tarifa['categoria']],
+    );
+
+    if (existente.isNotEmpty) {
+      // Actualizar tarifa existente
+      await db.update(
+        'tarifas',
+        {
+          'valor': tarifa['valor'],
+          'activo': tarifa['activo'] ?? 1,
+        },
+        where: 'tipo_dia = ? AND categoria = ?',
+        whereArgs: [tarifa['tipo_dia'], tarifa['categoria']],
+      );
+    } else {
+      // Insertar nueva tarifa
+      await db.insert('tarifas', {
+        'tipo_dia': tarifa['tipo_dia'],
+        'categoria': tarifa['categoria'],
+        'valor': tarifa['valor'],
+        'activo': tarifa['activo'] ?? 1,
+      });
+    }
+  }
+
+  /// Actualiza o inserta un horario desde el cloud
+  Future<void> actualizarHorarioDesdeCloud(Map<String, dynamic> horario) async {
+    final db = await database;
+
+    // Buscar si ya existe el horario
+    final existente = await db.query(
+      'horarios',
+      where: 'horario = ?',
+      whereArgs: [horario['horario']],
+    );
+
+    if (existente.isNotEmpty) {
+      // Actualizar horario existente
+      await db.update(
+        'horarios',
+        {
+          'activo': horario['activo'] ?? 1,
+          'orden': horario['orden'] ?? 0,
+        },
+        where: 'horario = ?',
+        whereArgs: [horario['horario']],
+      );
+    } else {
+      // Insertar nuevo horario
+      await db.insert('horarios', {
+        'horario': horario['horario'],
+        'activo': horario['activo'] ?? 1,
+        'orden': horario['orden'] ?? 0,
+      });
+    }
+  }
+
+  /// Actualiza o inserta un usuario desde el cloud
+  Future<void> actualizarUsuarioDesdeCloud(Map<String, dynamic> usuario) async {
+    final db = await database;
+
+    // Buscar si ya existe el usuario
+    final existente = await db.query(
+      'usuarios',
+      where: 'username = ?',
+      whereArgs: [usuario['username']],
+    );
+
+    if (existente.isNotEmpty) {
+      // Actualizar usuario existente (sin cambiar la contraseña si no viene en los datos)
+      final updateData = <String, dynamic>{
+        'rol': usuario['rol'],
+        'activo': usuario['activo'] ?? 1,
+      };
+
+      if (usuario.containsKey('password') && usuario['password'] != null) {
+        updateData['password'] = usuario['password'];
+      }
+      if (usuario.containsKey('id_secretario')) {
+        updateData['id_secretario'] = usuario['id_secretario'];
+      }
+      if (usuario.containsKey('sucursal_origen')) {
+        updateData['sucursal_origen'] = usuario['sucursal_origen'];
+      }
+
+      await db.update(
+        'usuarios',
+        updateData,
+        where: 'username = ?',
+        whereArgs: [usuario['username']],
+      );
+    } else {
+      // Insertar nuevo usuario
+      await db.insert('usuarios', {
+        'username': usuario['username'],
+        'password': usuario['password'] ?? 'changeme',
+        'rol': usuario['rol'],
+        'activo': usuario['activo'] ?? 1,
+        'fecha_creacion': usuario['fecha_creacion'] ?? DateTime.now().toIso8601String(),
+        'id_secretario': usuario['id_secretario'],
+        'sucursal_origen': usuario['sucursal_origen'],
+      });
+    }
   }
 
   // Cerrar la base de datos

@@ -20,12 +20,14 @@ import 'screens/usuarios_screen.dart'; // Nueva importación para la pantalla de
 import 'screens/estadisticas_screen.dart'; // Nueva importación para la pantalla de estadísticas
 import 'screens/anular_venta_screen.dart'; // Nueva importación para anular ventas
 import 'screens/gestion_anulaciones_screen.dart'; // Nueva importación para gestión de anulaciones
+import 'screens/sincronizacion_screen.dart'; // Nueva importación para sincronización cloud
 import 'models/comprobante.dart';
 import 'models/auth_provider.dart';
 import 'models/server_status_provider.dart';
 import 'database/caja_database.dart';
 import 'database/app_database.dart';
 import 'services/preferences_manager.dart';
+import 'services/auto_sync_service.dart'; // Servicio de sincronización automática
 import 'package:path_provider/path_provider.dart';
 
 void main() async {
@@ -72,6 +74,10 @@ void main() async {
 
   // Verificar y crear los directorios necesarios
   await _ensureDirectoriesExist();
+
+  // Iniciar servicio de sincronización automática en background
+  // Se iniciará con intervalo de 5 minutos por defecto
+  AutoSyncService.instance.start(intervalMinutes: 5);
 
   runApp(
     MultiProvider(
@@ -201,6 +207,7 @@ class MyApp extends StatelessWidget {
         '/estadisticas': (_) => EstadisticasScreen(), // Nueva ruta para la pantalla de estadísticas
         '/anular_venta': (_) => AnularVentaScreen(), // Nueva ruta para anular ventas
         '/gestion_anulaciones': (_) => GestionAnulacionesScreen(), // Nueva ruta para gestión de anulaciones
+        '/sincronizacion': (_) => const SincronizacionScreen(), // Nueva ruta para sincronización cloud
       },
     );
   }

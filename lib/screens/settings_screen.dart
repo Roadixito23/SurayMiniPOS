@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/comprobante.dart';
 import '../models/auth_provider.dart';
 import '../models/admin_code_manager.dart';
+import '../services/cloud_api_service.dart';
 import 'package:intl/intl.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -18,11 +20,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String? _currentCode;
   DateTime? _codeGeneratedAt;
 
+  // Configuración del servidor cloud
+  final TextEditingController _serverUrlController = TextEditingController();
+  bool _modoSoloOffline = false;
+  bool _testingConnection = false;
+
   @override
   void initState() {
     super.initState();
     _secretController.addListener(_checkSecretWord);
     _loadCurrentCode();
+    _loadCloudSettings();
   }
 
   Future<void> _loadCurrentCode() async {
@@ -58,10 +66,147 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> _loadCloudSettings() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final url = prefs.getString('cloud_api_url') ?? CloudApiService.defaultBaseUrl;
+      final offline = prefs.getBool('modo_solo_offline') ?? false;
+
+      setState(() {
+        _serverUrlController.text = url;
+        _modoSoloOffline = offline;
+      });
+    } catch (e) {
+      debugPrint('Error cargando configuración cloud: $e');
+    }
+  }
+
+  Future<void> _saveServerUrl() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('cloud_api_url', _serverUrlController.text);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 12),
+              Text('URL del servidor guardada'),
+            ],
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al guardar: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _toggleModoOffline(bool value) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('modo_solo_offline', value);
+
+      setState(() {
+        _modoSoloOffline = value;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(value ? 'Modo solo offline activado' : 'Modo solo offline desactivado'),
+          backgroundColor: value ? Colors.orange : Colors.green,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _testConnection() async {
+    setState(() {
+      _testingConnection = true;
+    });
+
+    try {
+      final connected = await CloudApiService.verificarConexion();
+
+      if (mounted) {
+        setState(() {
+          _testingConnection = false;
+        });
+
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Row(
+              children: [
+                Icon(
+                  connected ? Icons.check_circle : Icons.error,
+                  color: connected ? Colors.green : Colors.red,
+                ),
+                SizedBox(width: 12),
+                Text(connected ? 'Conexión exitosa' : 'Sin conexión'),
+              ],
+            ),
+            content: Text(
+              connected
+                  ? 'La conexión con el servidor cloud es exitosa.'
+                  : 'No se pudo conectar con el servidor. Verifica la URL y tu conexión a internet.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('CERRAR'),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _testingConnection = false;
+        });
+
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Row(
+              children: [
+                Icon(Icons.error, color: Colors.red),
+                SizedBox(width: 12),
+                Text('Error'),
+              ],
+            ),
+            content: Text('Error al probar la conexión: $e'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('CERRAR'),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+  }
+
   @override
   void dispose() {
     _secretController.dispose();
     _secretFocusNode.dispose();
+    _serverUrlController.dispose();
     super.dispose();
   }
 
@@ -305,6 +450,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
             // Sección de códigos de anulación (solo visible para admin cuando se desbloquea)
             if (isAdmin && _showAdminSection) _buildAdminCodeSection(),
+
+            SizedBox(height: 24),
+
+            // Configuración del servidor cloud
+            _buildCloudServerSection(),
 
             SizedBox(height: 24),
 
@@ -582,6 +732,126 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ],
               ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCloudServerSection() {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.cloud, color: Colors.blue.shade700),
+                SizedBox(width: 8),
+                Text(
+                  'Servidor Cloud',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 16),
+            Text(
+              'URL del servidor:',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+              ),
+            ),
+            SizedBox(height: 8),
+            TextField(
+              controller: _serverUrlController,
+              decoration: InputDecoration(
+                hintText: 'https://suraypos.example.com',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                prefixIcon: Icon(Icons.link),
+                suffixIcon: IconButton(
+                  icon: Icon(Icons.save),
+                  onPressed: _saveServerUrl,
+                  tooltip: 'Guardar URL',
+                ),
+              ),
+            ),
+            SizedBox(height: 16),
+            SwitchListTile(
+              title: Text('Modo Solo Offline'),
+              subtitle: Text(
+                _modoSoloOffline
+                    ? 'La sincronización está desactivada'
+                    : 'La sincronización está activa',
+                style: TextStyle(fontSize: 12),
+              ),
+              value: _modoSoloOffline,
+              onChanged: _toggleModoOffline,
+              secondary: Icon(
+                _modoSoloOffline ? Icons.cloud_off : Icons.cloud_done,
+                color: _modoSoloOffline ? Colors.orange : Colors.green,
+              ),
+            ),
+            SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _testingConnection ? null : _testConnection,
+                icon: _testingConnection
+                    ? SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : Icon(Icons.wifi_find),
+                label: Text(_testingConnection ? 'Probando...' : 'Probar Conexión'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue.shade700,
+                  foregroundColor: Colors.white,
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(height: 12),
+            Container(
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.blue.shade700, size: 20),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'El sistema funciona 100% offline. La sincronización es opcional.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.blue.shade700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),

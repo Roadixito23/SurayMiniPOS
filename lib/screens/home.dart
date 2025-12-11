@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -8,6 +9,8 @@ import '../models/auth_provider.dart';
 import '../database/app_database.dart';
 import 'dart:math' as math;
 import '../widgets/debug_popup.dart';
+import '../services/cloud_api_service.dart';
+import 'package:intl/intl.dart';
 
 class HomeScreen extends StatelessWidget {
   @override
@@ -109,6 +112,11 @@ class _Sidebar extends StatelessWidget {
                   icon: Icons.attach_money,
                   label: 'Tarifas',
                   onTap: () => Navigator.pushNamed(context, '/tarifas'),
+                ),
+                _SidebarMenuItem(
+                  icon: Icons.cloud_sync,
+                  label: 'Sincronización Cloud',
+                  onTap: () => Navigator.pushNamed(context, '/sincronizacion'),
                 ),
 
                 SizedBox(height: 8),
@@ -422,6 +430,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   String _secretCode = '';
   bool _isFullScreen = false; // Estado de pantalla completa
 
+  // Estado de conexión al cloud
+  bool _isConnected = false;
+  bool _isCheckingConnection = false;
+  DateTime? _ultimaSincronizacion;
+  Timer? _connectionCheckTimer;
+
   @override
   void initState() {
     super.initState();
@@ -434,6 +448,17 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       vsync: this,
     )..repeat(reverse: true);
     _animationController.forward();
+
+    // Verificar conexión inicial
+    _checkConnection();
+
+    // Configurar timer para verificar conexión cada 30 segundos
+    _connectionCheckTimer = Timer.periodic(Duration(seconds: 30), (timer) {
+      _checkConnection();
+    });
+
+    // Cargar última sincronización
+    _loadUltimaSincronizacion();
   }
 
   @override
@@ -442,7 +467,46 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     _floatingAnimationController.dispose();
     _scrollController.dispose();
     _focusNode.dispose();
+    _connectionCheckTimer?.cancel();
     super.dispose();
+  }
+
+  Future<void> _checkConnection() async {
+    if (!mounted) return;
+
+    setState(() {
+      _isCheckingConnection = true;
+    });
+
+    try {
+      final connected = await CloudApiService.verificarConexion();
+      if (mounted) {
+        setState(() {
+          _isConnected = connected;
+          _isCheckingConnection = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isConnected = false;
+          _isCheckingConnection = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadUltimaSincronizacion() async {
+    try {
+      final ultimaSync = await CloudApiService.getUltimaSincronizacion();
+      if (mounted) {
+        setState(() {
+          _ultimaSincronizacion = ultimaSync;
+        });
+      }
+    } catch (e) {
+      // Ignorar errores
+    }
   }
 
   void _handleKeyEvent(RawKeyEvent event) {
@@ -770,6 +834,87 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
+  Widget _buildConnectionIndicator() {
+    Color statusColor;
+    IconData statusIcon;
+    String statusText;
+    String tooltipText;
+
+    if (_isCheckingConnection) {
+      statusColor = Colors.orange;
+      statusIcon = Icons.sync;
+      statusText = 'Verificando...';
+      tooltipText = 'Verificando conexión al servidor cloud';
+    } else if (_isConnected) {
+      statusColor = Colors.green;
+      statusIcon = Icons.cloud_done;
+      statusText = 'Conectado';
+      tooltipText = 'Conectado al servidor cloud';
+      if (_ultimaSincronizacion != null) {
+        final diferencia = DateTime.now().difference(_ultimaSincronizacion!);
+        if (diferencia.inMinutes < 60) {
+          tooltipText += '\nÚltima sincronización: hace ${diferencia.inMinutes} minutos';
+        } else if (diferencia.inHours < 24) {
+          tooltipText += '\nÚltima sincronización: hace ${diferencia.inHours} horas';
+        } else {
+          tooltipText += '\nÚltima sincronización: ${DateFormat('dd/MM/yyyy HH:mm').format(_ultimaSincronizacion!)}';
+        }
+      }
+    } else {
+      statusColor = Colors.red;
+      statusIcon = Icons.cloud_off;
+      statusText = 'Sin conexión';
+      tooltipText = 'Sin conexión al servidor cloud\nLas ventas se guardarán localmente';
+    }
+
+    return Tooltip(
+      message: tooltipText,
+      child: InkWell(
+        onTap: () {
+          // Al hacer clic, navegar a la pantalla de sincronización
+          Navigator.pushNamed(context, '/sincronizacion');
+        },
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: statusColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: statusColor.withOpacity(0.3), width: 1.5),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_isCheckingConnection)
+                SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(statusColor),
+                  ),
+                )
+              else
+                Icon(
+                  statusIcon,
+                  size: 16,
+                  color: statusColor,
+                ),
+              SizedBox(width: 8),
+              Text(
+                statusText,
+                style: TextStyle(
+                  color: statusColor,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -843,6 +988,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         ],
                       ),
                       Spacer(),
+                      // Indicador de conexión al cloud
+                      _buildConnectionIndicator(),
+                      SizedBox(width: 12),
                       Container(
                         padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         decoration: BoxDecoration(
