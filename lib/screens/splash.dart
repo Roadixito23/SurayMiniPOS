@@ -260,53 +260,6 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
               ),
             ),
 
-            // Footer con información
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 40,
-              child: FadeTransition(
-                opacity: _textFadeAnimation,
-                child: Column(
-                  children: [
-                    Container(
-                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        '© www.suray.cl',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.white,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                    SizedBox(height: 12),
-                    Text(
-                      'POWERED BY',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: Colors.white60,
-                        letterSpacing: 2,
-                      ),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      'RoadTech Studio',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        letterSpacing: 1,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
           ],
         ),
       ),

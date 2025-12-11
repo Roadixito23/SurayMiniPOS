@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:printing/printing.dart';
 import 'package:intl/intl.dart';
 import '../models/comprobante.dart';
@@ -32,6 +33,51 @@ class BusTicketGenerator {
     String? origenSucursal,        // Sucursal de origen seleccionada al login
   }) async {
     try {
+      // --- VALIDACIÓN DE MODO OFFLINE (SERVICIO LOCAL) ---
+      final prefs = await SharedPreferences.getInstance();
+      final bool isOnline = prefs.getBool('server_is_online') ?? true;
+
+      if (!isOnline) {
+        debugPrint('--- [DEBUG OFFLINE] Iniciando validación de origen ---');
+        // 1. Obtener y normalizar sucursal actual
+        String sucursalCode = origenSucursal ?? '';
+        // Si no viene informada, buscar en configuración local (fallback seguro)
+        if (sucursalCode.isEmpty) {
+          sucursalCode = await ComprobanteManager().getOrigen();
+        }
+
+        String currentCity = '';
+        if (sucursalCode == 'AYS') currentCity = 'Aysen';
+        else if (sucursalCode == 'COY') currentCity = 'Coyhaique';
+        else currentCity = sucursalCode;
+
+        debugPrint('--- [DEBUG OFFLINE] Sucursal detectada: "$currentCity" (Código: $sucursalCode) ---');
+
+        // 2. Determinar origen del viaje
+        String tripOrigin = '';
+        final String destinoClean = destino.trim();
+
+        if (origen != null && origen.isNotEmpty) {
+          tripOrigin = origen;
+        } else {
+          // Lógica cruzada: Si voy a Coyhaique, salgo de Aysen y viceversa
+          if (destinoClean == 'Coyhaique') tripOrigin = 'Aysen';
+          else if (destinoClean == 'Aysen') tripOrigin = 'Coyhaique';
+          else tripOrigin = currentCity;
+        }
+
+        debugPrint('--- [DEBUG OFFLINE] Viaje solicitado: Origen "$tripOrigin" -> Destino "$destinoClean" ---');
+
+        // 3. Validar coincidencia
+        if (tripOrigin.isNotEmpty && currentCity.isNotEmpty && tripOrigin != currentCity) {
+           debugPrint('--- [DEBUG OFFLINE] ❌ BLOQUEO ACTIVADO: Origen viaje ($tripOrigin) != Sucursal ($currentCity) ---');
+           throw Exception('MODO OFFLINE: No se permite vender pasajes desde $tripOrigin estando en $currentCity.');
+        }
+        debugPrint('--- [DEBUG OFFLINE] ✅ Validación exitosa ---');
+      }
+      
+      // ---------------------------------------------------
+
       // Verificar si se trata de un destino intermedio
       bool esIntermedio = origen != null || kilometros != null;
 

@@ -39,17 +39,20 @@ class ComprobanteManager {
   // Número máximo de comprobante (6 dígitos)
   static const int _maxCounter = 999999;
 
+  // Cache de SharedPreferences
+  SharedPreferences? _prefs;
+
   /// Inicializa el contador y el ID del dispositivo desde el almacenamiento local
   Future<void> initialize() async {
     if (_initialized) return;
 
     try {
-      final prefs = await SharedPreferences.getInstance();
+      _prefs = await SharedPreferences.getInstance();
 
       // Cargar contadores individualizados por tipo de boleto
       for (var tipo in _counters.keys) {
         final keyCounter = 'comprobante_counter_${tipo.replaceAll(' ', '_')}';
-        _counters[tipo] = prefs.getInt(keyCounter) ?? 1;
+        _counters[tipo] = _prefs!.getInt(keyCounter) ?? 1;
 
         // Asegurar que el contador esté dentro del rango válido
         if (_counters[tipo]! < 1 || _counters[tipo]! > _maxCounter) {
@@ -57,7 +60,7 @@ class ComprobanteManager {
         }
       }
 
-      _deviceId = prefs.getString(_keyDeviceId) ?? '01';
+      _deviceId = _prefs!.getString(_keyDeviceId) ?? '01';
 
       // Cargar origen desde la base de datos
       final origenDb = await AppDatabase.instance.getConfiguracion('origen');
@@ -96,8 +99,9 @@ class ComprobanteManager {
   Future<void> updateDeviceId(String newDeviceId) async {
     _deviceId = newDeviceId;
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = _prefs ?? await SharedPreferences.getInstance();
       await prefs.setString(_keyDeviceId, newDeviceId);
+      _prefs = prefs; // Actualizar cache si era nulo
     } catch (e) {
       debugPrint('Error al guardar device_id: $e');
     }
@@ -168,7 +172,7 @@ class ComprobanteManager {
     }
 
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = _prefs ?? await SharedPreferences.getInstance();
       final keyCounter = 'comprobante_counter_${tipoBoleto.replaceAll(' ', '_')}';
       await prefs.setInt(keyCounter, _counters[tipoBoleto]!);
     } catch (e) {
@@ -193,7 +197,7 @@ class ComprobanteManager {
     await _ensureInitialized();
 
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = _prefs ?? await SharedPreferences.getInstance();
       for (var tipo in _counters.keys) {
         _counters[tipo] = 1;
         final keyCounter = 'comprobante_counter_${tipo.replaceAll(' ', '_')}';

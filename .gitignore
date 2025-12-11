@@ -43,3 +43,10 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Archivos temporales y logs
+build_log.txt
+nul
+
+# VSCode settings (opcional - descomenta si no quieres versionar)
+.vscode/

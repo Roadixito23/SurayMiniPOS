@@ -75,6 +75,14 @@ class CajaDatabase {
     String? idVendedor, // ID del vendedor
     String? sucursal, // Sucursal de origen
   }) async {
+    // Lógica de negocio para Cargo: Forzar destino según origen
+    // Si el origen es AYS, el destino es Coyhaique. Si es COY, es Aysen.
+    if (sucursal == 'AYS') {
+      destino = 'Coyhaique';
+    } else if (sucursal == 'COY') {
+      destino = 'Aysen';
+    }
+
     final now = DateTime.now();
     final venta = {
       'tipo': 'bus',
@@ -133,6 +141,14 @@ class CajaDatabase {
     String? idVendedor, // ID del vendedor
     String? sucursal, // Sucursal de origen
   }) async {
+    // Lógica de negocio para Cargo: Forzar destino según origen
+    // Si el origen es AYS, el destino es Coyhaique. Si es COY, es Aysen.
+    if (sucursal == 'AYS') {
+      destino = 'Coyhaique';
+    } else if (sucursal == 'COY') {
+      destino = 'Aysen';
+    }
+
     final now = DateTime.now();
     final venta = {
       'tipo': 'cargo',
@@ -955,7 +971,9 @@ class CajaDatabase {
     try {
       await _ensureInitialized();
 
-      final file = File('${_appDirectory!.path}/$fileName');
+      final filePath = '${_appDirectory!.path}/$fileName';
+      final file = File(filePath);
+      final tempFile = File('$filePath.tmp'); // Archivo temporal para escritura atómica
 
       // Calcular checksum
       final String jsonData = jsonEncode(data);
@@ -965,8 +983,14 @@ class CajaDatabase {
       final dataWithChecksum = List<dynamic>.from(data);
       dataWithChecksum.add({'_checksum': checksum});
 
-      // Guardar en archivo
-      await file.writeAsString(jsonEncode(dataWithChecksum));
+      // 1. Guardar en archivo temporal primero (con flush para asegurar escritura en disco)
+      await tempFile.writeAsString(jsonEncode(dataWithChecksum), flush: true);
+
+      // 2. Renombrar archivo temporal al original (operación atómica)
+      // Esto previene corrupción de datos si la app se cierra mientras escribe
+      if (await tempFile.exists()) {
+        await tempFile.rename(filePath);
+      }
     } catch (e) {
       debugPrint('Error al guardar archivo JSON $fileName: $e');
       rethrow;
