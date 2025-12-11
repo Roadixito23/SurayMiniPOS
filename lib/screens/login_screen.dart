@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/auth_provider.dart';
 import '../database/app_database.dart';
+import '../services/preferences_manager.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -16,6 +17,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   final _passwordController = TextEditingController();
   bool _isLoading = false;
   bool _obscurePassword = true;
+  bool _rememberUser = false;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
 
@@ -30,6 +32,24 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       CurvedAnimation(parent: _animationController, curve: Curves.easeIn),
     );
     _animationController.forward();
+    
+    // Cargar datos guardados si existen
+    _loadSavedCredentials();
+  }
+
+  Future<void> _loadSavedCredentials() async {
+    final prefs = PreferencesManager();
+    if (prefs.isRememberUser()) {
+      final username = prefs.getUsername();
+      final password = prefs.getPassword();
+      if (username != null && password != null && mounted) {
+        setState(() {
+          _usernameController.text = username;
+          _passwordController.text = password;
+          _rememberUser = true;
+        });
+      }
+    }
   }
 
   @override
@@ -50,6 +70,11 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       _usernameController.text.trim(),
       _passwordController.text,
     );
+
+    // Actualizar preferencia de "recordar usuario"
+    if (success) {
+      await PreferencesManager().setBool('remember_user', _rememberUser);
+    }
 
     setState(() => _isLoading = false);
 
@@ -225,6 +250,19 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                 return null;
                               },
                               onFieldSubmitted: (_) => _handleLogin(),
+                            ),
+                            const SizedBox(height: 16),
+
+                            // Checkbox para recordar usuario
+                            CheckboxListTile(
+                              value: _rememberUser,
+                              onChanged: (value) {
+                                setState(() => _rememberUser = value ?? false);
+                              },
+                              title: const Text('Recordar usuario'),
+                              contentPadding: EdgeInsets.zero,
+                              controlAffinity: ListTileControlAffinity.leading,
+                              dense: true,
                             ),
                             const SizedBox(height: 32),
 

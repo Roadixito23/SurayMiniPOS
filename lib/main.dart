@@ -1,5 +1,4 @@
 import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
@@ -26,10 +25,14 @@ import 'models/auth_provider.dart';
 import 'models/server_status_provider.dart';
 import 'database/caja_database.dart';
 import 'database/app_database.dart';
+import 'services/preferences_manager.dart';
 import 'package:path_provider/path_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Inicializar SharedPreferences para persistencia de datos
+  await PreferencesManager.initialize();
 
   // Inicializar window_manager para funciones de ventana (pantalla completa, etc.)
   if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {

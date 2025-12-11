@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'dart:async';
+import '../models/auth_provider.dart';
 
 class SplashScreen extends StatefulWidget {
   @override
@@ -60,12 +62,34 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
       if (mounted) _textController.forward();
     });
 
-    // Navegar al login después de 2.5 segundos
-    Timer(Duration(milliseconds: 2500), () {
+    // Navegar al login o home después de 2.5 segundos (dependiendo de sesión persistente)
+    Timer(Duration(milliseconds: 2500), () async {
+      if (mounted) {
+        await _navigationFlow();
+      }
+    });
+  }
+
+  Future<void> _navigationFlow() async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      
+      // Intentar restaurar sesión desde SharedPreferences
+      final sesionRestaurada = await authProvider.restoreSessionFromPreferences();
+      
+      if (sesionRestaurada && mounted) {
+        // Si hay sesión, ir a home
+        Navigator.pushReplacementNamed(context, '/home');
+      } else if (mounted) {
+        // Si no hay sesión, ir a login
+        Navigator.pushReplacementNamed(context, '/login');
+      }
+    } catch (e) {
+      debugPrint('Error en flujo de navegación: $e');
       if (mounted) {
         Navigator.pushReplacementNamed(context, '/login');
       }
-    });
+    }
   }
 
   @override
