@@ -5,7 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../database/app_database.dart';
 
 class CloudApiService {
-  static const String defaultBaseUrl = 'https://suraypos.danteaguerorodriguez.work';
+  static const String defaultBaseUrl = 'https://api.danteaguerorodriguez.work';
   static const Duration normalTimeout = Duration(seconds: 15);
   static const Duration healthCheckTimeout = Duration(seconds: 5);
 
