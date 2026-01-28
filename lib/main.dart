@@ -33,6 +33,12 @@ import 'package:path_provider/path_provider.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Inicializar sqflite para plataformas de escritorio (Windows, Linux, macOS)
+  if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+  }
+
   // Inicializar SharedPreferences para persistencia de datos
   await PreferencesManager.initialize();
 
@@ -44,21 +50,17 @@ void main() async {
       size: Size(1280, 800),
       minimumSize: Size(1024, 600),
       center: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor: Colors.white,
       skipTaskbar: false,
       titleBarStyle: TitleBarStyle.normal,
+      title: 'Suray POS OFICINA',
     );
 
-    windowManager.waitUntilReadyToShow(windowOptions, () async {
+    await windowManager.waitUntilReadyToShow(windowOptions, () async {
       await windowManager.show();
       await windowManager.focus();
+      await windowManager.setPreventClose(false);
     });
-  }
-
-  // Inicializar sqflite para plataformas de escritorio (Windows, Linux, macOS)
-  if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-    sqfliteFfiInit();
-    databaseFactory = databaseFactoryFfi;
   }
 
   // Inicializar el gestor de comprobantes al inicio de la aplicación

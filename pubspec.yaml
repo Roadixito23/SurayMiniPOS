@@ -21,10 +21,10 @@ dependencies:
   path_provider: ^2.1.5
   flutter_launcher_icons: ^0.13.1
   sqflite: ^2.3.0
-  sqflite_common_ffi: ^2.3.0
+  sqflite_common_ffi: ^2.3.0+1
   path: ^1.9.0
   crypto: ^3.0.3
-  window_manager: ^0.3.7
+  window_manager: ^0.4.3
   file_picker: ^8.1.4
   http: ^1.1.0
   connectivity_plus: ^5.0.2
